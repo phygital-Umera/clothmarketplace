@@ -1,5 +1,5 @@
 import {Router} from 'express';
-import {userController} from '@controllers/index';
+import {ecommerceController as e, userController} from '@controllers/index';
 import {authLimiter, verifyJWT} from '@middlewares/index';
 
 const {
@@ -30,5 +30,12 @@ router.route('/logout').post(logoutUser);
 router.route('/change-password').post(changePassword);
 router.route('/me').get(getCurrentUser);
 router.route('/update').patch(updateUser);
+
+// Customer Orders & Checkout
+router.post('/orders/checkout', e.customerCheckout);
+router.get('/orders', e.listCustomerOrders);
+router.get('/orders/:id', e.getCustomerOrder);
+router.post('/orders/:id/cancel', e.customerCancelOrder);
+router.post('/orders/:id/return', e.customerReturnOrder);
 
 export default router;

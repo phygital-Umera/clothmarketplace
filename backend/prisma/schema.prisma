@@ -58,6 +58,7 @@ model User {
   addresses              CustomerAddress[]
   returns                ReturnRequest[]
   couponUsages           CouponUsage[]
+  orderStatusUpdates     OrderStatusHistory[]
 }
 
 model Admin {
@@ -216,6 +217,8 @@ model Shop {
   products    Product[]
   offers      Offer[]
   coupons     Coupon[]
+  orders      Order[]
+  returns     ReturnRequest[]
 
   @@index([companyId])
   @@index([branchId])
@@ -606,6 +609,8 @@ enum OrderStatus {
   PACKED
   READY_FOR_DISPATCH
   DISPATCHED
+  SHIPPED
+  OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
   RETURNED
@@ -644,6 +649,8 @@ model Order {
   company        Company         @relation(fields: [companyId], references: [id])
   branchId       String
   branch         Branch          @relation(fields: [branchId], references: [id])
+  shopId         String?
+  shop           Shop?           @relation(fields: [shopId], references: [id])
 
   status         OrderStatus     @default(PENDING)
   paymentStatus  PaymentStatus   @default(PENDING)
@@ -651,12 +658,24 @@ model Order {
 
   subtotal       Float
   discount       Float           @default(0)
+  couponDiscount Float           @default(0)
   tax            Float           @default(0)
   shippingFee    Float           @default(0)
   totalAmount    Float
 
   shippingAddress Json
+  courierName    String?
   trackingNumber String?
+  notes          String?
+
+  // Customer cancellation management
+  cancelReason            String?
+  cancelRequested         Boolean   @default(false)
+  cancelRequestedAt       DateTime?
+  cancelApproved          Boolean?
+  cancelRejectionReason   String?
+
+  paymentDetails          Json?
 
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -664,13 +683,16 @@ model Order {
   items          OrderItem[]
   tasks          OrderTask[]
   returns        ReturnRequest[]
+  statusHistory  OrderStatusHistory[]
   couponCode     String?
   couponUsages   CouponUsage[]
 
   @@index([companyId])
   @@index([branchId])
+  @@index([shopId])
   @@index([customerId])
   @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -684,6 +706,25 @@ model OrderItem {
   quantity    Int
   unitPrice   Float
   totalPrice  Float
+  productName String?
+  variantSku  String?
+  size        String?
+  color       String?
+  image       String?
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(uuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      OrderStatus
+  comment     String?
+  updatedById String?
+  updatedBy   User?       @relation(fields: [updatedById], references: [id])
+  createdAt   DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model OrderTask {
@@ -706,17 +747,21 @@ model ReturnRequest {
   customer     User         @relation(fields: [customerId], references: [id])
   companyId    String
   company      Company      @relation(fields: [companyId], references: [id])
+  shopId       String?
+  shop         Shop?        @relation(fields: [shopId], references: [id])
   reason       String
   description  String?
   returnStatus ReturnStatus @default(REQUESTED)
   refundAmount Float?
   refundStatus RefundStatus @default(NONE)
   notes        String?
+  returnItems  Json?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   @@index([orderId])
   @@index([companyId])
+  @@index([shopId])
 }
 
 model CustomerAddress {
