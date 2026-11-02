@@ -1,7 +1,12 @@
 import {Router} from 'express';
 import {Role} from '@prisma/client';
-import {masterController as m, orgController as c} from '@controllers/index';
-import {checkRole, verifyJWT} from '@middlewares/index';
+import {
+    ecommerceController as e,
+    masterController as m,
+    orgController as c,
+    shopProductController as p,
+} from '@controllers/index';
+import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 
 const router = Router();
 
@@ -31,5 +36,21 @@ router.route('/colors/:id').get(m.getColor).patch(m.updateColor).delete(m.delete
 // ---- 4. Sizes ----
 router.route('/sizes').get(m.listSizes).post(m.createSize);
 router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSize);
+
+// ---- 5. Products (scoped to the user's shop) ----
+router.route('/products').get(p.listProducts).post(p.createProduct);
+router.route('/products/:id').get(p.getProduct).patch(p.updateProduct).delete(p.deleteProduct);
+router.post('/products/:id/images', imageUpload.array('images', 8), p.uploadImages);
+router.route('/products/:id/images/:imageId').patch(p.updateImage).delete(p.deleteImage);
+router.post('/products/:id/previews', p.generatePreviews);
+router.delete('/products/:id/previews/:previewId', p.deletePreview);
+
+// ---- 6. Inventory & Stock Management ----
+router.get('/inventory/dashboard', e.inventoryDashboard);
+router.get('/inventory', e.listInventory);
+router.post('/inventory/adjust', e.adjustStock);
+router.post('/inventory/batch-adjust', e.batchAdjustStock);
+router.patch('/inventory/threshold', e.updateThreshold);
+router.get('/inventory/movements', e.listMovements);
 
 export default router;

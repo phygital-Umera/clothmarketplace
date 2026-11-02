@@ -305,6 +305,13 @@ class MasterService {
     public async deleteSubcategory(id: string) {
         const sub = await prisma.subcategory.findUnique({where: {id}});
         if (!sub) throw new ApiError(httpStatus.NOT_FOUND, 'Subcategory not found');
+        const used = await prisma.product.count({where: {subcategoryId: id, deletedAt: null}});
+        if (used) {
+            throw new ApiError(
+                httpStatus.CONFLICT,
+                `This subcategory is used by ${used} product(s); deactivate it instead`,
+            );
+        }
         await prisma.subcategory.delete({where: {id}});
         return {before: sub};
     }
@@ -407,6 +414,13 @@ class MasterService {
     public async deleteColor(id: string) {
         const color = await prisma.color.findUnique({where: {id}});
         if (!color) throw new ApiError(httpStatus.NOT_FOUND, 'Color not found');
+        const used = await prisma.productColor.count({where: {colorId: id}});
+        if (used) {
+            throw new ApiError(
+                httpStatus.CONFLICT,
+                `This color is used by ${used} product(s); deactivate it instead`,
+            );
+        }
         await prisma.color.delete({where: {id}});
         return {before: color};
     }
@@ -495,6 +509,13 @@ class MasterService {
     public async deleteSize(id: string) {
         const size = await prisma.size.findUnique({where: {id}});
         if (!size) throw new ApiError(httpStatus.NOT_FOUND, 'Size not found');
+        const used = await prisma.productSize.count({where: {sizeId: id}});
+        if (used) {
+            throw new ApiError(
+                httpStatus.CONFLICT,
+                `This size is used by ${used} product(s); deactivate it instead`,
+            );
+        }
         await prisma.size.delete({where: {id}});
         return {before: size};
     }

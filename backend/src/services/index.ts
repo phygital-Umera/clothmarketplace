@@ -13,3 +13,5 @@ export {default as inventoryService} from './inventory.service';
 export {default as orderService} from './order.service';
 export {default as categoryBrandService} from './categoryBrand.service';
 export {default as masterService} from './master.service';
+export {default as shopProductService} from './shopProduct.service';
+export {default as aiPreviewService} from './aiPreview.service';

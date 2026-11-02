@@ -6,13 +6,12 @@ import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {Scope} from '../services/account.service';
 
 const scopeOf = (req: Request): Scope => {
-    const {role, companyId, branchId} = req.user;
+    const {role, companyId, branchId, shopId} = req.user;
     if (role === Role.SUPER_ADMIN) return {};
     if (!companyId)
         throw new ApiError(httpStatus.FORBIDDEN, 'No company is linked to this account');
     if (role === Role.ADMIN) return {companyId};
-    if (!branchId) throw new ApiError(httpStatus.FORBIDDEN, 'No branch is linked to this account');
-    return {companyId, branchId};
+    return {companyId, branchId: branchId ?? undefined, shopId: shopId ?? undefined};
 };
 
 const ok = (
@@ -23,13 +22,30 @@ const ok = (
 ) => res.status(status).json(new ApiResponse(status, data, message));
 
 // Inventory
+export const inventoryDashboard = catchAsync(async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : undefined;
+    const result = await inventoryService.getDashboard(scopeOf(req), {branchId});
+    return ok(res, result, 'Inventory dashboard fetched successfully');
+});
+
 export const listInventory = catchAsync(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
     const search = req.query.search ? String(req.query.search) : undefined;
     const branchId = req.query.branchId ? String(req.query.branchId) : undefined;
+    const status = (req.query.status as any) || 'all';
+    const categoryId = req.query.categoryId ? String(req.query.categoryId) : undefined;
+    const view = (req.query.view as any) || 'product';
 
-    const result = await inventoryService.list(scopeOf(req), {page, limit, search, branchId});
+    const result = await inventoryService.list(scopeOf(req), {
+        page,
+        limit,
+        search,
+        status,
+        categoryId,
+        view,
+        branchId,
+    });
     return ok(res, result, 'Inventory fetched successfully');
 });
 
@@ -38,12 +54,36 @@ export const adjustStock = catchAsync(async (req, res) => {
     return ok(res, adjusted, 'Stock adjusted successfully');
 });
 
+export const batchAdjustStock = catchAsync(async (req, res) => {
+    const result = await inventoryService.batchAdjust(scopeOf(req), req.body, req.user.id);
+    return ok(res, result, 'Batch stock adjustment completed successfully');
+});
+
+export const updateThreshold = catchAsync(async (req, res) => {
+    const updated = await inventoryService.updateThreshold(scopeOf(req), req.body);
+    return ok(res, updated, 'Threshold updated successfully');
+});
+
 export const listMovements = catchAsync(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
     const branchId = req.query.branchId ? String(req.query.branchId) : undefined;
+    const variantId = req.query.variantId ? String(req.query.variantId) : undefined;
+    const productId = req.query.productId ? String(req.query.productId) : undefined;
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const action = req.query.action ? String(req.query.action) : undefined;
+    const type = req.query.type as any;
 
-    const result = await inventoryService.movements(scopeOf(req), {page, limit, branchId});
+    const result = await inventoryService.movements(scopeOf(req), {
+        page,
+        limit,
+        branchId,
+        productId,
+        variantId,
+        search,
+        action,
+        type,
+    });
     return ok(res, result, 'Stock movements retrieved successfully');
 });
 

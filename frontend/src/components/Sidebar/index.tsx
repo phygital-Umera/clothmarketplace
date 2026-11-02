@@ -57,11 +57,27 @@ const NAV: Record<Role, NavGroup[]> = {
       heading: 'Masters',
       items: [item('Branches', '/company-admin/branches', Store)],
     },
+    {
+      heading: 'Operations',
+      items: [
+        item('Products', '/company-admin/products', Package),
+        item('Inventory', '/company-admin/inventory', Boxes),
+        item('Orders', '/company-admin/orders', ShoppingBag),
+      ],
+    },
   ],
   SUB_ADMIN: [
     {
       heading: 'Masters',
       items: [item('Shops', '/branch-admin/shops', Warehouse)],
+    },
+    {
+      heading: 'Operations',
+      items: [
+        item('Products', '/branch-admin/products', Package),
+        item('Inventory', '/branch-admin/inventory', Boxes),
+        item('Orders', '/branch-admin/orders', ShoppingBag),
+      ],
     },
   ],
   SHOP_ADMIN: [
@@ -73,6 +89,13 @@ const NAV: Record<Role, NavGroup[]> = {
         item('Colors', '/shop-admin/colors', Palette),
         item('Sizes', '/shop-admin/sizes', Ruler),
         item('Employees', '/shop-admin/employees', Users),
+      ],
+    },
+    {
+      heading: 'Catalog',
+      items: [
+        item('Products', '/shop-admin/products', Package),
+        item('Inventory', '/shop-admin/inventory', Boxes),
       ],
     },
   ],

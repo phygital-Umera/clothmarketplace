@@ -30,8 +30,11 @@ router.post('/users/:id/revoke-sessions', c.revokeSessions);
 mountCatalog(router, {manageProducts: true});
 
 // Branch Inventory
+router.get('/inventory/dashboard', e.inventoryDashboard);
 router.get('/inventory', e.listInventory);
 router.post('/inventory/adjust', e.adjustStock);
+router.post('/inventory/batch-adjust', e.batchAdjustStock);
+router.patch('/inventory/threshold', e.updateThreshold);
 router.get('/inventory/movements', e.listMovements);
 
 // Branch Orders

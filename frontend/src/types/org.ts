@@ -125,6 +125,10 @@ export type ListParams = {
   companyId?: string;
   role?: string;
   categoryId?: string;
+  subcategoryId?: string;
+  colorId?: string;
+  sizeId?: string;
+  stock?: string;
 };
 
 /** Permissions an admin can give an employee (backend EMPLOYEE_PERMISSIONS) */
