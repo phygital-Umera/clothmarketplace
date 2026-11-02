@@ -168,6 +168,7 @@ const employeeBody = z.object({
     branchId: z.preprocess(emptyToUndefined, z.string().uuid('Select a branch').optional()),
     // The shop the employee works in; it must belong to the branch
     shopId: z.preprocess(emptyToUndefined, z.string().uuid('Select a shop').optional()),
+    employeeRole: field({label: 'Employee Role', kind: 'text', max: 80, required: false}),
     jobTitle: field({label: 'Job Title', kind: 'text', max: 80, required: false}),
     department: field({label: 'Department', kind: 'text', max: 80, required: false}),
     joiningDate: z.preprocess(

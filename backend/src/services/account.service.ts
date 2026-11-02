@@ -23,6 +23,7 @@ export const SAFE_USER = {
     branchId: true,
     shopId: true,
     employeeCode: true,
+    employeeRole: true,
     jobTitle: true,
     department: true,
     joiningDate: true,

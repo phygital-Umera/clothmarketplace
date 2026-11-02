@@ -39,6 +39,7 @@ model User {
   createdById            String?
   department             String?
   employeeCode           String?       @unique
+  employeeRole           String?
   jobTitle               String?
   joiningDate            DateTime?
   permissions            String[]      @default([])
@@ -277,6 +278,7 @@ model Category {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   products    Product[]
+  subcategories Subcategory[]
 
   @@index([companyId])
   @@index([code])
@@ -297,6 +299,47 @@ model Brand {
   products    Product[]
 
   @@index([companyId])
+  @@index([code])
+}
+
+model Subcategory {
+  id           String    @id @default(uuid())
+  categoryId   String
+  category     Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  code         String    @unique
+  description  String?
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([categoryId])
+  @@index([code])
+}
+
+model Color {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  hexCode   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+}
+
+model Size {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  description  String?
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   @@index([code])
 }
 

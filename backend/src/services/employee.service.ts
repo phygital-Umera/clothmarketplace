@@ -39,6 +39,7 @@ class EmployeeService {
                 'email',
                 'phoneNumber',
                 'employeeCode',
+                'employeeRole',
                 'jobTitle',
             ] as const),
         };
@@ -116,6 +117,7 @@ class EmployeeService {
                             branchId,
                             shopId,
                             employeeCode,
+                            employeeRole: data.employeeRole,
                             jobTitle: data.jobTitle,
                             department: data.department,
                             joiningDate: data.joiningDate,

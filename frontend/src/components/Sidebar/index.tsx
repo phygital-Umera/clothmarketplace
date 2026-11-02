@@ -5,6 +5,10 @@ import {Link} from '@tanstack/react-router';
 import {roleConfig, Role, ROLES} from '@/lib/roles';
 import {
   Boxes,
+  Layers,
+  Palette,
+  Ruler,
+  Tags,
   KeyRound,
   LayoutDashboard,
   Package,
@@ -63,7 +67,13 @@ const NAV: Record<Role, NavGroup[]> = {
   SHOP_ADMIN: [
     {
       heading: 'Masters',
-      items: [item('Employees', '/shop-admin/employees', Users)],
+      items: [
+        item('Categories', '/shop-admin/categories', Tags),
+        item('Subcategories', '/shop-admin/subcategories', Layers),
+        item('Colors', '/shop-admin/colors', Palette),
+        item('Sizes', '/shop-admin/sizes', Ruler),
+        item('Employees', '/shop-admin/employees', Users),
+      ],
     },
   ],
   EMPLOYEE: [dashboard(ROLES.EMPLOYEE.home)],

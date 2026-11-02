@@ -188,6 +188,12 @@ const employeeFields = {
   phoneNumber: field({label: 'Phone Number', kind: 'phone'}),
   branchId: z.string().optional(),
   shopId: z.string().optional(),
+  employeeRole: field({
+    label: 'Employee Role',
+    kind: 'text',
+    max: 80,
+    required: false,
+  }),
   jobTitle: field({label: 'Job Title', kind: 'text', max: 80, required: false}),
   department: field({
     label: 'Department',
@@ -234,6 +240,7 @@ export const EMPTY_EMPLOYEE: EmployeeValues = {
   phoneNumber: '',
   branchId: '',
   shopId: '',
+  employeeRole: '',
   jobTitle: '',
   department: '',
   joiningDate: '',

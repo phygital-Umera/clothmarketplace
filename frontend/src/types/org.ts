@@ -95,6 +95,7 @@ export interface Account {
   branchId: string | null;
   shopId: string | null;
   employeeCode: string | null;
+  employeeRole: string | null;
   jobTitle: string | null;
   department: string | null;
   joiningDate: string | null;
