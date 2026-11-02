@@ -58,28 +58,24 @@ const NAV: Record<Role, NavGroup[]> = {
       heading: 'Masters',
       items: [item('Branches', '/company-admin/branches', Store)],
     },
-    // {
-    //   heading: 'Operations',
-    //   items: [
-    //     item('Products', '/company-admin/products', Package),
-    //     item('Inventory', '/company-admin/inventory', Boxes),
-    //     item('Orders', '/company-admin/orders', ShoppingBag),
-    //   ],
-    // },
+    {
+      heading: 'Sales & Fulfillment',
+      items: [
+        item('Orders', '/company-admin/orders', ShoppingBag),
+      ],
+    },
   ],
   SUB_ADMIN: [
     {
       heading: 'Masters',
       items: [item('Shops', '/branch-admin/shops', Warehouse)],
     },
-    // {
-    //   heading: 'Operations',
-    //   items: [
-    //     item('Products', '/branch-admin/products', Package),
-    //     item('Inventory', '/branch-admin/inventory', Boxes),
-    //     item('Orders', '/branch-admin/orders', ShoppingBag),
-    //   ],
-    // },
+    {
+      heading: 'Sales & Fulfillment',
+      items: [
+        item('Orders', '/branch-admin/orders', ShoppingBag),
+      ],
+    },
   ],
   SHOP_ADMIN: [
     {
@@ -98,6 +94,12 @@ const NAV: Record<Role, NavGroup[]> = {
         item('Products', '/shop-admin/products', Package),
         item('Inventory', '/shop-admin/inventory', Boxes),
         item('Offers & Coupons', '/shop-admin/promotions', TicketPercent),
+      ],
+    },
+    {
+      heading: 'Sales & Fulfillment',
+      items: [
+        item('Orders', '/shop-admin/orders', ShoppingBag),
       ],
     },
   ],

@@ -57,4 +57,17 @@ router.get('/inventory/movements', e.listMovements);
 // ---- 7. Offers & Promotions Management ----
 mountPromotions(router);
 
+// ---- 8. Order Management & Returns ----
+router.get('/orders/dashboard', e.orderDashboard);
+router.route('/orders').get(e.listOrders);
+router.route('/orders/:id').get(e.getOrder);
+router.patch('/orders/:id/status', e.updateOrderStatus);
+router.patch('/orders/:id/shipping', e.updateOrderShipping);
+router.patch('/orders/:id/payment', e.updateOrderPayment);
+router.post('/orders/:id/cancel-review', e.reviewCancellation);
+router.get('/orders/:id/invoice', e.getOrderInvoice);
+
+router.get('/returns', e.listReturns);
+router.patch('/returns/:id', e.updateReturnStatus);
+
 export default router;

@@ -46,11 +46,17 @@ router.patch('/inventory/threshold', e.updateThreshold);
 router.get('/inventory/movements', e.listMovements);
 
 // Orders & Returns
+router.get('/orders/dashboard', e.orderDashboard);
 router.route('/orders').get(e.listOrders);
 router.route('/orders/:id').get(e.getOrder);
 router.patch('/orders/:id/status', e.updateOrderStatus);
+router.patch('/orders/:id/shipping', e.updateOrderShipping);
+router.patch('/orders/:id/payment', e.updateOrderPayment);
+router.post('/orders/:id/cancel-review', e.reviewCancellation);
+router.get('/orders/:id/invoice', e.getOrderInvoice);
 
 router.get('/returns', e.listReturns);
+router.patch('/returns/:id', e.updateReturnStatus);
 router.patch('/returns/:id/status', e.updateReturnStatus);
 
 // Promotions & Offers
