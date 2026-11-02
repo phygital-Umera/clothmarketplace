@@ -57,6 +57,7 @@ model User {
   cart                   Cart?
   addresses              CustomerAddress[]
   returns                ReturnRequest[]
+  couponUsages           CouponUsage[]
 }
 
 model Admin {
@@ -118,6 +119,8 @@ model Company {
   products      Product[]
   orders        Order[]
   returns       ReturnRequest[]
+  offers        Offer[]
+  coupons       Coupon[]
 
   @@index([name])
   @@index([status])
@@ -183,6 +186,8 @@ model Branch {
   inventory       Inventory[]
   orders          Order[]
   stockMovements  StockMovement[]
+  offers          Offer[]
+  coupons         Coupon[]
 
   @@index([companyId])
   @@index([status])
@@ -209,6 +214,8 @@ model Shop {
   branch      Branch     @relation(fields: [branchId], references: [id])
   users       User[]
   products    Product[]
+  offers      Offer[]
+  coupons     Coupon[]
 
   @@index([companyId])
   @@index([branchId])
@@ -279,6 +286,7 @@ model Category {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   products    Product[]
+  offers      Offer[]
   subcategories Subcategory[]
 
   @@index([companyId])
@@ -315,6 +323,7 @@ model Subcategory {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   products     Product[]
+  offers       Offer[]
 
   @@index([categoryId])
   @@index([code])
@@ -431,6 +440,7 @@ model Product {
   sizes          ProductSize[]
   colors         ProductColor[]
   previews       ProductColorPreview[]
+  offers         Offer[]
 
   @@index([companyId])
   @@index([categoryId])
@@ -654,6 +664,8 @@ model Order {
   items          OrderItem[]
   tasks          OrderTask[]
   returns        ReturnRequest[]
+  couponCode     String?
+  couponUsages   CouponUsage[]
 
   @@index([companyId])
   @@index([branchId])
@@ -756,4 +768,111 @@ model ProductReview {
   title     String?
   comment   String?
   createdAt DateTime @default(now())
+}
+
+// -------------------------------------------------------------
+// OFFERS & PROMOTIONS MANAGEMENT MODELS
+// -------------------------------------------------------------
+
+enum OfferType {
+  PERCENTAGE
+  FLAT
+}
+
+enum OfferApplicableOn {
+  ALL_PRODUCTS
+  SELECTED_CATEGORIES
+  SELECTED_SUBCATEGORIES
+  SELECTED_PRODUCTS
+}
+
+model Offer {
+  id               String            @id @default(uuid())
+  name             String
+  description      String?
+  bannerUrl        String?
+  type             OfferType         @default(PERCENTAGE)
+  discountValue    Float
+  applicableOn     OfferApplicableOn @default(ALL_PRODUCTS)
+  minOrderValue    Float             @default(0)
+  maxDiscountLimit Float?
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean           @default(true)
+  priority         Int               @default(0)
+
+  // Scope: optional company/branch/shop ties
+  companyId        String?
+  company          Company?          @relation(fields: [companyId], references: [id])
+  branchId         String?
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  shopId           String?
+  shop             Shop?             @relation(fields: [shopId], references: [id])
+
+  // Relations for specific scopes
+  categories       Category[]
+  subcategories    Subcategory[]
+  products         Product[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([shopId])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model Coupon {
+  id                String        @id @default(uuid())
+  code              String        @unique
+  name              String?
+  description       String?
+  bannerUrl         String?
+  type              OfferType     @default(PERCENTAGE)
+  discountValue     Float
+  minPurchaseAmount Float         @default(0)
+  maxDiscountLimit  Float?
+  usageLimit        Int?          // Total allowed uses across all users (null = unlimited)
+  perCustomerLimit  Int           @default(1) // Uses per individual customer
+  usedCount         Int           @default(0)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean       @default(true)
+
+  companyId         String?
+  company           Company?      @relation(fields: [companyId], references: [id])
+  branchId          String?
+  branch            Branch?       @relation(fields: [branchId], references: [id])
+  shopId            String?
+  shop              Shop?         @relation(fields: [shopId], references: [id])
+
+  usages            CouponUsage[]
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([code])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([shopId])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model CouponUsage {
+  id             String   @id @default(uuid())
+  couponId       String
+  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  orderId        String?
+  order          Order?   @relation(fields: [orderId], references: [id])
+  discountAmount Float
+  usedAt         DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
+  @@index([orderId])
 }

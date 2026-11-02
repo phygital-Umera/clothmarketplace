@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {orgController, ecommerceController} from '@controllers/index';
 import {checkPermission, checkSuperAdmin, verifyJWT} from '@middlewares/index';
 import mountCatalog from './catalog.routes';
+import {mountPromotions} from './promotion.routes';
 
 const c = orgController;
 const e = ecommerceController;
@@ -29,5 +30,8 @@ router.get('/inventory/dashboard', e.inventoryDashboard);
 router.get('/inventory', e.listInventory);
 router.get('/inventory/movements', e.listMovements);
 router.get('/returns', e.listReturns);
+
+// Platform Promotions & Offers
+mountPromotions(router);
 
 export default router;

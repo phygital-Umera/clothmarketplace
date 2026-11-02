@@ -7,3 +7,5 @@ export * as ecommerceController from './ecommerce.controller';
 export {default as catalogController} from './catalog.controller';
 export {default as masterController} from './master.controller';
 export {default as shopProductController} from './shopProduct.controller';
+export * as promotionController from './promotion.controller';
+

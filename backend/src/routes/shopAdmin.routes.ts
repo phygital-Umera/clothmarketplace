@@ -7,6 +7,7 @@ import {
     shopProductController as p,
 } from '@controllers/index';
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
+import {mountPromotions} from './promotion.routes';
 
 const router = Router();
 
@@ -52,5 +53,8 @@ router.post('/inventory/adjust', e.adjustStock);
 router.post('/inventory/batch-adjust', e.batchAdjustStock);
 router.patch('/inventory/threshold', e.updateThreshold);
 router.get('/inventory/movements', e.listMovements);
+
+// ---- 7. Offers & Promotions Management ----
+mountPromotions(router);
 
 export default router;
