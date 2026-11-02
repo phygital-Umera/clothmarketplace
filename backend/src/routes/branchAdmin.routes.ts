@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {orgController, ecommerceController} from '@controllers/index';
 import {checkBranchAdmin, verifyJWT} from '@middlewares/index';
 import mountCatalog from './catalog.routes';
+import {mountPromotions} from './promotion.routes';
 
 const c = orgController;
 const e = ecommerceController;
@@ -44,5 +45,8 @@ router.patch('/orders/:id/status', e.updateOrderStatus);
 
 // Branch Returns
 router.get('/returns', e.listReturns);
+
+// Promotions & Offers
+mountPromotions(router);
 
 export default router;
