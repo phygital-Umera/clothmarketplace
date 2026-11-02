@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Backup & Restore Testing Client</title>
+    <!-- Modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #151d30;
+            --border-color: #24324f;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.35);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.25);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.25);
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 750px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        /* Sleek card component */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 
+                        0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.4), 
+                        0 0 15px rgba(59, 130, 246, 0.1);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        /* Form Inputs */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            background-color: rgba(11, 15, 25, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* File Upload Zone */
+        .file-dropzone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background-color: rgba(11, 15, 25, 0.3);
+        }
+
+        .file-dropzone:hover, .file-dropzone.dragover {
+            border-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.03);
+        }
+
+        .file-dropzone svg {
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+        }
+
+        .file-dropzone input {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--success);
+            display: none;
+        }
+
+        /* Buttons & Actions */
+        .actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 14px 0 var(--primary-glow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 var(--primary-glow);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+            box-shadow: 0 4px 14px 0 var(--success-glow);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 var(--success-glow);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Live Console Logger */
+        .console {
+            background-color: #050811;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            max-height: 250px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .log-line {
+            line-height: 1.4;
+            word-break: break-all;
+        }
+
+        .log-info { color: var(--text-muted); }
+        .log-success { color: var(--success); }
+        .log-error { color: var(--danger); font-weight: 500; }
+        .log-action { color: #f59e0b; }
+
+        .log-time {
+            color: #4b5563;
+            margin-right: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            background-color: var(--text-muted);
+        }
+
+        .status-active {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Database Control Center</h1>
+        <p class="subtitle">Secure Backup & Restore Testing Client</p>
+    </header>
+
+    <!-- Backup Operations Card -->
+    <section class="card" id="backup-panel">
+        <h2 class="card-title">Database Backup</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.25rem; font-size: 0.9rem;">
+            Generates a complete PostgreSQL compatible `.sql` dump of all system tables. All table inserts will be sorted topologically to resolve foreign key constraints.
+        </p>
+        <button id="btn-download" class="btn btn-primary">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Generate & Download SQL Backup
+        </button>
+    </section>
+
+    <!-- Restore Operations Card -->
+    <section class="card" id="restore-panel">
+        <h2 class="card-title">Database Restore</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.25rem; font-size: 0.9rem; border-left: 3px solid var(--danger); padding-left: 0.5rem;">
+            Restores the database to a previous state. This operation is destructive and will truncate all current records before executing the backup.
+        </p>
+        
+        <div class="input-group">
+            <div class="file-dropzone" id="dropzone">
+                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin: 0 auto 0.75rem;"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                <span>Drag & Drop your backup <b>.sql</b> file here or <b>browse</b></span>
+                <input type="file" id="file-input" accept=".sql">
+                <div class="file-info" id="file-info">Selected file: <span id="file-name">none</span></div>
+            </div>
+        </div>
+
+        <button id="btn-restore" class="btn btn-success" disabled>
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5M20 4v5h-5"></path></svg>
+            Restore Database From File
+        </button>
+    </section>
+
+    <!-- Execution Console Logs -->
+    <section class="card" id="logs-panel">
+        <h2 class="card-title">Live Execution Logs</h2>
+        <div class="console" id="console-logs">
+            <div class="log-line log-info"><span class="log-time">[System]</span>Waiting for actions...</div>
+        </div>
+    </section>
+</div>
+
+<script>
+    // Configuration
+    const baseUrl = 'https://bq88dfxj-5670.inc1.devtunnels.ms/api/v1';
+
+    // Elements
+    const btnDownload = document.getElementById('btn-download');
+    const btnRestore = document.getElementById('btn-restore');
+    const fileInput = document.getElementById('file-input');
+    const dropzone = document.getElementById('dropzone');
+    const fileInfo = document.getElementById('file-info');
+    const fileNameSpan = document.getElementById('file-name');
+    const consoleLogs = document.getElementById('console-logs');
+
+    // Utility Log Function
+    function log(message, type = 'info') {
+        const time = new Date().toLocaleTimeString();
+        const line = document.createElement('div');
+        line.className = `log-line log-${type}`;
+        line.innerHTML = `<span class="log-time">[${time}]</span>${message}`;
+        consoleLogs.appendChild(line);
+        consoleLogs.scrollTop = consoleLogs.scrollHeight;
+    }
+
+    // File Drag & Drop events
+    dropzone.addEventListener('click', () => fileInput.click());
+    
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            handleFileSelection(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            handleFileSelection(e.target.files[0]);
+        }
+    });
+
+    function handleFileSelection(file) {
+        if (!file.name.endsWith('.sql')) {
+            log('Error: Only .sql files are allowed for restores.', 'error');
+            btnRestore.disabled = true;
+            fileInfo.style.display = 'none';
+            return;
+        }
+        fileNameSpan.textContent = `${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+        fileInfo.style.display = 'block';
+        btnRestore.disabled = false;
+        log(`Selected backup file: ${file.name}`, 'info');
+    }
+
+    // Download Backup Trigger
+    btnDownload.addEventListener('click', async () => {
+        btnDownload.disabled = true;
+        log('Initiating database backup generation...', 'action');
+
+        try {
+            const response = await fetch(`${baseUrl}/backup`, {
+                method: 'GET'
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Backup failed: ${response.status} ${response.statusText}. ${text}`);
+            }
+
+            // Stream and Download file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            
+            // Extract filename from headers if possible
+            const disposition = response.headers.get('content-disposition');
+            let filename = `backup-${Date.now()}.sql`;
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) { 
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            log(`Success: Backup generated and downloaded successfully as "${filename}"!`, 'success');
+        } catch (error) {
+            log(error.message, 'error');
+        } finally {
+            btnDownload.disabled = false;
+        }
+    });
+
+    // Restore Backup Trigger
+    btnRestore.addEventListener('click', async () => {
+        const file = fileInput.files[0] || (dropzone.files ? dropzone.files[0] : null);
+
+        if (!file) {
+            log('Error: Please select a valid SQL file to restore.', 'error');
+            return;
+        }
+
+        if (!confirm('WARNING: This will completely truncate all active database tables and restore data from the file. Are you absolutely sure?')) {
+            return;
+        }
+
+        btnRestore.disabled = true;
+        log('Initiating database restoration...', 'action');
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`${baseUrl}/backup/restore`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || `Restore failed: status code ${response.status}`);
+            }
+
+            log(`Success: ${result.message || 'Database restored successfully!'}`, 'success');
+        } catch (error) {
+            log(error.message, 'error');
+        } finally {
+            btnRestore.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "CommonJS",
+        "typeRoots": ["./src/types", "./node_modules/@types"],
+        "rootDir": "./src",
+        "baseUrl": "./src",
+        "paths": {
+            "@libs/*": ["libs/*"],
+            "@utils/*": ["utils/*"],
+            "@config/*": ["config/*"],
+            "@routes/*": ["routes/*"],
+            "@models/*": ["models/*"],
+            "@services/*": ["services/*"],
+            "@controllers/*": ["controllers/*"],
+            "@middlewares/*": ["middlewares/*"],
+            "@validations/*": ["validations/*"],
+            "@client": ["client.ts"],
+        },
+        "outDir": "./dist",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true
+    },
+    "include": ["src/**/*", "src/seeding/priority.ts"],
+    "exclude": ["node_modules"]
+}

@@ -1,0 +1,1143 @@
+==========================================================================
+ CLOTH PRO - QA TEST REPORT
+ Tester: Claude (QA role)        Date: 2026-10-30
+ Scope : backend/ (Express + Prisma + Postgres) and frontend/ (React + Vite)
+==========================================================================
+
+--------------------------------------------------------------------------
+1. WHAT WAS TESTED
+--------------------------------------------------------------------------
+[PASS] Backend TypeScript type-check (npx tsc --noEmit) .......... 0 errors
+[PASS] Backend ESLint (src/**/*.ts) .............................. 0 problems
+[SKIP] Frontend build / lint ... frontend/node_modules is not installed.
+       Run `cd frontend && npm install && npm run lint && npm run build`.
+[DONE] Manual code review: all backend source (routes, controllers, services,
+       middlewares, validations, prisma schema), frontend auth flow, axios
+       client, route guards, and frontend <-> backend API contract.
+[NOT DONE] Live API tests. The server needs a reachable Postgres DATABASE_URL.
+
+Overall: NOT READY FOR RELEASE. 4 critical, 7 high, 8 medium, 5 low issues.
+
+--------------------------------------------------------------------------
+2. CRITICAL
+--------------------------------------------------------------------------
+C1. Anyone can register as SUPERADMIN
+    File : backend/src/routes/user.routes.ts:23 + validations/user.validation.ts:14
+    Steps: POST /api/v1/users/register  { ..., "role": "SUPERADMIN" }
+    Result: A public, unauthenticated endpoint takes `role` from the request
+            body and saves it.
+    Expect: Public signup must never set the role. Remove `role` from the
+            public schema, or protect the route with checkSuperAdmin.
+
+C2. Register response leaks the password hash and other secrets
+    File : backend/src/controllers/user.controller.ts:43, services/user.service.ts:127,139
+    Steps: Register a new user, then read the response body.
+    Result: The full Prisma User row is returned, including password (bcrypt
+            hash), refreshToken, verifyCode and verifyCodeExpiry.
+    Expect: Return a safe subset (id, fullname, email, phoneNumber, role).
+            utils/exclude.ts already exists for this.
+
+C3. A refresh token also works as an access token
+    File : backend/src/services/token.service.ts:37-46, middlewares/auth.middleware.ts:35
+    Result: Both tokens are signed with the same JWT_SECRET, and verifyJWT only
+            checks `id`. A 30-day refresh token can call every private route.
+    Expect: Use a separate secret, or add a `type` claim and reject refresh
+            tokens in verifyJWT.
+
+C4. Path traversal in uploaded file names
+    File : backend/src/middlewares/multer.middleware.ts:28
+    Result: The filename is `${Date.now()}-${file.originalname}`, and the client
+            controls originalname. A name like "../../src/x.js" can write
+            outside public/temp.
+    Expect: Use path.basename(), or a random name plus the checked extension.
+
+--------------------------------------------------------------------------
+3. HIGH
+--------------------------------------------------------------------------
+H1. Registering with no `role` creates a user who can never log in
+    File : backend/src/services/user.service.ts:88-90
+    Result: The role defaults to ADMIN (`role ?? Role.ADMIN`), but the Admin
+            row is only created when `role === 'ADMIN'` was sent explicitly.
+            Login then fails with 404 "Admin not found", and verifyJWT fails
+            with 401.
+    Expect: Check the resolved role, not the raw input.
+
+H2. Login lookup can match the wrong user
+    File : backend/src/services/user.service.ts:178
+    Result: The query is `OR: [{phoneNumber: username}, {email}]`. One of the
+            two is always undefined, and Prisma treats an undefined filter as
+            empty. Depending on the Prisma version, this can return an
+            arbitrary first user, so real users get "Invalid credentials".
+            The `username` field is also compared against phoneNumber.
+            NEEDS LIVE CONFIRMATION.
+    Expect: Build the where-clause only from fields that were actually sent.
+
+H3. The login rate limiter is never applied
+    File : backend/src/app.ts:47
+    Result: The limiter is mounted on '/v1/auth', but the routes live at
+            '/api/v1/users/*'. Login is open to brute force.
+            'trust proxy' = true also lets a client spoof its IP through the
+            X-Forwarded-For header.
+
+H4. Fake success on verify-code and reset-password-request
+    File : backend/src/services/user.service.ts:254-280
+    Result: Both are stubs that only console.log. The API still replies
+            "Account verified successfully!" and "Password reset email sent".
+    Expect: Implement them, or return 501 Not Implemented.
+
+H5. /reset-password changes the password without the current password
+    File : backend/src/routes/user.routes.ts:46
+    Result: Any valid access token (or refresh token, see C3) can set a new
+            password. That is account takeover if a token is stolen.
+
+H6. The frontend calls backend routes that do not exist
+    Frontend (lib/api/Auth/auth.ts, utils/axios.ts)   Backend
+    /users/refresh-token                     ->  /users/refresh      (404)
+    /users/current-user                      ->  /users/me           (404)
+    /users/update-account                    ->  /users/update       (404)
+    /notifications, /showDishById/:id,
+    cateror/cateror/notification/:id         ->  do not exist        (404)
+    Impact: When the access token expires (30 min), the refresh call fails,
+            the token is removed, and the user is silently logged out.
+
+H7. Token refresh reads the wrong response shape
+    File : frontend/src/utils/axios.ts:44-51
+    Result: It reads res.data.accessToken, but the backend wraps the payload as
+            { statusCode, data: { accessToken, refreshToken }, ... }.
+            Even after H6 is fixed, this stores `undefined` tokens.
+    Expect: res.data.data.accessToken
+
+--------------------------------------------------------------------------
+4. MEDIUM
+--------------------------------------------------------------------------
+M1. No route guard: /dashboard opens without logging in.
+    frontend/src/layouts/AppLayout.tsx reads isAuthenticated (and imports
+    Navigate) but never uses them.
+M2. Sign In and Sign Up pages are empty placeholders
+    (frontend/src/pages/Signin.tsx, Signup.tsx), so the app cannot be used end
+    to end through the UI.
+M3. Super admin is never detected: AuthContextProvider.tsx:33 compares
+    role === 'SuperAdmin', but the backend sends 'SUPERADMIN'.
+M4. Frontend login only treats '@gmail.com' addresses as emails
+    (lib/api/Auth/auth.ts:53). Any other email is sent as `username`, which
+    the backend compares against phoneNumber, so login fails.
+M5. PATCH /users/update returns 500 for many valid-looking inputs
+    (user.validation.ts:90). updateUserSchema allows fields that are not on the
+    User model (dob, customerLimit, city, amount, contactPerson*, ...), and
+    prisma.user.update rejects them with a validation error.
+M6. 404 handler double response: middlewares/error.middleware.ts:10-13 sends a
+    response and then calls next(error), so errorHandler tries to respond again.
+    Result: "Cannot set headers after they are sent" on every unknown URL.
+M7. CORS is origin '*' with credentials:true, and the CORS_ORIGINS env is
+    ignored. Browsers block credentialed requests with '*', and the cookies are
+    `secure:true` while the frontend uses plain http://192.168.x.x, so the
+    cookies are never set.
+M8. Logout cannot complete when the backend is down: DropdownUser.tsx:16. If
+    logoutUser() throws, the localStorage cleanup and reload never run.
+
+--------------------------------------------------------------------------
+5. LOW / CLEAN-UP
+--------------------------------------------------------------------------
+L1. Uploaded temp files in public/temp are never deleted. The disk fills up
+    over time. public/ is also served statically, so temp uploads are publicly
+    downloadable.
+L2. The upload whitelist accepts video, audio and Office files for `logo` and
+    `coverImage`. Limit these to images.
+L3. The XSS middleware is disabled (app.ts:28, TODO).
+L4. 500 responses return raw internal error messages, and the error handler
+    console.logs every error twice.
+L5. A user without a password (created by the getUserInfo sync) makes login
+    call bcrypt.compare(undefined) and fail with a 500 instead of a 401.
+    About 270 frontend component files are leftover catering-app code that no
+    route uses (package name "caterringmanagement", backend name "restaurant").
+
+--------------------------------------------------------------------------
+6. RECOMMENDED FIX ORDER
+--------------------------------------------------------------------------
+1) C1, C2, C3, C4   2) H1, H2, H6, H7 (login and refresh must work)
+3) M1, M2 (real sign-in UI + guard)   4) H3, H4, H5   5) the rest
+
+--------------------------------------------------------------------------
+7. RE-TEST CHECKLIST (after fixes)
+--------------------------------------------------------------------------
+[ ] Register with role=SUPERADMIN  -> 400/403, or role ignored
+[ ] Register response contains no password / refreshToken / verifyCode
+[ ] Refresh token sent as Bearer to /users/me -> 401
+[ ] Upload named "../../evil.txt" -> saved inside public/temp only
+[ ] Register without role -> can log in successfully
+[ ] Login by phone and by any email domain -> correct user
+[ ] 21 failed logins in 15 min -> 429
+[ ] Wait for access-token expiry -> silent refresh works, user stays logged in
+[ ] Open /dashboard logged out -> redirected to /signin
+[ ] GET /nope -> a single 404 JSON, no "headers already sent" in the logs
+[ ] cd frontend && npm install && npm run lint && npm run build -> pass
+==========================================================================
+
+
+==========================================================================
+ [TEAM LEAD] SUPER ADMIN PANEL - TASK ASSIGNMENT          Date: 2026-10-31
+ To: Developer, then Tester
+==========================================================================
+
+Team,
+
+We are building the full Super Admin Panel (12 modules: Dashboard,
+Companies, Company Admins, Branch Overview, User Management, Global
+Categories, Product Monitoring, Order Monitoring, Reports & Analytics,
+Platform Settings, Security & Audit Logs, My Profile).
+
+HOW WE WORK ON THIS
+- We build ONE module at a time. I will assign each module here when it
+  is ready to start. Do not start a module until it is assigned.
+- Each module goes: Developer builds -> Developer marks "READY FOR QA"
+  here -> Tester tests -> Tester marks "PASS" or files bugs -> next module.
+- Today's assignment is PHASE 0 (foundation) only. Every later module
+  depends on it, so it must be solid.
+
+Already in place (do not rebuild):
+- Design system from DESIGN.md is in frontend/tailwind.config.js and
+  frontend/src/assets/css/style.css (.btn-primary, .btn-ghost, .field-input,
+  .field-label, .field-error, .panel, .badge-*). Use only these tokens.
+  No new colours, fonts, rounded corners or shadows.
+- Super admin sign-in, route guard, sidebar, header.
+- Companies: list / add / edit / delete / details drawer
+  (frontend/src/pages/companies, backend /api/v1/companies).
+- Backend Company model + migration, `npm run create:superadmin` script.
+
+--------------------------------------------------------------------------
+ PART A - DEVELOPER                                   Status: ASSIGNED
+--------------------------------------------------------------------------
+
+A1. GET THE BACKEND RUNNING (do this first)
+    1. Start Postgres locally (or Docker: postgres:16) and set
+       DATABASE_URL in backend/.env. Never commit .env.
+    2. cd backend
+       npm install
+       npx prisma migrate deploy
+       npm run create:superadmin -- --email <you> --phone <10 digits> --password <8+ chars>
+       npm run dev
+    3. Set VITE_SERVER_URL in frontend/.env to http://localhost:<PORT>/api/v1
+    4. cd frontend && npm install && npm run dev
+    5. Sign in, open /companies and add one company end to end against
+       the REAL database. Post the result here.
+    6. Add backend/.env.example with every variable and NO real values.
+
+A2. GENERIC COMPONENTS (one shared set for all 12 modules)
+    Old catering versions already exist in frontend/src/components/Forms/
+    (GenericInputField, GenericButton, GenericTable, GenericDropDown,
+    GenericSearchDropdown, GenericTextArea, GenericFileUpload) and
+    components/VerticalTab. They use the old TailAdmin look, have no
+    required markers and the table only paginates on the client.
+    -> Upgrade them IN PLACE (same names, same folder) so nothing that
+       imports them breaks. Export everything from
+       components/Forms/index.ts.
+
+    a) GenericInputField
+       Props: name, label, type, placeholder, required, disabled, hint,
+              rules? (override), prefix? (e.g. "+91"), maxLength.
+       - Works inside react-hook-form (useFormContext).
+       - Shows label, red * when required, hint text, field error under
+         the input, aria-invalid / aria-describedby.
+       - Uses .field-label / .field-input / .field-error classes.
+       - Phone and number types accept digits only while typing.
+
+    b) GenericButton
+       Props: variant = primary | ghost | text | danger | icon,
+              type, loading, disabled, leftIcon, onClick, children.
+       - loading=true shows a spinner AND disables the button
+         (prevents double submit).
+
+    c) GenericDropdown (single select) + GenericSearchDropdown
+       Props: name, label, options [{value,label}], placeholder,
+              required, disabled, dependsOn? (clears when parent changes,
+              e.g. Country -> State -> City), loading.
+       - Searchable variant for long lists (companies, categories).
+       - Same label / * / error behaviour as the input.
+
+    d) GenericTable
+       Props: columns [{key, header, render?, sortable?, hideBelow?:
+              'md'|'lg'|'xl', align?}], data, rowKey, loading, error,
+              onRetry, emptyTitle, emptyMessage, emptyAction,
+              onRowClick, rowActions(row) -> [{label, icon, onClick,
+              tone?, permission?}],
+              pagination {page, limit, total} + onPageChange,
+              onLimitChange, sort {key, dir} + onSortChange.
+       - SERVER-SIDE pagination and sorting (the parent passes page and
+         total from the API). Keep a client-side mode only for small lists.
+       - Built-in loading skeleton, empty state, error state with retry.
+       - Table on md+ screens, stacked cards on phones (like the current
+         Companies page). Zebra rows ivory / ivory-50.
+       - Toolbar slot for search + filter tabs + "Clear filters".
+       - Use frontend/src/pages/companies/CompanyList.tsx as the visual
+         reference; that page must be refactored onto GenericTable.
+
+    e) GenericTabs (only where needed: Platform Settings sections,
+       User Management role tabs, status filter tabs)
+       Props: tabs [{value, label, count?}], value, onChange,
+              variant = underline | vertical.
+       - Keyboard accessible (role=tablist, arrow keys).
+       - Replace components/VerticalTab with this.
+
+    f) Also needed by most modules (small, reuse what exists):
+       GenericTextArea, GenericFileUpload (image preview, type + size
+       check), GenericDatePicker / date-range filter, GenericSwitch,
+       ConfirmDialog with a required "Reason" box (for suspend / block /
+       restrict), StatusBadge (Active, Inactive, Suspended, Blocked,
+       Pending Invitation).
+
+A3. VALIDATION BY LABEL / FIELD TYPE
+    Create frontend/src/lib/validation/fieldRules.ts: one place that
+    builds the zod rule (and error message) for a field from its type
+    and label, so every form in every module validates the same way.
+    Error messages must use the field's label, e.g.
+    "Business Email is required", "Enter a valid Admin Phone Number".
+
+      Field kind (by type or label)  Rule
+      ------------------------------ ---------------------------------------
+      any required field             "<Label> is required"
+      name / full name               2-100 chars, letters, spaces, . ' -
+      email                          valid email, lower-cased, max 254
+      phone / mobile / contact no.   10 digits, starts 6-9 (India)
+      alternate phone                same as phone, optional
+      pincode / postal code          exactly 6 digits
+      code (company/branch code)     2-20 chars, A-Z 0-9 -, auto upper-case
+      slug                           a-z 0-9 -, no leading/trailing -
+      website / URL                  valid http(s) URL
+      GSTIN / registration no.       GSTIN pattern when the label says GST
+      price / amount / MRP           number >= 0, max 2 decimals
+      stock / quantity / threshold   whole number >= 0
+      display order                  whole number >= 0
+      password                       8+ chars, 1 letter + 1 number
+      date range                     "To" date not before "From" date
+      image upload                   PNG/JPG/WEBP/SVG, max 2 MB
+
+    - Prefer an explicit `kind` prop. Fall back to the label only when
+      kind is missing (e.g. label contains "Email" -> email rule).
+    - The SAME rules must exist on the backend (zod in
+      backend/src/validations/custom.validation.ts). Frontend validation
+      is for the user; backend validation is the real protection.
+    - Show backend field errors (400 errors[]) under the matching field,
+      and 409 duplicates (e.g. company code) under that field.
+
+A4. BACKEND FOUNDATION (every later module needs these)
+    1. Permissions: a `permissions` list per role and a
+       checkPermission('companies.edit') middleware. Seed the
+       SUPERADMIN role with every permission in the spec. Frontend reads
+       the user's permissions and hides actions they cannot use, but the
+       backend must still reject them (403).
+    2. AuditLog model + auditService.log({actor, action, module,
+       targetId, companyId, result, reason, before, after}).
+       Append-only, no update/delete route. Never log passwords,
+       tokens or secrets. Wire it into Company create/update/delete now.
+    3. Shared list helper: page, limit, search, sort, filters ->
+       {items, pagination:{page,limit,total,totalPages}}. Same response
+       shape as /companies today.
+    4. Remaining items from the QA report above:
+       C3 (refresh token accepted as access token) and C4 (upload
+       filename path traversal on the old `upload` middleware).
+       C1 and the login lookup bug are already fixed.
+
+A5. DONE MEANS
+    - Companies list and Add/Edit form rebuilt on the generic components,
+      looking exactly as they do now.
+    - fieldRules.ts used by the Company form; the backend uses the same rules.
+    - Backend runs on a real DB; audit log rows appear for company actions.
+    - `npm run build` and lint pass in both frontend and backend.
+    - Post "PHASE 0 - READY FOR QA" below with what changed and anything
+      not done.
+
+--------------------------------------------------------------------------
+ PART B - TESTER        Status: WAITING (start when Developer posts READY)
+--------------------------------------------------------------------------
+
+B1. Setup: follow A1 on your own machine from a clean checkout. If any
+    step fails or is missing from the README, that is a bug.
+
+B2. Generic components - test each one on the Company form and list:
+    [ ] Every required field shows * and "<Label> is required" on empty submit
+    [ ] Error messages use the field's own label (check every field)
+    [ ] Email: "abc", "abc@", "a@b" rejected; "A@B.IN" saved lower-case
+    [ ] Phone: letters cannot be typed; 9 digits / starts with 5 rejected
+    [ ] Pincode: 5 digits or letters rejected; 6 digits accepted
+    [ ] Code: typed lower-case becomes upper-case; spaces / symbols rejected
+    [ ] Website (when added): "www.x" rejected, "https://x.in" accepted
+    [ ] Country -> State -> City: changing a parent clears the children
+    [ ] Logo: .pdf rejected, 3 MB image rejected, 1 MB png shows preview
+    [ ] Buttons: double-clicking Save creates ONE record; spinner shows
+    [ ] Same invalid data sent straight to the API (Postman) -> 400 with
+        field errors (frontend checks alone are not enough)
+    [ ] Duplicate company code -> error appears under Company Code
+
+B3. GenericTable:
+    [ ] Loading skeleton, empty state, "no results" + Clear filters, error + Retry
+    [ ] Search + status tab + page together; refresh keeps them (URL)
+    [ ] Page size 10/25/50; last page; deleting last row on a page goes back one
+    [ ] Sorting (if enabled) is done by the server, not just the visible page
+    [ ] Phone width (390px): cards, no horizontal page scroll
+    [ ] Keyboard: Tab reaches every action; Esc closes drawer / dialog
+
+B4. Backend / security:
+    [ ] Every /companies route without a token -> 401
+    [ ] With a non-super-admin token -> 403
+    [ ] Refresh token used as Bearer token -> 401 (C3)
+    [ ] Upload named "../../evil.txt" stays inside public/temp (C4)
+    [ ] Create / edit / delete company -> one audit log row each, with
+        actor, action, target, time; no password or token in the row
+    [ ] No route exists to edit or delete audit logs
+
+B5. Report format (append below). One line per bug:
+    [BUG-<n>] <severity: Critical/High/Medium/Low> | <page or API> |
+    steps | expected | actual | screenshot path
+    End with: "PHASE 0 - QA PASS" or "PHASE 0 - QA FAIL (<n> bugs)".
+
+--------------------------------------------------------------------------
+ MODULE ROADMAP (assigned one at a time by Team Lead - do not start early)
+--------------------------------------------------------------------------
+ Phase 0   Foundation (generic components, validation, permissions, audit)   ASSIGNED
+ Module 1  Dashboard                                                          waiting
+ Module 2  Companies (extend: Suspended status + reason, address
+           line 1/2, landmark, website, reg. no., configuration,
+           activate/deactivate/suspend actions)                               waiting
+ Module 3  Company Admins (invitations, no passwords in UI)                   waiting
+ Module 4  Branch Overview                                                    waiting
+ Module 5  User Management                                                    waiting
+ Module 6  Global Categories                                                  waiting
+ Module 7  Product Monitoring (no AI generation for Super Admin)              waiting
+ Module 8  Order Monitoring (no card data, monitoring only)                   waiting
+ Module 9  Reports & Analytics (gross / discounts / refunds / net; not profit) waiting
+ Module 10 Platform Settings (GenericTabs; no secret keys in frontend)        waiting
+ Module 11 Security & Audit Logs                                              waiting
+ Module 12 My Profile                                                         waiting
+
+Rules for every module: real backend data only (no fake success
+messages or hardcoded rows), permissions checked on the backend,
+confirmation + reason for suspend/block/restrict, audit log for every
+important change, and no change to the existing theme.
+
+Questions -> reply below this line.
+- Team Lead
+
+==========================================================================
+ REPLIES / UPDATES
+==========================================================================
+
+--------------------------------------------------------------------------
+ [Developer - Claude]                                        2026-10-31
+ PHASE 0 - READY FOR QA  (one open item: A1 not run on a real DB, see below)
+--------------------------------------------------------------------------
+
+STATUS BY TASK
+  A1 Backend running ............ NOT DONE on my machine: no Postgres/Docker
+                                  installed here. Migration + README are ready,
+                                  so Tester can do B1 on a machine with Postgres.
+  A1.6 .env.example ............. DONE (every variable, no real values)
+  A2 Generic components ......... DONE
+  A3 fieldRules (FE + BE) ....... DONE
+  A4 Permissions / audit / list / C3 / C4 ... DONE
+  A5 lint + build ............... DONE, both apps (see CHECKS)
+
+WHAT CHANGED
+Backend
+- validations/custom.validation.ts: field({label, kind, required}) builds
+  every rule from the A3 table. Messages use the label ("Company Email is
+  required", "Enter a valid Admin Phone Number"). company.validation.ts
+  now uses it.
+- utils/list.ts: listQuerySchema / searchWhere / listArgs / toListResult.
+  Companies list moved onto it; also takes sortBy + sortDir (server sort).
+- config/permissions.ts: full permission catalog for the 12 modules.
+  RolePermission table; SUPERADMIN gets every permission on server start
+  and in `npm run create:superadmin`. checkPermission('companies.edit')
+  middleware -> 403. Each /companies route now has its own permission.
+  GET /users/me now returns `permissions`.
+- AuditLog table + services/audit.service.ts. Append-only (no route edits
+  or deletes it). Keys like password/token/secret/verifyCode are stripped
+  before saving. Company create/update/delete write one row each: SUCCESS
+  with before/after, or FAILURE with the error as reason.
+- C3 fixed: tokens carry type "access" / "refresh"; verifyJWT accepts only
+  access tokens, /users/refresh only refresh tokens.
+  NOTE: tokens issued before this change are rejected -> everyone signs in
+  once more.
+- C4 fixed: old `upload` middleware saves files as <time>-<uuid>.<ext>; the
+  client's file name never reaches the path.
+- 409 duplicate code now returns errors:[{field:'code'}], so it shows under
+  Company Code.
+- Migration: prisma/migrations/20261031120000_permissions_audit_log
+  (generated with `prisma migrate diff`, since no DB here to run
+  `migrate dev`).
+- README.md rewritten (was a garbled UTF-16 line): setup steps, scripts,
+  and how new modules use rules / list / permissions / audit.
+
+Frontend
+- components/Forms upgraded in place (same names and folders, old props
+  still work), all exported from components/Forms/index.ts:
+  GenericInputField (kind, prefix, digits-only phone/number, code
+  upper-cases), GenericButton (5 variants, loading = spinner + disabled),
+  GenericDropdown + GenericSearchDropdown (dependsOn, loading, keyboard
+  combobox), GenericTable (server pagination + sort, client mode for small
+  lists, skeleton / empty / error + retry, phone cards, rowActions with
+  permission), GenericTabs (new; arrow keys / Home / End), GenericTextArea,
+  GenericFileUpload, GenericDatePicker + GenericDateRangeFilter,
+  GenericSwitch, ConfirmDialog (requireReason), StatusBadge (Active,
+  Inactive, Suspended, Blocked, Pending Invitation; existing tokens only).
+- components/VerticalTab deleted (no importers; GenericTabs replaces it).
+- lib/validation/fieldRules.ts: frontend copy of the rules, plus
+  applyServerErrors() for 400/409 field errors and checkFile() for images.
+- hooks/usePermissions.ts: can('companies.edit') reads /users/me.
+- Companies list and Add/Edit form rebuilt on the generic components.
+  Same layout. Add / Edit / Delete are hidden without the permission
+  (drawer too). Sort is in the URL with the other filters.
+
+CHECKS I RAN
+- Backend: npm run lint, npm run build (tsc) -> pass.
+- Frontend: npm run lint -> pass (0 problems; fixed 3 old ones on the way),
+  npm run build -> pass.
+- Frontend tsc: 469 errors, all in old catering screens (479 before; none
+  new).
+- Script checks (no DB needed): 27 rule cases from B2 pass; the same 24
+  inputs give identical results in the frontend and backend rules; refresh
+  token used as access token -> 401 (C3).
+- NOT run: anything that needs the database or a browser (company CRUD
+  end to end, audit rows, 401/403 over HTTP, UI clicks). That is B1-B4.
+
+QUESTIONS FOR TEAM LEAD
+1. Pincode rule is "exactly 6 digits", but the Country list also has UAE,
+   UK and US, whose postcodes will fail. Keep India-only for now, or apply
+   the 6-digit rule only when Country = India?
+2. Company Name uses the plain "text" rule (2-120 chars), not the "name"
+   rule. The name rule (letters . ' - only) would reject "H&M" or
+   "21st Century Fabrics". OK?
+3. Can someone with Postgres (or Docker) do A1.5 and post the result, or
+   should I install Postgres 16 on this machine?
+
+Tester: B1-B4 can start. Run `npx prisma migrate deploy` and
+`npm run create:superadmin` after pulling (new tables + permissions).
+
+--------------------------------------------------------------------------
+ [Tester - Claude]                                           2026-10-31
+ PHASE 0 - QA: LOGIN + SUPER ADMIN (partial run, B1 + B4 auth part)
+--------------------------------------------------------------------------
+
+SETUP (B1)
+  Postgres 17 (portable, test DB "clothpro_qa"), backend on port 5697.
+  DATABASE_URL / PORT given as env vars; backend/.env was NOT changed.
+  [PASS] npx prisma migrate deploy -> 3 migrations applied
+  [PASS] npm run create:superadmin -> user created, 28 permissions granted
+  [PASS] npm run dev -> "Connected to SQL Database", server listening
+  Not run here: browser/UI clicks, company CRUD, GenericTable (B2/B3).
+
+WHAT PASSED (36 checks)
+  Login by phone, by email, by UPPER-CASE email; wrong password -> 401;
+  missing identifier -> 400; login and /users/me never return the password;
+  cookies HttpOnly + Secure; /users/me -> 200 with 28 permissions.
+  C3 FIXED: refresh token as Bearer -> 401; access token at /refresh -> 401.
+  Tampered payload / alg:none / wrong secret / garbage token -> 401.
+  Logout -> refresh token rejected. Super admin GET /companies -> 200.
+  ADMIN token on GET/POST /companies -> 403. ADMIN cannot promote itself
+  through PATCH /users/update {role}. C1 FIXED: register role=SUPERADMIN
+  does not create a super admin (but see BUG-2 for the status code).
+  Frontend code check: login sends email for any "@", phone otherwise;
+  refresh uses /users/refresh and data.data; route guard and SUPERADMIN
+  check in AppLayout are correct.
+
+BUGS
+[BUG-1] Critical | POST /users/login (super admin) |
+  1) POST /users/register {username:"9876543210" (super admin phone),
+  phoneNumber:"9000000004", role:"ADMIN", ...} -> 201
+  2) POST /users/register {email:"qa.super@clothpro.in" (super admin
+  email), phoneNumber:"9000000005", ...} -> 201
+  3) Super admin logs in by phone and by email, with the correct password |
+  expected: 200 every time |
+  actual: 401 "Invalid credentials" 20 of 20 tries. It later worked again
+  by phone only, depending on which row Postgres returns first. Anyone can
+  lock the super admin out through the public register endpoint. |
+  cause: user.service.ts:180-187 matches phoneNumber OR username OR email
+  with findFirst and no orderBy; username and email are not unique. Fix:
+  phone logins match phoneNumber only; make email unique (and refuse 409
+  at register) | screenshot: n/a (API)
+
+[BUG-2] High | every API that validates input (error.middleware.ts:17) |
+  POST /users/login {} ; GET /users/me with no token ; GET /companies with
+  no token ; POST /users/register with role=SUPERADMIN |
+  expected: 400 with errors[] (or 401 for a missing token) |
+  actual: 500 "Cannot read properties of undefined (reading 'value')",
+  errors:null. `console.log(err)` crashes on a ZodError with Node 24.11 +
+  zod 3.25.76. Repro: node -e "const {z}=require('zod');try{z.string()
+  .min(1).parse('')}catch(e){console.log(e)}". This also blocks B2's
+  "field errors under the field" for every form. | n/a
+
+[BUG-3] High | npm run dev |
+  Start the backend with npm run dev and trigger any error |
+  expected: dev server runs src/*.ts | actual: the stack trace shows
+  dist\middlewares\error.middleware.js. index.ts loads
+  'module-alias/register', and package.json _moduleAliases point every
+  @alias at dist/. Edits under src/ do nothing until `npm run build`, so
+  dev testing can run stale code. | n/a
+
+[BUG-4] High | POST /users/reset-password |
+  Sign in, then POST {newPassword:"Hijack12345"} with only the access token |
+  expected: refused, or the current password required |
+  actual: 200 "Password reset successfully"; login with the new password ->
+  200. Anyone holding a token can take over the account (H5 still open). | n/a
+
+[BUG-5] Medium | POST /users/register |
+  Register an ADMIN | expected: no secrets in the response |
+  actual: response includes password (bcrypt hash), refreshToken,
+  verifyCode, verifyCodeExpiry (C2 still open). | n/a
+
+[BUG-6] Medium | Login rate limit |
+  30 wrong passwords in a row for one account | expected: 429 after 20 |
+  actual: 30 x 401, no limit. The limiter is mounted on '/v1/auth'; routes
+  are /api/v1/users (H3 still open). | n/a
+
+[BUG-7] Medium | Session after logout / deactivation |
+  a) Log out, then GET /users/me with the same access token
+  b) Set the super admin isActive=false, then GET /users/me with an
+     existing token |
+  expected: 401 | actual: 200 in both cases. verifyJWT does not check
+  isActive/deletedAt, and access tokens are not revoked. | n/a
+
+[BUG-8] Medium | backend/.env token lifetime |
+  Decode an access token | expected: 15 min (as .env.example) |
+  actual: exp-iat = 30000 min (~21 days); JWT_REFRESH_EXPIRATION_DAYS=30000
+  (~82 years). Makes BUG-4 and BUG-7 much worse. Fix the local .env and any
+  deployed env. | n/a
+
+[BUG-9] Medium | Login on two devices |
+  Log in on device A, then on device B; device A calls /users/refresh |
+  expected: both stay signed in | actual: 401. Only one refreshToken is
+  stored per user, so each new login logs the previous device out when its
+  token next refreshes. | n/a
+
+[BUG-10] Medium | POST /users/register without role |
+  Register with no role, then log in with the correct password |
+  expected: 200 | actual: register 201, login 404 "Admin not found" (H1
+  still open; role defaults to ADMIN but no Admin row is created). | n/a
+
+[BUG-11] Medium | POST /users/reset-password-request |
+  Send the super admin email, then an unknown email |
+  expected: real email, or 501 Not Implemented |
+  actual: 201 "Password reset email sent" for both; nothing is sent (H4).
+  This breaks the "no fake success messages" rule. | n/a
+
+[BUG-12] Low | POST /users/login unknown user |
+  Log in with a phone that is not registered | expected: same 401
+  "Invalid credentials" as a wrong password | actual: 404 "User does not
+  exist", which tells an attacker which phones/emails have accounts. | n/a
+
+[BUG-13] Low | Malformed JSON body |
+  POST /users/login with body "{bad json" | expected: 400 |
+  actual: 500 with the raw parser message. | n/a
+
+[BUG-14] Low | Unknown route |
+  GET /api/v1/nope | expected: one 404, clean log | actual: 404 is
+  returned, but the log shows "Cannot set headers after they are sent"
+  (M6 still open). | n/a
+
+NOTES (not bugs)
+  - Auth cookies have no SameSite attribute; set SameSite=Strict or Lax.
+  - Logins and failed logins are not written to AuditLog (0 rows).
+    Needed later for Module 11.
+  - Two /refresh calls in the same second return the identical token, so
+    rotation looks broken in fast tests. It is not a real issue.
+
+FIX ORDER: BUG-1, BUG-2, BUG-3, BUG-4, then BUG-5 to BUG-11.
+Retest after fixes: same scripts (repeatable, about 1 min).
+
+PHASE 0 - QA FAIL (14 bugs) - login / super admin area only.
+B2 / B3 (UI, generic components, company CRUD, audit rows) still to test.
+
+[Developer - Claude] 2026-10-31 (update)
+- A1 progress: backend now runs on a real Postgres on the dev machine. All 3
+  migrations are applied; SUPERADMIN has all 28 permissions.
+- Super admin created (phone 7420064554, name Phygital, no email; signs in
+  by phone). Checked over HTTP: POST /users/login -> 200, GET /users/me ->
+  200 with 28 permissions.
+- create:superadmin: --email is now optional (phone-only accounts allowed);
+  --phone must be a valid 10-digit Indian mobile.
+- Still open for A1.5: add one company on /companies through the UI.
+
+[Developer - Claude] 2026-10-31 (update 2) - Companies: Add/Edit form rework
+Requested by product (user):
+- Company code is now generated by the backend from the name (AARV-TEX,
+  then AARV-TEX-2...). It is no longer in the form, and the API ignores a
+  `code` sent by the client. Edit does not change the code.
+- Pincode autofill: GET /api/v1/locations/pincode/:pincode (signed-in only,
+  India Post API, cached). Typing a 6-digit pincode fills State, District,
+  City and suggests Areas (post office names). Fields stay editable; if the
+  lookup service is down the form says so and manual entry still works.
+  Unknown pincode -> error under Pincode.
+- Company: new `district` and `area` columns. Country fixed to India
+  (closes my question 1). Migration 20261031150000_company_district_area
+  (applied on the dev DB).
+- Form compacted into one panel (Company / Location / Administrator), extra
+  text and section descriptions removed, so it fits without scrolling on a
+  laptop screen.
+- AddCompany + EditCompany pages merged into one CompanyFormPage.
+- Sidebar: "All Companies" + "Add Company" replaced by one "Companies" item
+  (the list has the Add Company button).
+- Checks: backend + frontend lint/build pass. Pincode lookup (400093 ->
+  Mumbai/Mumbai/Maharashtra, 999999 -> 404) and code generation checked by
+  script. Not yet clicked through in the browser.
+Tester: B2's "Code" checks and the Company Code 409 check no longer apply
+(the code is automatic now); test the pincode autofill instead.
+
+[Developer - Claude] 2026-10-31 (update 3)
+- Save failed with 500 "Cannot read properties of undefined (reading
+  'value')" and pincode returned 404 because the backend process (started
+  12:27) was still the old build. The new build, run on a spare port,
+  created a company fine (201, code auto-generated, 1 audit row written);
+  I then deleted that test record. Restart the backend to pick it up.
+- Pincode lookup now runs in the browser straight against India Post
+  (free, allows browser calls); backend /locations endpoint removed.
+  City = the main block of the pincode (416410 -> Miraj, not the first
+  post office's block).
+- Add/Edit page: compact header, logo beside the fields (no separate row),
+  footer aligned with the form instead of edge to edge.
+
+[Developer - Claude] 2026-10-31 (update 4)
+- Area field removed (form, validation, drawer, DB column; migration
+  20261031160000_drop_company_area applied on dev DB).
+- The 500 is still the old backend process (PID 15368, started 12:27); it has
+  never been restarted, so none of today's backend changes are live on 5692.
+  The current build on a spare port: create -> 201 (code auto, city Miraj),
+  delete -> 200, 2 audit rows; test data removed afterwards.
+  ACTION: stop the backend and run `npm start` again in backend/.
+
+[Developer - Claude] 2026-10-31 (update 5)
+ROOT CAUSE of the 500 "Cannot read properties of undefined (reading 'value')":
+  errorConverter did console.log(err); printing a ZodError crashes Node 24's
+  inspector, so EVERY validation error came back as 500 instead of 400.
+  Removed both console.log calls (also QA L4); 5xx are now logged with the
+  app logger. Missing / invalid fields -> 400 with field errors again.
+Companies list: removed the rows-per-page dropdown and the View (eye) icon;
+  clicking a row still opens the details drawer.
+Company admin login (requested by product):
+  - New role COMPANY_ADMIN; User.companyId links the admin to the company.
+    Migration 20261031170000_company_admin_login (applied on dev DB).
+  - Add Company has a required Password. Saving creates the admin's account
+    (name / email / phone from the form, password hashed, never returned).
+  - Edit: blank password keeps the current one; a company without a login
+    gets one when a password is set. Name/email/phone/status stay in sync.
+  - Inactive company -> admin cannot sign in; delete -> account disabled
+    and its phone freed. Password change / deactivation ends sessions.
+  - Phone or email already used by another account -> 409 under the field.
+  - Checked end to end on a spare port (12 cases, all as expected); test
+    data removed.
+  NOTE for Team Lead: this differs from the Module 3 plan ("invitations,
+  no passwords in UI"). Built as asked by product; flagging so Module 3
+  can be planned around it. Also: the admin panel only lets SUPERADMIN in,
+  so a company admin can sign in but there is no company panel yet.
+ACTION: restart the backend (npm start) to load these changes.
+
+[Developer - Claude] 2026-10-31 (update 6)
+- Company admin login reached the backend fine (200), but the frontend only
+  let SUPERADMIN in and showed "Super admin access only". Fixed:
+  - Sign-in sends COMPANY_ADMIN to /my-company, SUPERADMIN to /companies.
+  - Company admin sees a "Company Profile" page (their company, read-only)
+    and only that; the sidebar shows only that item. Super admin cannot
+    open /my-company.
+  - Backend: GET /api/v1/my-company (COMPANY_ADMIN only).
+- Checked on a spare port: company admin login 200 -> /my-company 200,
+  /companies 403; super admin /my-company 403. Test data removed.
+ACTION: restart the backend (npm start); refresh the frontend.
+
+==========================================================================
+ [Developer - Claude] 2026-10-31  ROLE-BASED AUTH SPEC - INSPECTION REPORT
+==========================================================================
+1. EXISTING AUTH
+   - JWT bearer tokens (access + refresh, typed since C3 fix), stored in
+     browser localStorage; refresh token also saved on the User row.
+   - POST /api/v1/users/login (email or phone + password, bcrypt),
+     /users/refresh, /users/logout, /users/me (returns role + permissions).
+   - .env token expiry is 30000 min / 30000 days (should be 15 min / 7 days).
+   - Login errors reveal whether an account exists ("User does not exist",
+     "not verified", "not active") - spec wants one generic message.
+   - Login rate limiter exists but is never mounted (QA H3).
+   - verifyJWT does NOT check isActive / deletedAt / company status, so a
+     blocked user keeps access until the access token expires.
+   - Forgot / reset password: stubs that fake success (QA H4); SMTP not
+     configured, so no email can be sent today.
+2. USER / ROLE MODELS (Prisma)
+   - enum Role { ADMIN (old catering admin), SUPERADMIN, COMPANY_ADMIN }.
+   - User: email (not unique), phoneNumber (unique), password hash,
+     isActive, isVerified, isAccessClosed, deletedAt, companyId (unique).
+   - RolePermission(role, permission) + 28-permission catalog; no
+     per-user overrides. AuditLog exists (append-only).
+   - Admin table = leftover catering data (shopName, keys...), unused.
+3. LOGIN / REGISTRATION APIs
+   - /users/register is public and runs the old catering flow (creates
+     ADMIN + Admin row, logo/coverImage uploads). No CUSTOMER registration.
+4. DB RELATIONSHIPS
+   - Company 1-1 User (COMPANY_ADMIN via User.companyId). No Branch,
+     Employee, Customer, Product, Cart, Order, Address tables exist.
+5. PROTECTED ROUTES / MIDDLEWARE
+   - Backend: verifyJWT, checkRole, checkSuperAdmin, checkCompanyAdmin,
+     checkPermission. /companies = SUPERADMIN, /my-company = COMPANY_ADMIN.
+   - Frontend: TanStack Router; AppLayout guard by role; routes /,
+     /companies..., /my-company, /signin, /signup. Signup page is empty.
+6. MISSING
+   - Roles BRANCH_SUB_ADMIN, EMPLOYEE, CUSTOMER; Branch model; user ->
+     branch assignment; per-user permissions; account status enum
+     (PENDING_INVITATION / ACTIVE / INACTIVE / BLOCKED) + block reason;
+     company suspension; generic login errors; active-account check on
+     every request; working forgot/reset password; customer registration;
+     role dashboards; data-scope checks (company / branch / own records).
+   - The whole public store (products, cart, checkout, orders, wishlist,
+     returns, reviews) does not exist yet - that is a separate project-size
+     piece, not part of "auth".
+7. FILES TO CHANGE (first increment)
+   backend: prisma/schema.prisma, services/user.service.ts,
+   services/token.service.ts, middlewares/auth.middleware.ts,
+   routes/user.routes.ts, validations/user.validation.ts, app.ts
+   (rate limiter), controllers/user.controller.ts, .env.example.
+   frontend: context/AuthContextProvider.tsx, layouts/AppLayout.tsx,
+   pages/Signin.tsx, pages/Signup.tsx, components/Sidebar, routes/*.
+8. MIGRATIONS
+   - Add Role values; AccountStatus enum + User.status / blockedReason /
+     lastLoginAt; Branch table; User.branchId; UserPermission table;
+     CompanyStatus SUSPENDED. All additive.
+PROPOSED INCREMENTS (one at a time, each READY FOR QA before the next)
+   1. Auth core: 5 roles, generic login errors, rate limit, account /
+      company status checked on every request, role-based redirect +
+      guards + access-denied page, customer registration (CUSTOMER forced),
+      forgot / reset password (token flow; email once SMTP is set).
+   2. Branches + Branch Sub-admins (Company Admin panel), branch scope.
+   3. Employees + per-user permissions (incl. AI Studio permissions).
+   4. Customer store (catalog, cart, checkout, orders...) - needs its own
+      spec / design; much larger than auth.
+CONFLICT TO RESOLVE: spec section 13 says admins/employees set their own
+   password via an invitation link and admins never see passwords. Today
+   (per product request) the super admin types the company admin's password.
+   Invitations need working SMTP.
+
+--------------------------------------------------------------------------
+ [Developer - Claude]                                        2026-10-31
+ ROLE-BASED AUTH - INCREMENT 1 (auth core) - READY FOR QA
+--------------------------------------------------------------------------
+Decisions (product): creators set passwords for now (no SMTP), role URL
+prefixes, increments one at a time. Kept the existing value SUPERADMIN
+(spec: reuse existing role representation).
+
+BACKEND
+- Roles: + BRANCH_SUB_ADMIN, EMPLOYEE, CUSTOMER. AccountStatus enum
+  (PENDING_INVITATION / ACTIVE / INACTIVE / BLOCKED) replaces isActive (data
+  carried over), + blockedReason/blockedAt/blockedById, lastLoginAt,
+  mustChangePassword, password reset token hash + expiry. CompanyStatus
+  + SUSPENDED. Migration 20261031180000_roles_account_status (applied).
+- Login: one message for unknown account / wrong password (equal timing);
+  status messages only after the right password; company roles need an
+  ACTIVE, non-deleted company; legacy ADMIN accounts refused.
+- verifyJWT re-checks account + company status on EVERY request (blocked or
+  suspended -> out immediately) and blocks all APIs except me /
+  change-password / logout while a password change is pending.
+- Rate limit (20 failed / 15 min / IP) on login, register, forgot/reset.
+  trust proxy only via TRUST_PROXY (stops X-Forwarded-For spoofing).
+- POST /users/register: customers only; role always CUSTOMER (role field
+  ignored), confirm password + terms required, 409 per field on duplicates.
+- POST /users/forgot-password (same reply whether or not the account
+  exists; emails a 30-min single-use link when SMTP + FRONTEND_URL set),
+  POST /users/reset-password (token), POST /users/change-password (returns
+  new tokens, signs out other devices). Old stubs (verify-code, fake reset,
+  reset without current password) removed - closes QA H4, H5, C1, C2, H3.
+- create:superadmin refuses a second super admin / converting another
+  account unless --force; sets mustChangePassword.
+- Company admins created / given a password by the super admin must change
+  it at first sign-in. Company suspension no longer edits their account.
+- user.service / controller / validation rewritten (old catering code
+  removed). .env token expiry set to 15 min / 7 days on the dev machine.
+FRONTEND
+- Routes: /super-admin/dashboard, /super-admin/companies..., 
+  /company-admin/dashboard, /sub-admin/dashboard, /employee/dashboard,
+  /account, /change-password, /signup, /forgot-password, /reset-password.
+- AppLayout checks the session with GET /users/me (real role), redirects
+  "/" to the role's dashboard, forces /change-password when required,
+  shows "Access denied" + link home for other roles' pages, and signs out
+  if the token role no longer matches.
+- Sign-in redirects by the role from the backend; show/hide password,
+  Forgot password, Create account links. Customer sign-up page (full name,
+  email, phone, password, confirm, terms). Role-based sidebar + labels.
+- Super admin dashboard shows real company counts. Sub-admin / employee
+  dashboards show the account until their modules exist.
+CHECKS
+- 36/36 API checks on a spare port: generic login errors, register role
+  forced to CUSTOMER, no password in any response, cross-role 403s,
+  blocked account cut off mid-session (token + refresh), suspended company,
+  forced password change, forgot/reset (single use), rate limit 429.
+- Lint + build pass (both); frontend tsc: no new errors.
+- NOT done: browser click-through; email delivery (no SMTP); positive
+  sub-admin / employee login (needs Increment 2, below).
+KNOWN LIMITS
+- User.companyId is unique (one login per company). Increment 2 must change
+  this so sub-admins / employees can belong to a company and a branch.
+- "Remember me" not added: tokens already persist and refresh; a longer
+  token would weaken that.
+- CORS is still '*' (QA M7) - not in this increment.
+ACTION: restart the backend now (`npm start`). The DB is migrated, so the
+old process fails until restarted. Everyone signs in again.
+Tester: B-style checks for Increment 1 can start after the restart.
+
+--------------------------------------------------------------------------
+ [Developer - Claude]                                        2026-10-31
+ ADMIN SYSTEM - INCREMENT 2 (organisation & people) - READY FOR QA
+--------------------------------------------------------------------------
+Scope note: the full admin-system spec (catalog, inventory, orders,
+payments, AI, store) is weeks of work. Built here, completely: the
+organisation layer everything else depends on.
+
+ROLES: BRANCH_SUB_ADMIN renamed BRANCH_ADMIN, shown as "Admin" (spec: Admin
+  means Branch Admin). Routes /branch-admin/*.
+DATABASE (migration 20261031190000_branches_employees, applied on dev DB):
+  Branch table (code, contact, address, hours, weekly holidays, status);
+  User.companyId no longer unique; + branchId, employeeCode (unique),
+  jobTitle, department, joiningDate, permissions[] (per-user), createdById,
+  sessionsRevokedAt.
+IDS GENERATED BY THE BACKEND (unique index + retry on clash):
+  company code AARV-TEX, branch code AARV-TEX-B01.., employee ID
+  AARV-TEX-E001...
+BACKEND APIs (scope always taken from the signed-in user, never the request):
+  /super-admin: dashboard, branches (all, filter company), users (filters
+    role/status/company), users/:id/status, users/:id/revoke-sessions
+  /company-admin: dashboard, profile, branches CRUD + status + options,
+    employees CRUD, users/:id/status, revoke-sessions
+  /branch-admin: dashboard, profile, employees CRUD (branch forced to own),
+    users/:id/status, revoke-sessions
+  - Branch admin login created with the branch (optional), one per branch.
+  - Deactivate / block need a reason (stored + audited); leaving ACTIVE,
+    revoke sessions, branch deactivation, new password, branch move or
+    permission change end sessions immediately (sessionsRevokedAt check in
+    verifyJWT, not only refresh tokens).
+  - Sign-in also requires an ACTIVE branch for branch admins / employees.
+  - Employees get role permissions + their own (EMPLOYEE_PERMISSIONS list:
+    products.manage/publish, inventory.view/adjust, orders.process,
+    ai.studio, reports.view). Super admin does not get AI rights.
+  - Out-of-scope ids return 404 (no probing other companies / branches).
+  - Deleting a company also removes its branches and signs out its staff.
+  - Audit rows for branch create/update/activate/deactivate, employee
+    create/update, user activate/deactivate/block/revokeSessions.
+FRONTEND (generic components only, compact forms like Company):
+  - Super admin: Dashboard (companies, branches, admins, employees,
+    customers + recent companies/branches), Companies, Branches (all,
+    company filter), Users (role/status filter, activate/deactivate/block/
+    end sessions).
+  - Company admin: Dashboard, Company Profile, Branches (list, add/edit
+    with pincode autofill + hours + optional Admin login, activate/
+    deactivate), Employees (list with branch filter, add/edit with branch,
+    job, joining date, permissions, password; status actions).
+  - Branch admin ("Admin"): Dashboard, Branch Profile, Employees (own
+    branch).
+  - New generic pieces: GenericCheckboxGroup, StatCard, FormLayout
+    (group / error / sticky footer), ListToolbar, useListState,
+    usePincodeAutofill, useAccountActions.
+CHECKS: 42/42 API checks (codes generated, scoping company/branch, 404s
+  across companies, validation 400/409 per field, block/revoke cut off
+  tokens at once, inactive branch blocks sign-in, dashboards, audit rows).
+  Lint + build pass both apps; frontend tsc no new errors.
+NOT DONE: browser click-through; employee panel modules (products, AI,
+  orders); catalog / inventory / orders / payments / store (next
+  increments); profile photos; invitations (no SMTP).
+ACTION: restart the backend (npm start). DB is migrated.
+
+[Developer - Claude] 2026-10-31 16:3x - ON HOLD: conflicting changes found
+- Login 401s on 5692: the backend now uses database "cloth" (not "restaurant").
+  Its 2 accounts (7420064554 SUPER_ADMIN, 7878787878 ADMIN) have passwords
+  other than the ones used today, so the logins are simply wrong passwords.
+- Between 15:40 and 16:02 someone else changed ~15 files: roles renamed to
+  SUPER_ADMIN / ADMIN / SUB_ADMIN / EMPLOYEE / USER, new product / inventory /
+  order / return / cart models (migration 20261031102850_xyz, timestamped
+  BEFORE my migrations), ecommerce.controller.ts, frontend roles / sidebar /
+  auth context, dist rebuilt 16:02. That code compiles.
+- My Increment 1 + 2 work (42/42 tests) was on SUPERADMIN / COMPANY_ADMIN /
+  BRANCH_ADMIN / CUSTOMER in database "restaurant"; that DB is untouched.
+- Product owner: "stop, I'll check first". Nothing changed by me since.
+  Team: whoever made the 15:40-16:02 changes, please post here so we can
+  agree on one role model before anyone continues.
+
+[Developer - Claude] 2026-10-31 - super admin login restored (database "cloth")
+- On product owner's request: reset 7420064554's password with
+  `npm run create:superadmin` (role kept SUPER_ADMIN, must change at first
+  sign-in). Login on 5692 -> 200. Nothing else changed; the role-model
+  conflict above is still open.
+
+--------------------------------------------------------------------------
+ [Developer - Claude]                                        2026-10-31
+ MARKETPLACE - MODULE 1: CATALOG - READY FOR QA  (on the "cloth" version)
+--------------------------------------------------------------------------
+Product owner chose to continue on the running version (DB "cloth", roles
+SUPER_ADMIN / ADMIN(company) / SUB_ADMIN(branch) / EMPLOYEE / USER).
+BUGS FIXED IN THAT VERSION
+- Company admins (role ADMIN) could not sign in: an old rule blocked the
+  legacy catering "ADMIN" role, which is now the company admin. Removed.
+  (This is why 7878787878 could not sign in.)
+- Users list hid every company admin (same leftover). Fixed.
+CATALOG (backend)
+- Categories: one global tree (2 levels, e.g. Men > Shirts) managed by the
+  super admin; codes generated; duplicate names 409; categories with
+  products / children cannot be deleted (deactivate instead).
+- Brands: global (super admin) + company-own (company admin); codes
+  generated; each side edits only its own.
+- Products: validated (zod), SKU generated (AARV-TEX-P0001), variant SKUs
+  generated (…-NAV-M); new products are DRAFT; publish checklist (active
+  variant + image + price); variants synced on edit (left-out ones are
+  deactivated, kept for stock/order history; re-adding revives them).
+- Rights: company admin all company products; branch admin products from
+  their branch; employee own products with products.manage, publish needs
+  products.publish; super admin monitors and can only UNPUBLISH (reason
+  audited); delete = company admin only (soft). Other company -> 404.
+- Images: upload up to 8 (JPG/PNG/WEBP/SVG, 2 MB), main image, remove;
+  last image of a published product cannot be removed.
+- Fixed security gaps: super admin could create products for any company,
+  branch / category taken from the request body, no validation.
+- New /api/v1/employee routes (products) for employees with products.manage.
+CATALOG (frontend, generic components)
+- Super admin: Categories, Brands, Products (company + category + status
+  filters, unpublish with reason, read-only product view).
+- Company admin: Products, Brands. Branch admin + employee: Products.
+- Product page: compact form (product, variants table with "add XS-XXL for
+  a color", clothing details, shipping & search), images manager,
+  Publish button; read-only when the user cannot edit.
+CHECKS
+- 42 catalog API checks + 4 variant checks pass on a spare port (test data
+  removed). Found and fixed: variants added on edit were turned off again.
+- Backend lint + build pass. Frontend build passes, no type errors in the
+  catalog files. Frontend lint: 56 errors remain, all in the other
+  session's inventory / order files (pages/ecommerce, lib/api/ecommerce)
+  which Modules 2-3 rebuild.
+- NOT done: browser click-through.
+NEXT: Module 2 Inventory (stock per variant per branch, adjustments,
+  movements), Module 3 Orders & returns, Module 4 Customer store.
+ACTION: restart the backend (npm start) to load these changes.
+
+--------------------------------------------------------------------------
+ [Tester - Claude]                                           2026-10-31
+ FULL QA - SUPER ADMIN / COMPANY ADMIN / ADMIN (BRANCH) / EMPLOYEE
+ Code as of 16:51 build (roles SUPER_ADMIN / ADMIN / SUB_ADMIN / EMPLOYEE / USER)
+--------------------------------------------------------------------------
+
+HOW I TESTED
+  Fresh Postgres 17 test DB (not "cloth" / "restaurant"; your DBs untouched),
+  backend `npm start` on port 5697, frontend vite on 5174, real Chrome
+  (headless) clicking through every page, plus API scripts for security.
+  No project file or .env changed. Screenshots: scratchpad ui/shots/.
+
+RESULT SUMMARY
+  Browser: 6 runs, every sidebar page of all 4 panels opened.
+  API security: 42 / 42 PASS.
+  Bugs: 1 High, 2 Medium, 3 Low.
+
+WHAT WORKS (PASS)
+ Sign-in / session
+  - Empty submit -> "Email or mobile number is required", "Password is required"
+  - Wrong password -> one generic "Invalid email/phone number or password"
+  - Sign-in by phone and by email; each role lands on its own dashboard
+  - Change Password: required / mismatch errors, success
+  - Sign out clears the token; protected page afterwards -> /signin
+  - 24 wrong logins -> 429 after the limit (rate limit now works)
+  - Token lifetime in backend/.env now 15 min / 7 days (QA BUG-8 closed)
+ Super Admin
+  - Dashboard counts, Companies, Branches, Users, Categories, Brands,
+    Products, Orders all load (empty states correct)
+  - Add Company: every field error uses its label; letters cannot be typed
+    into phone fields; pincode 416410 autofills Maharashtra / Sangli / Miraj;
+    unknown pincode 999999 -> error; double-click Save -> ONE company;
+    code auto-generated (AARV-TEX, BOMB-WEA)
+  - Duplicate admin email + phone -> 409 shown under both fields
+  - List: search kept in URL after refresh, drawer opens on row click,
+    Esc closes it, phone width 390px: cards, no sideways scroll
+  - Block user needs a reason (400 without); blocked user's open session
+    ends at once (401) and cannot sign in; super admin cannot block itself
+  - Deactivate company -> its admin AND employees are cut off at once and
+    cannot sign in; re-activate -> sign-in works again
+  - Creates global categories; can only unpublish products (not publish)
+ Company Admin (ADMIN)
+  - Dashboard, Company Profile, Branches, Employees, Products, Brands,
+    Inventory, Orders load; other panels' URLs -> "Access denied" page
+  - Add Branch: Closing Time before Opening Time rejected; admin password
+    without admin name/email/phone rejected; branch codes B01, B02;
+    branch admin login created with the branch; admin = existing email /
+    super admin phone -> 409 under the fields
+  - Add Employee: branch dropdown lists own branches only; employee ID
+    AARV-TEX-E001; permissions saved; list + branch filter
+  - Product with 2 variants created as draft; Selling Price > MRP,
+    duplicate size+colour, negative MRP -> 400 with field errors
+ Admin / Branch Admin (SUB_ADMIN)
+  - Dashboard, Branch Profile, Employees, Products, Inventory, Orders load;
+    other panels -> "Access denied"
+  - Sees only own-branch employees; new employee forced into own branch
+    (E002); cannot move an employee to another branch; cannot block the
+    company admin or super admin; cannot delete company products
+ Employee
+  - Sidebar shows only Dashboard + Products (has products.manage);
+    employee without products.manage -> 403; other panels -> "Access denied"
+ Data isolation (Bombay Weaves admin vs Aarvi Textiles data)
+  - Read / edit / deactivate other company's branch, employee, product -> 404
+  - Create employee in other company's branch -> 400; lists never leak rows
+  - No one can raise their own role / company / branch / permissions
+ Customer sign-up
+  - role=SUPER_ADMIN in the body still creates a USER; no password hash in
+    response; admin's email -> 409 under Email
+ Audit
+  - AuditLog rows for company / branch / employee create, failed creates
+    (with reason) and branch deactivate
+
+BUGS
+[BUG-15] High | Setup: npx prisma migrate deploy on a NEW database |
+  1) empty Postgres DB  2) cd backend && npx prisma migrate deploy |
+  expected: all 9 migrations apply |
+  actual: stops at 20261031102850_xyz: "current transaction is aborted".
+  That migration (made at 15:40-16:02, timestamped 10:28) alters
+  RolePermission / AuditLog and references Branch, which only the LATER
+  migrations 120000 / 190000 create. Any new machine or server cannot be
+  set up; only DBs migrated step by step on the dev PC work. Blocked by the
+  open role-model conflict above - fix together (re-date or re-generate
+  the migration so a clean `migrate deploy` works). | n/a
+
+[BUG-16] Medium | First sign-in (all roles with "must change password") |
+  Create company / branch / employee with a password, sign in as that
+  user (also a fresh super admin) |
+  expected: sent straight to Change Password (as Increment 1 says) |
+  actual: lands on the dashboard: "Dashboard figures could not be loaded",
+  every page silently fails with 403 "Please change your password to
+  continue" until the user finds Change Password in the sidebar. Seen for
+  Super Admin, Company Admin and Admin. | shots s03-after-login.png,
+  a01-ca-login.png
+
+[BUG-17] Medium | Company Admin > Branches > Deactivate |
+  Click Deactivate on a branch -> dialog "Deactivate branch?" |
+  expected: required Reason box (Team Lead rule: confirmation + reason for
+  suspend / block / restrict) |
+  actual: no Reason box; branch deactivated; AuditLog reason = null.
+  (User block / deactivate does require a reason - only branches miss it.)
+  | shot b04-deactivated.png
+
+[BUG-18] Low | Add Employee, empty submit |
+  Open Add Employee, press Save Employee with all fields empty |
+  expected: all required errors at once (Email, Phone Number, Assigned
+  Branch, Password) like the Company and Branch forms |
+  actual: only "Full Name is required"; the others appear one by one on
+  later submits. | n/a
+
+[BUG-19] Low | Employee Dashboard |
+  Sign in as an employee who has Manage products + View stock |
+  expected: dashboard reflects the permissions |
+  actual: "Product, inventory and order tools arrive once your permissions
+  are set up" although permissions ARE set; "View stock" gives no
+  Inventory page in the employee panel. | shot EMP-dashboard.png
+
+[BUG-20] Low | npm run create:superadmin output |
+  actual: prints "SUPERADMIN permissions synced" - old role name; the role
+  is SUPER_ADMIN now. Cosmetic. | n/a
+
+STILL OPEN FROM EARLIER (known)
+  - CORS origin '*' (QA M7).
+  - Role-model conflict (Developer post 16:3x) - affects BUG-15.
+
+NOT TESTED
+  Product image upload, inventory adjust / orders / returns flows (no
+  orders exist yet - store side not built), email delivery (no SMTP),
+  forgot-password link (needs SMTP).
+
+VERDICT
+  Panels and security: GOOD - all 4 role panels work and data isolation
+  holds (42/42).
+  QA FAIL (6 bugs) because of BUG-15 (fresh install broken). Fix BUG-15,
+  BUG-16, BUG-17 first; I will re-run the same scripts (about 10 min).
