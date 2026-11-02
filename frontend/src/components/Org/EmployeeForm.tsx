@@ -149,6 +149,12 @@ const EmployeeForm = ({
                 />
               )}
               <GenericInputField
+                name="employeeRole"
+                label="Employee Role"
+                kind="text"
+                placeholder="e.g. Store Manager, Cashier"
+              />
+              <GenericInputField
                 name="jobTitle"
                 label="Job Title"
                 kind="text"

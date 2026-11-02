@@ -240,6 +240,7 @@ export const EmployeeEditor = ({
               phoneNumber: employee.phoneNumber,
               branchId: employee.branchId ?? '',
               shopId: employee.shopId ?? '',
+              employeeRole: employee.employeeRole ?? '',
               jobTitle: employee.jobTitle ?? '',
               department: employee.department ?? '',
               joiningDate: employee.joiningDate?.slice(0, 10) ?? '',

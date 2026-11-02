@@ -4,3 +4,4 @@ export {default as customValidation} from './custom.validation';
 export {default as companyValidation} from './company.validation';
 export {default as orgValidation} from './org.validation';
 export {default as catalogValidation} from './catalog.validation';
+export {default as masterValidation} from './master.validation';
