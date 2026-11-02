@@ -25,6 +25,7 @@ mountCatalog(router, {manageCategories: true, manageBrands: true});
 router.get('/orders', e.listOrders);
 router.get('/orders/:id', e.getOrder);
 
+router.get('/inventory/dashboard', e.inventoryDashboard);
 router.get('/inventory', e.listInventory);
 router.get('/inventory/movements', e.listMovements);
 router.get('/returns', e.listReturns);

@@ -11,9 +11,12 @@ const router = Router();
 router.use(verifyJWT, checkRole(Role.EMPLOYEE));
 
 // Stock of the branch
+router.get('/inventory/dashboard', checkPermission('inventory.view'), e.inventoryDashboard);
 router.get('/inventory', checkPermission('inventory.view'), e.listInventory);
 router.get('/inventory/movements', checkPermission('inventory.view'), e.listMovements);
 router.post('/inventory/adjust', checkPermission('inventory.adjust'), e.adjustStock);
+router.post('/inventory/batch-adjust', checkPermission('inventory.adjust'), e.batchAdjustStock);
+router.patch('/inventory/threshold', checkPermission('inventory.adjust'), e.updateThreshold);
 
 // Orders of the branch
 router.get('/orders', checkPermission('orders.process'), e.listOrders);

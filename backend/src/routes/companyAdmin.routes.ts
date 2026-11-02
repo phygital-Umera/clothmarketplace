@@ -7,7 +7,7 @@ const c = orgController;
 const e = ecommerceController;
 const router = Router();
 
-// Everything here is limited to the signed-in admin's own company
+// Everything here is scoped to the signed-in admin's company
 router.use(verifyJWT, checkCompanyAdmin);
 
 router.get('/dashboard', c.scopedDashboard);
@@ -19,7 +19,7 @@ router.route('/branches').get(c.listBranches).post(c.createBranch);
 router.route('/branches/:id').get(c.getBranch).patch(c.updateBranch);
 router.patch('/branches/:id/status', c.setBranchStatus);
 
-// Shops inside branches
+// Shops
 router.get('/shops/options', c.shopOptions);
 router.route('/shops').get(c.listShops).post(c.createShop);
 router.route('/shops/:id').get(c.getShop).patch(c.updateShop);
@@ -37,8 +37,11 @@ router.post('/users/:id/revoke-sessions', c.revokeSessions);
 mountCatalog(router, {manageBrands: true, manageProducts: true});
 
 // Inventory
+router.get('/inventory/dashboard', e.inventoryDashboard);
 router.get('/inventory', e.listInventory);
 router.post('/inventory/adjust', e.adjustStock);
+router.post('/inventory/batch-adjust', e.batchAdjustStock);
+router.patch('/inventory/threshold', e.updateThreshold);
 router.get('/inventory/movements', e.listMovements);
 
 // Orders & Returns

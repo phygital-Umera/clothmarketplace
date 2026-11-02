@@ -37,6 +37,15 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('number of proxies in front of the API; empty when clients connect directly'),
+    CLOUDFLARE_ACCOUNT_ID: z.string().optional().describe('Cloudflare account id for Workers AI'),
+    CLOUDFLARE_AI_API_TOKEN: z
+        .string()
+        .optional()
+        .describe('Cloudflare API token with Workers AI permission (AI product previews)'),
+    CLOUDFLARE_AI_MODEL: z
+        .string()
+        .default('@cf/black-forest-labs/flux-2-klein-4b')
+        .describe('Workers AI image-editing model used for color previews'),
 });
 
 const parseEnvVars = () => {
@@ -80,6 +89,11 @@ export default {
     // Only trust X-Forwarded-For when a known proxy sits in front; otherwise
     // clients could fake their IP and dodge the login rate limit
     trustProxy: envVars.TRUST_PROXY ? Number(envVars.TRUST_PROXY) : false,
+    ai: {
+        cloudflareAccountId: envVars.CLOUDFLARE_ACCOUNT_ID || undefined,
+        cloudflareApiToken: envVars.CLOUDFLARE_AI_API_TOKEN || undefined,
+        imageModel: envVars.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-2-klein-4b',
+    },
     cors: {
         origins: envVars.CORS_ORIGINS
             ? envVars.CORS_ORIGINS.split(',').map((origin) => origin.trim())

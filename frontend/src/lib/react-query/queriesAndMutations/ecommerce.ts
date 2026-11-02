@@ -6,8 +6,11 @@ import {
   deleteProduct,
   getCategories,
   getBrands,
+  getInventoryDashboard,
   getInventory,
   adjustStock,
+  batchAdjustStock,
+  updateInventoryThreshold,
   getStockMovements,
   getOrders,
   getOrder,
@@ -16,6 +19,9 @@ import {
   ProductListParams,
   InventoryListParams,
   OrderListParams,
+  AdjustStockPayload,
+  BatchAdjustPayload,
+  UpdateThresholdPayload,
 } from '@/lib/api/ecommerce';
 import {getErrorMessage} from '@/utils/axios';
 import {
@@ -29,6 +35,7 @@ import toast from 'react-hot-toast';
 export const ECOMM_KEYS = {
   PRODUCTS: 'ecomm_products',
   INVENTORY: 'ecomm_inventory',
+  INVENTORY_DASHBOARD: 'ecomm_inventory_dashboard',
   MOVEMENTS: 'ecomm_movements',
   ORDERS: 'ecomm_orders',
   RETURNS: 'ecomm_returns',
@@ -80,22 +87,32 @@ export const useBrands = (panel: string) =>
     select: (res) => res.data,
   });
 
-export const useInventory = (panel: string, params: InventoryListParams) =>
+export const useInventoryDashboard = (panel: string, params?: {branchId?: string}) =>
+  useQuery({
+    queryKey: [ECOMM_KEYS.INVENTORY_DASHBOARD, panel, params],
+    queryFn: () => getInventoryDashboard(panel, params),
+    select: (res) => res.data,
+  });
+
+export const useInventory = (panel: string, params: InventoryListParams, options?: any) =>
   useQuery({
     queryKey: [ECOMM_KEYS.INVENTORY, panel, params],
     queryFn: () => getInventory(panel, params),
     select: (res) => res.data,
     placeholderData: keepPreviousData,
+    ...options,
   });
 
 export const useAdjustStock = (panel: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => adjustStock(panel, data),
+    mutationFn: (data: AdjustStockPayload) => adjustStock(panel, data),
     onSuccess: () => {
       toast.success('Stock adjusted successfully');
       queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY]});
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY_DASHBOARD]});
       queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.MOVEMENTS]});
+      queryClient.invalidateQueries({queryKey: ['shop_products']});
     },
     onError: (err) => {
       toast.error(getErrorMessage(err, 'Failed to adjust stock'));
@@ -103,11 +120,46 @@ export const useAdjustStock = (panel: string) => {
   });
 };
 
-export const useStockMovements = (panel: string, params: any) =>
+export const useBatchAdjustStock = (panel: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: BatchAdjustPayload) => batchAdjustStock(panel, data),
+    onSuccess: (res: any) => {
+      const count = res?.data?.adjustedCount ?? 'Items';
+      toast.success(`${count} stock record(s) updated successfully`);
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY]});
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY_DASHBOARD]});
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.MOVEMENTS]});
+      queryClient.invalidateQueries({queryKey: ['shop_products']});
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, 'Failed to process batch adjustment'));
+    },
+  });
+};
+
+export const useUpdateThreshold = (panel: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateThresholdPayload) => updateInventoryThreshold(panel, data),
+    onSuccess: () => {
+      toast.success('Threshold updated successfully');
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY]});
+      queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY_DASHBOARD]});
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, 'Failed to update threshold'));
+    },
+  });
+};
+
+export const useStockMovements = (panel: string, params: any, options?: any) =>
   useQuery({
     queryKey: [ECOMM_KEYS.MOVEMENTS, panel, params],
     queryFn: () => getStockMovements(panel, params),
     select: (res) => res.data,
+    placeholderData: keepPreviousData,
+    ...options,
   });
 
 export const useOrders = (panel: string, params: OrderListParams) =>
