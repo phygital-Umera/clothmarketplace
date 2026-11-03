@@ -37,3 +37,7 @@ Thumbs.db
 # Temporary / testing
 .cache/
 .temp/
+
+node_modules
+dist
+.env
