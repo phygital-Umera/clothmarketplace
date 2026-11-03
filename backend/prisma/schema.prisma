@@ -59,6 +59,8 @@ model User {
   returns                ReturnRequest[]
   couponUsages           CouponUsage[]
   orderStatusUpdates     OrderStatusHistory[]
+  purchaseBills          PurchaseBill[]
+  salesBills             SalesBill[]
 }
 
 model Admin {
@@ -122,6 +124,8 @@ model Company {
   returns       ReturnRequest[]
   offers        Offer[]
   coupons       Coupon[]
+  purchaseBills PurchaseBill[]
+  salesBills    SalesBill[]
 
   @@index([name])
   @@index([status])
@@ -189,6 +193,8 @@ model Branch {
   stockMovements  StockMovement[]
   offers          Offer[]
   coupons         Coupon[]
+  purchaseBills   PurchaseBill[]
+  salesBills      SalesBill[]
 
   @@index([companyId])
   @@index([status])
@@ -219,6 +225,8 @@ model Shop {
   coupons     Coupon[]
   orders      Order[]
   returns     ReturnRequest[]
+  purchaseBills PurchaseBill[]
+  salesBills    SalesBill[]
 
   @@index([companyId])
   @@index([branchId])
@@ -444,6 +452,8 @@ model Product {
   colors         ProductColor[]
   previews       ProductColorPreview[]
   offers         Offer[]
+  purchaseBillItems PurchaseBillItem[]
+  salesBillItems    SalesBillItem[]
 
   @@index([companyId])
   @@index([categoryId])
@@ -534,6 +544,8 @@ model ProductVariant {
   orderItems     OrderItem[]
   cartItems      CartItem[]
   stockMovements StockMovement[]
+  purchaseBillItems PurchaseBillItem[]
+  salesBillItems    SalesBillItem[]
 
   @@index([productId])
 }
@@ -564,6 +576,17 @@ enum MovementType {
   DAMAGE_WRITE_OFF
   TRANSFER_OUT
   TRANSFER_IN
+  PURCHASE_REVERSAL // stock out: purchase bill reduced / cancelled
+  SALE_REVERSAL     // stock in: sales bill reduced / cancelled
+}
+
+/// What created a stock movement (null for legacy rows)
+enum StockSourceType {
+  PURCHASE_BILL
+  SALES_BILL
+  ORDER
+  RETURN
+  ADJUSTMENT
 }
 
 model StockMovement {
@@ -578,10 +601,136 @@ model StockMovement {
   newPhysical  Int
   reason      String
   reference   String?
+  sourceType  StockSourceType?
+  sourceId    String?
   performedById String?
   createdAt   DateTime       @default(now())
 
   @@index([branchId])
+  @@index([variantId])
+  @@index([sourceType, sourceId])
+}
+
+// -------------------------------------------------------------
+// SHOP BILLING: purchase bills (stock in) & sales bills (stock out)
+// Stock is posted only for CONFIRMED bills, via inventoryService.applyStockChanges
+// -------------------------------------------------------------
+
+enum BillStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+model PurchaseBill {
+  id                String       @id @default(uuid())
+  billNumber        String
+  companyId         String
+  company           Company      @relation(fields: [companyId], references: [id])
+  branchId          String
+  branch            Branch       @relation(fields: [branchId], references: [id])
+  shopId            String
+  shop              Shop         @relation(fields: [shopId], references: [id])
+  supplierName      String
+  supplierInvoiceNo String?
+  supplierPhone     String?
+  billDate          DateTime     @default(now())
+  status            BillStatus   @default(CONFIRMED)
+  subtotal          Float        @default(0)
+  taxAmount         Float        @default(0)
+  discount          Float        @default(0)
+  totalAmount       Float        @default(0)
+  notes             String?
+  /// Optimistic lock: bumped on every change so concurrent edits can't post stock twice
+  version           Int          @default(0)
+  createdById       String
+  createdBy         User         @relation(fields: [createdById], references: [id])
+  cancelledAt       DateTime?
+  cancelReason      String?
+  deletedAt         DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  items             PurchaseBillItem[]
+
+  @@unique([shopId, billNumber])
+  @@index([shopId])
+  @@index([status])
+  @@index([billDate])
+}
+
+model PurchaseBillItem {
+  id        String         @id @default(uuid())
+  billId    String
+  bill      PurchaseBill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id])
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  quantity  Int
+  unitCost  Float
+  taxRate   Float          @default(0)
+  totalCost Float
+
+  @@index([billId])
+  @@index([variantId])
+}
+
+model SalesBill {
+  id            String     @id @default(uuid())
+  billNumber    String
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id])
+  branchId      String
+  branch        Branch     @relation(fields: [branchId], references: [id])
+  shopId        String
+  shop          Shop       @relation(fields: [shopId], references: [id])
+  customerName  String?
+  customerPhone String?
+  billDate      DateTime   @default(now())
+  status        BillStatus @default(CONFIRMED)
+  paymentMethod String     @default("CASH") // CASH, CARD, UPI
+  subtotal      Float      @default(0)
+  discount      Float      @default(0)
+  taxAmount     Float      @default(0)
+  totalAmount   Float      @default(0)
+  notes         String?
+  version       Int        @default(0)
+  createdById   String
+  createdBy     User       @relation(fields: [createdById], references: [id])
+  cancelledAt   DateTime?
+  cancelReason  String?
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  items         SalesBillItem[]
+
+  @@unique([shopId, billNumber])
+  @@index([shopId])
+  @@index([status])
+  @@index([billDate])
+}
+
+model SalesBillItem {
+  id          String         @id @default(uuid())
+  billId      String
+  bill        SalesBill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id])
+  variantId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  quantity    Int
+  unitPrice   Float
+  discount    Float          @default(0)
+  taxRate     Float          @default(0)
+  totalPrice  Float
+  productName String?
+  variantSku  String?
+  size        String?
+  color       String?
+
+  @@index([billId])
   @@index([variantId])
 }
 

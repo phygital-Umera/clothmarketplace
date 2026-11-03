@@ -8,6 +8,7 @@ import {
 } from '@controllers/index';
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
+import {mountBills} from './bill.routes';
 
 const router = Router();
 
@@ -57,7 +58,10 @@ router.get('/inventory/movements', e.listMovements);
 // ---- 7. Offers & Promotions Management ----
 mountPromotions(router);
 
-// ---- 8. Order Management & Returns ----
+// ---- 8. Purchase & Sales Bills (automatic stock in / out) ----
+mountBills(router);
+
+// ---- 9. Order Management & Returns ----
 router.get('/orders/dashboard', e.orderDashboard);
 router.route('/orders').get(e.listOrders);
 router.route('/orders/:id').get(e.getOrder);

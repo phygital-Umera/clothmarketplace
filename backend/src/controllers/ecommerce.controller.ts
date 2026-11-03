@@ -1,6 +1,6 @@
 import {Request} from 'express';
 import httpStatus from 'http-status';
-import {OrderStatus, PaymentStatus, ReturnStatus, Role} from '@prisma/client';
+import {OrderStatus, PaymentStatus, ReturnStatus, Role, StockSourceType} from '@prisma/client';
 import {inventoryService, orderService} from '@services/index';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {Scope} from '../services/account.service';
@@ -73,6 +73,10 @@ export const listMovements = catchAsync(async (req, res) => {
     const search = req.query.search ? String(req.query.search) : undefined;
     const action = req.query.action ? String(req.query.action) : undefined;
     const type = req.query.type as any;
+    const sourceType = req.query.sourceType
+        ? (String(req.query.sourceType) as StockSourceType)
+        : undefined;
+    const sourceId = req.query.sourceId ? String(req.query.sourceId) : undefined;
 
     const result = await inventoryService.movements(scopeOf(req), {
         page,
@@ -83,6 +87,8 @@ export const listMovements = catchAsync(async (req, res) => {
         search,
         action,
         type,
+        sourceType,
+        sourceId,
     });
     return ok(res, result, 'Stock movements retrieved successfully');
 });

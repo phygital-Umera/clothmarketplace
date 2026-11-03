@@ -4,11 +4,11 @@ import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
 import {jwtDecode} from 'jwt-decode';
 
 export const unAuthenticatedApi: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL,
+  baseURL: import.meta.env.VITE_SERVER_URL || 'http://localhost:5692/api/v1',
 });
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL,
+  baseURL: import.meta.env.VITE_SERVER_URL || 'http://localhost:5692/api/v1',
 });
 
 const readToken = (): Token | null =>

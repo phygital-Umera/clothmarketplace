@@ -5,6 +5,8 @@ import {Link} from '@tanstack/react-router';
 import {roleConfig, Role, ROLES} from '@/lib/roles';
 import {
   Boxes,
+  FileInput,
+  FileOutput,
   Layers,
   Palette,
   Ruler,
@@ -93,12 +95,14 @@ const NAV: Record<Role, NavGroup[]> = {
       items: [
         item('Products', '/shop-admin/products', Package),
         item('Inventory', '/shop-admin/inventory', Boxes),
+        item('Purchase Bills', '/shop-admin/purchase-bills', FileInput),
         item('Offers & Coupons', '/shop-admin/promotions', TicketPercent),
       ],
     },
     {
       heading: 'Sales & Fulfillment',
       items: [
+        item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
         item('Orders', '/shop-admin/orders', ShoppingBag),
       ],
     },

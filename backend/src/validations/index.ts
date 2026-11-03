@@ -6,3 +6,4 @@ export {default as orgValidation} from './org.validation';
 export {default as catalogValidation} from './catalog.validation';
 export {default as masterValidation} from './master.validation';
 export {default as shopProductValidation} from './shopProduct.validation';
+export {default as billValidation} from './bill.validation';
