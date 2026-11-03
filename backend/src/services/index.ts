@@ -16,3 +16,4 @@ export {default as masterService} from './master.service';
 export {default as shopProductService} from './shopProduct.service';
 export {default as aiPreviewService} from './aiPreview.service';
 export {default as promotionService} from './promotion.service';
+export {default as billService} from './bill.service';

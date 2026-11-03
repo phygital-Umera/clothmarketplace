@@ -1,4 +1,4 @@
-import {api, unAuthenticatedApi} from '@/utils/axios';
+import {api, getErrorMessage, unAuthenticatedApi} from '@/utils/axios';
 import {ApiResponse, Token} from '@/types';
 import {AxiosError} from 'axios';
 
@@ -49,7 +49,7 @@ const loginUser = async ({identifier, password}: LoginValues) => {
     return res.data as ApiResponse<LoginResponse>;
   } catch (error) {
     if (error instanceof AxiosError) {
-      throw new Error(error.response?.data?.message || 'Failed to sign in');
+      throw new Error(getErrorMessage(error, 'Failed to sign in'));
     }
     throw error;
   }

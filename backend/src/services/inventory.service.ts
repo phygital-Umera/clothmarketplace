@@ -1,4 +1,4 @@
-import {Prisma, MovementType} from '@prisma/client';
+import {Prisma, MovementType, StockSourceType} from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
@@ -42,7 +42,132 @@ export interface InventoryListParams {
     limit?: number;
 }
 
+export interface StockChange {
+    variantId: string;
+    productId: string;
+    /** Positive = stock in, negative = stock out */
+    delta: number;
+    type: MovementType;
+}
+
+export interface ApplyStockChangesInput {
+    branchId: string;
+    changes: StockChange[];
+    reason: string;
+    reference?: string | null;
+    sourceType?: StockSourceType;
+    sourceId?: string;
+    performedById?: string | null;
+}
+
 class InventoryService {
+    /**
+     * Single entry point for automatic stock posting (bills, orders, returns).
+     * Must run inside the caller's transaction so the document and its stock
+     * effect commit or roll back together. Decrements are guarded atomically
+     * against available stock (physical - reserved), so concurrent sales
+     * cannot oversell.
+     */
+    public applyStockChanges = async (
+        tx: Prisma.TransactionClient,
+        input: ApplyStockChangesInput,
+    ) => {
+        const {branchId, reason, reference, sourceType, sourceId, performedById} = input;
+
+        // Merge per variant + movement type, drop no-ops, fixed lock order
+        const merged = new Map<string, StockChange>();
+        for (const c of input.changes) {
+            const key = `${c.variantId}:${c.type}`;
+            const prev = merged.get(key);
+            merged.set(key, prev ? {...prev, delta: prev.delta + c.delta} : {...c});
+        }
+        const changes = [...merged.values()]
+            .filter((c) => c.delta !== 0)
+            .sort((a, b) => a.variantId.localeCompare(b.variantId));
+
+        for (const c of changes) {
+            let newPhysical: number;
+
+            if (c.delta > 0) {
+                const inv = await tx.inventory.upsert({
+                    where: {branchId_variantId: {branchId, variantId: c.variantId}},
+                    create: {branchId, variantId: c.variantId, physicalQty: c.delta},
+                    update: {physicalQty: {increment: c.delta}},
+                });
+                newPhysical = inv.physicalQty;
+            } else {
+                const qty = -c.delta;
+                const rows = await tx.$queryRaw<Array<{physicalQty: number}>>`
+                    UPDATE "Inventory"
+                    SET "physicalQty" = "physicalQty" - ${qty}, "updatedAt" = NOW()
+                    WHERE "branchId" = ${branchId} AND "variantId" = ${c.variantId}
+                      AND "physicalQty" - "reservedQty" >= ${qty}
+                    RETURNING "physicalQty"`;
+
+                if (!rows.length) {
+                    const [inv, variant] = await Promise.all([
+                        tx.inventory.findUnique({
+                            where: {branchId_variantId: {branchId, variantId: c.variantId}},
+                        }),
+                        tx.productVariant.findUnique({
+                            where: {id: c.variantId},
+                            select: {size: true, color: true, product: {select: {name: true}}},
+                        }),
+                    ]);
+                    const available = Math.max(
+                        0,
+                        (inv?.physicalQty ?? 0) - (inv?.reservedQty ?? 0),
+                    );
+                    const label = variant
+                        ? `"${variant.product.name}" (${variant.size} / ${variant.color})`
+                        : 'selected item';
+                    throw new ApiError(
+                        httpStatus.BAD_REQUEST,
+                        `Insufficient stock for ${label}. Required: ${qty}, available: ${available}`,
+                    );
+                }
+                newPhysical = rows[0].physicalQty;
+            }
+
+            await tx.stockMovement.create({
+                data: {
+                    branchId,
+                    variantId: c.variantId,
+                    type: c.type,
+                    quantity: Math.abs(c.delta),
+                    prevPhysical: newPhysical - c.delta,
+                    newPhysical,
+                    reason,
+                    reference: reference ?? null,
+                    sourceType: sourceType ?? null,
+                    sourceId: sourceId ?? null,
+                    performedById: performedById ?? null,
+                },
+            });
+        }
+
+        await this.syncProductStock(tx, branchId, [...new Set(changes.map((c) => c.productId))]);
+        return changes;
+    };
+
+    /** Recompute Product.stockQuantity from its active variants' inventory in the branch. */
+    private syncProductStock = async (
+        tx: Prisma.TransactionClient,
+        branchId: string,
+        productIds: string[],
+    ) => {
+        for (const productId of productIds) {
+            const totalStock = await tx.inventory.aggregate({
+                where: {branchId, variant: {productId, isActive: true}},
+                _sum: {physicalQty: true},
+            });
+            await tx.product.update({
+                where: {id: productId},
+                data: {stockQuantity: totalStock._sum.physicalQty ?? 0},
+            });
+        }
+    };
+
     /**
      * Resolves the target branchId for the given scope and input.
      * If user is shop-admin, employee, or branch-admin, their branchId is used.
@@ -303,22 +428,43 @@ class InventoryService {
             branchId,
         } = params;
 
-        const targetBranchId = scope.branchId || branchId;
+        let targetBranchId = scope.branchId || branchId;
+        if (!targetBranchId && scope.shopId) {
+            const shop = await prisma.shop.findUnique({
+                where: {id: scope.shopId},
+                select: {branchId: true},
+            });
+            if (shop?.branchId) targetBranchId = shop.branchId;
+        }
         const skip = (page - 1) * limit;
 
-        // Base product filter
-        const productWhere: Prisma.ProductWhereInput = {
+        // Base product filter for tenancy/scope
+        const baseProductWhere: Prisma.ProductWhereInput = {
             deletedAt: null,
             ...(scope.companyId ? {companyId: scope.companyId} : {}),
             ...(scope.shopId ? {shopId: scope.shopId} : {}),
             ...(categoryId ? {categoryId} : {}),
+        };
+
+        const productWhere: Prisma.ProductWhereInput = {
+            ...baseProductWhere,
             ...(search
                 ? {
                       OR: [
                           {name: {contains: search, mode: 'insensitive'}},
                           {sku: {contains: search, mode: 'insensitive'}},
                           {productType: {contains: search, mode: 'insensitive'}},
-                          {variants: {some: {variantSku: {contains: search, mode: 'insensitive'}}}},
+                          {
+                              variants: {
+                                  some: {
+                                      OR: [
+                                          {variantSku: {contains: search, mode: 'insensitive'}},
+                                          {size: {contains: search, mode: 'insensitive'}},
+                                          {color: {contains: search, mode: 'insensitive'}},
+                                      ],
+                                  },
+                              },
+                          },
                       ],
                   }
                 : {}),
@@ -439,7 +585,7 @@ class InventoryService {
         // View === 'variant': flat list of variants
         const variantWhere: Prisma.ProductVariantWhereInput = {
             isActive: true,
-            product: productWhere,
+            product: baseProductWhere,
             ...(search
                 ? {
                       OR: [
@@ -447,6 +593,8 @@ class InventoryService {
                           {size: {contains: search, mode: 'insensitive'}},
                           {color: {contains: search, mode: 'insensitive'}},
                           {product: {name: {contains: search, mode: 'insensitive'}}},
+                          {product: {sku: {contains: search, mode: 'insensitive'}}},
+                          {product: {productType: {contains: search, mode: 'insensitive'}}},
                       ],
                   }
                 : {}),
@@ -464,6 +612,9 @@ class InventoryService {
                             id: true,
                             name: true,
                             sku: true,
+                            mrp: true,
+                            sellingPrice: true,
+                            taxRate: true,
                             category: {select: {id: true, name: true}},
                             images: {where: {isMain: true}, take: 1, select: {url: true}},
                         },
@@ -496,6 +647,7 @@ class InventoryService {
                     sku: v.product.sku,
                     category: v.product.category.name,
                     image: v.product.images[0]?.url ?? null,
+                    taxRate: v.product.taxRate,
                 },
                 variant: {
                     id: v.id,
@@ -503,6 +655,7 @@ class InventoryService {
                     size: v.size,
                     color: v.color,
                     colorHex: v.colorHex,
+                    sellingPrice: v.sellingPrice ?? v.product.sellingPrice ?? v.product.mrp,
                 },
                 physicalStock: physical,
                 reservedStock: reserved,
@@ -636,6 +789,7 @@ class InventoryService {
                     newPhysical,
                     reason: input.reason.trim(),
                     reference: input.notes?.trim() || null,
+                    sourceType: StockSourceType.ADJUSTMENT,
                     performedById,
                 },
             });
@@ -654,18 +808,7 @@ class InventoryService {
             });
 
             // Sync parent Product total stockQuantity
-            const totalStock = await tx.inventory.aggregate({
-                where: {
-                    branchId,
-                    variant: {productId: variant.productId, isActive: true},
-                },
-                _sum: {physicalQty: true},
-            });
-
-            await tx.product.update({
-                where: {id: variant.productId},
-                data: {stockQuantity: totalStock._sum.physicalQty ?? 0},
-            });
+            await this.syncProductStock(tx, branchId, [variant.productId]);
 
             return {
                 ...updatedInventory,
@@ -763,6 +906,7 @@ class InventoryService {
                         newPhysical,
                         reason: reason.trim(),
                         reference: reference?.trim() || null,
+                        sourceType: StockSourceType.ADJUSTMENT,
                         performedById,
                     },
                 });
@@ -781,20 +925,7 @@ class InventoryService {
             }
 
             // Sync total stockQuantity on each affected Product
-            for (const productId of affectedProductIds) {
-                const totalStock = await tx.inventory.aggregate({
-                    where: {
-                        branchId,
-                        variant: {productId, isActive: true},
-                    },
-                    _sum: {physicalQty: true},
-                });
-
-                await tx.product.update({
-                    where: {id: productId},
-                    data: {stockQuantity: totalStock._sum.physicalQty ?? 0},
-                });
-            }
+            await this.syncProductStock(tx, branchId, [...affectedProductIds]);
 
             return {
                 adjustedCount: validItems.length,
@@ -844,11 +975,24 @@ class InventoryService {
             search?: string;
             action?: 'INWARD' | 'OUTWARD' | 'ALL' | string;
             type?: MovementType;
+            sourceType?: StockSourceType;
+            sourceId?: string;
             page?: number;
             limit?: number;
         },
     ) => {
-        const {page = 1, limit = 20, branchId, productId, variantId, search, action, type} = params;
+        const {
+            page = 1,
+            limit = 20,
+            branchId,
+            productId,
+            variantId,
+            search,
+            action,
+            type,
+            sourceType,
+            sourceId,
+        } = params;
         const targetBranchId = scope.branchId || branchId;
         const skip = (page - 1) * limit;
 
@@ -857,12 +1001,14 @@ class InventoryService {
             'ADJUSTMENT_INCREASE',
             'RETURN_RESTOCK',
             'TRANSFER_IN',
+            'SALE_REVERSAL',
         ];
         const outwardTypes: MovementType[] = [
             'SALE_OUT',
             'ADJUSTMENT_DECREASE',
             'DAMAGE_WRITE_OFF',
             'TRANSFER_OUT',
+            'PURCHASE_REVERSAL',
         ];
 
         let typeFilter: Prisma.EnumMovementTypeFilter | MovementType | undefined = undefined;
@@ -880,6 +1026,8 @@ class InventoryService {
             ...(variantId ? {variantId} : {}),
             ...(productId ? {variant: {productId}} : {}),
             ...(typeFilter ? {type: typeFilter} : {}),
+            ...(sourceType ? {sourceType} : {}),
+            ...(sourceId ? {sourceId} : {}),
             ...(search
                 ? {
                       OR: [
@@ -950,6 +1098,8 @@ class InventoryService {
                 newPhysical: m.newPhysical,
                 reason: m.reason,
                 reference: m.reference,
+                sourceType: m.sourceType,
+                sourceId: m.sourceId,
                 createdAt: m.createdAt,
                 performedBy: m.performedById ? userMap.get(m.performedById) ?? null : null,
             })),

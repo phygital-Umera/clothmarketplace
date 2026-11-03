@@ -1,8 +1,24 @@
-import {Prisma, OrderStatus, PaymentStatus, ReturnStatus, RefundStatus, MovementType} from '@prisma/client';
+import {
+    Prisma,
+    OrderStatus,
+    PaymentStatus,
+    ReturnStatus,
+    RefundStatus,
+    MovementType,
+    StockSourceType,
+} from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
 import {Scope} from './account.service';
+import inventoryService from './inventory.service';
+
+/** Statuses from which an order can no longer be cancelled (stock already settled) */
+const NON_CANCELLABLE: OrderStatus[] = [
+    OrderStatus.CANCELLED,
+    OrderStatus.RETURNED,
+    OrderStatus.DELIVERED,
+];
 
 export interface CreateCustomerOrderInput {
     companyId?: string;
@@ -313,6 +329,44 @@ class OrderService {
         return order;
     };
 
+    /**
+     * Mark the order cancelled and put its items back in stock, exactly once:
+     * the conditional update only matches an order that is not yet cancelled,
+     * so a repeated or concurrent cancel restores nothing.
+     */
+    private cancelAndRestock = async (
+        tx: Prisma.TransactionClient,
+        order: {
+            id: string;
+            orderNumber: string;
+            branchId: string;
+            items: Array<{variantId: string; productId: string; quantity: number}>;
+        },
+        reason: string,
+        actorId?: string,
+    ) => {
+        const {count} = await tx.order.updateMany({
+            where: {id: order.id, status: {notIn: NON_CANCELLABLE}},
+            data: {status: OrderStatus.CANCELLED},
+        });
+        if (!count) return;
+
+        await inventoryService.applyStockChanges(tx, {
+            branchId: order.branchId,
+            changes: order.items.map((item) => ({
+                variantId: item.variantId,
+                productId: item.productId,
+                delta: item.quantity,
+                type: MovementType.RETURN_RESTOCK,
+            })),
+            reason,
+            reference: order.orderNumber,
+            sourceType: StockSourceType.ORDER,
+            sourceId: order.id,
+            performedById: actorId,
+        });
+    };
+
     // -------------------------------------------------------------
     // 4. ORDER STATUS MANAGEMENT
     // -------------------------------------------------------------
@@ -332,6 +386,20 @@ class OrderService {
         const nextStatus = data.status;
         const comment = data.comment || `Status updated to ${nextStatus}`;
 
+        // A cancelled order has had its stock restored; reopening it would desync inventory
+        if (order.status === OrderStatus.CANCELLED && nextStatus !== OrderStatus.CANCELLED) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'A cancelled order cannot be reopened. Place a new order instead.',
+            );
+        }
+        if (nextStatus === OrderStatus.CANCELLED && NON_CANCELLABLE.includes(order.status)) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `Order cannot be cancelled in "${order.status}" status${order.status === OrderStatus.DELIVERED ? '. Use a return instead.' : ''}`,
+            );
+        }
+
         // Auto-mark COD as PAID on delivery
         let paymentStatus = order.paymentStatus;
         if (nextStatus === 'DELIVERED' && order.paymentMethod === 'COD' && order.paymentStatus === 'PENDING') {
@@ -339,6 +407,15 @@ class OrderService {
         }
 
         const updated = await prisma.$transaction(async (tx) => {
+            if (nextStatus === OrderStatus.CANCELLED) {
+                await this.cancelAndRestock(
+                    tx,
+                    order,
+                    `Order #${order.orderNumber} cancelled`,
+                    actorId,
+                );
+            }
+
             const res = await tx.order.update({
                 where: {id},
                 data: {
@@ -476,60 +553,13 @@ class OrderService {
 
         return prisma.$transaction(async (tx) => {
             if (data.approve) {
-                // 1. Restore Inventory
-                for (const item of order.items) {
-                    const inv = await tx.inventory.findUnique({
-                        where: {
-                            branchId_variantId: {
-                                branchId: order.branchId,
-                                variantId: item.variantId,
-                            },
-                        },
-                    });
-
-                    const prev = inv?.physicalQty ?? 0;
-                    const next = prev + item.quantity;
-
-                    await tx.inventory.upsert({
-                        where: {
-                            branchId_variantId: {
-                                branchId: order.branchId,
-                                variantId: item.variantId,
-                            },
-                        },
-                        create: {
-                            branchId: order.branchId,
-                            variantId: item.variantId,
-                            physicalQty: item.quantity,
-                        },
-                        update: {
-                            physicalQty: {increment: item.quantity},
-                        },
-                    });
-
-                    // Update product aggregated stock
-                    await tx.product.update({
-                        where: {id: item.productId},
-                        data: {
-                            stockQuantity: {increment: item.quantity},
-                        },
-                    });
-
-                    // Log stock movement
-                    await tx.stockMovement.create({
-                        data: {
-                            branchId: order.branchId,
-                            variantId: item.variantId,
-                            type: MovementType.RETURN_RESTOCK,
-                            quantity: item.quantity,
-                            prevPhysical: prev,
-                            newPhysical: next,
-                            reason: `Cancellation approved for order #${order.orderNumber}`,
-                            reference: order.orderNumber,
-                            performedById: actorId,
-                        },
-                    });
-                }
+                // 1. Restore Inventory (once, even if the order was already cancelled)
+                await this.cancelAndRestock(
+                    tx,
+                    order,
+                    `Cancellation approved for order #${order.orderNumber}`,
+                    actorId,
+                );
 
                 // 2. Mark order cancelled and refund payment if paid
                 const nextPaymentStatus = order.paymentStatus === 'PAID' ? PaymentStatus.REFUNDED : order.paymentStatus;
@@ -671,53 +701,24 @@ class OrderService {
         return prisma.$transaction(async (tx) => {
             // If restock is explicitly requested or when completing return with restock
             if (data.restock && (data.returnStatus === 'RECEIVED' || data.returnStatus === 'COMPLETED')) {
-                for (const orderItem of item.order.items) {
-                    const inv = await tx.inventory.findUnique({
-                        where: {
-                            branchId_variantId: {
-                                branchId: item.order.branchId,
-                                variantId: orderItem.variantId,
-                            },
-                        },
-                    });
-
-                    const prev = inv?.physicalQty ?? 0;
-                    const next = prev + orderItem.quantity;
-
-                    await tx.inventory.upsert({
-                        where: {
-                            branchId_variantId: {
-                                branchId: item.order.branchId,
-                                variantId: orderItem.variantId,
-                            },
-                        },
-                        create: {
-                            branchId: item.order.branchId,
+                // Restock a return only once (RECEIVED and COMPLETED may both ask for it)
+                const alreadyRestocked = await tx.stockMovement.count({
+                    where: {sourceType: StockSourceType.RETURN, sourceId: returnId},
+                });
+                if (!alreadyRestocked) {
+                    await inventoryService.applyStockChanges(tx, {
+                        branchId: item.order.branchId,
+                        changes: item.order.items.map((orderItem) => ({
                             variantId: orderItem.variantId,
-                            physicalQty: orderItem.quantity,
-                        },
-                        update: {
-                            physicalQty: {increment: orderItem.quantity},
-                        },
-                    });
-
-                    await tx.product.update({
-                        where: {id: orderItem.productId},
-                        data: {stockQuantity: {increment: orderItem.quantity}},
-                    });
-
-                    await tx.stockMovement.create({
-                        data: {
-                            branchId: item.order.branchId,
-                            variantId: orderItem.variantId,
+                            productId: orderItem.productId,
+                            delta: orderItem.quantity,
                             type: MovementType.RETURN_RESTOCK,
-                            quantity: orderItem.quantity,
-                            prevPhysical: prev,
-                            newPhysical: next,
-                            reason: `Return restocked for Order #${item.order.orderNumber}`,
-                            reference: item.order.orderNumber,
-                            performedById: actorId,
-                        },
+                        })),
+                        reason: `Return restocked for Order #${item.order.orderNumber}`,
+                        reference: item.order.orderNumber,
+                        sourceType: StockSourceType.RETURN,
+                        sourceId: returnId,
+                        performedById: actorId,
                     });
                 }
             }
@@ -940,58 +941,21 @@ class OrderService {
                 },
             });
 
-            // 2. Deduct inventory & log stock movement
-            for (const item of processedItems) {
-                const inv = await tx.inventory.findUnique({
-                    where: {
-                        branchId_variantId: {
-                            branchId,
-                            variantId: item.variantId,
-                        },
-                    },
-                });
-
-                const prev = inv?.physicalQty ?? 0;
-                const next = Math.max(0, prev - item.quantity);
-
-                await tx.inventory.upsert({
-                    where: {
-                        branchId_variantId: {
-                            branchId,
-                            variantId: item.variantId,
-                        },
-                    },
-                    create: {
-                        branchId,
-                        variantId: item.variantId,
-                        physicalQty: next,
-                    },
-                    update: {
-                        physicalQty: {decrement: item.quantity},
-                    },
-                });
-
-                await tx.product.update({
-                    where: {id: item.productId},
-                    data: {
-                        stockQuantity: {decrement: item.quantity},
-                    },
-                });
-
-                await tx.stockMovement.create({
-                    data: {
-                        branchId,
-                        variantId: item.variantId,
-                        type: MovementType.SALE_OUT,
-                        quantity: item.quantity,
-                        prevPhysical: prev,
-                        newPhysical: next,
-                        reason: `Order #${orderNumber} placed`,
-                        reference: orderNumber,
-                        performedById: customerId,
-                    },
-                });
-            }
+            // 2. Deduct inventory & log stock movement (guarded: fails the order if stock ran out meanwhile)
+            await inventoryService.applyStockChanges(tx, {
+                branchId,
+                changes: processedItems.map((item) => ({
+                    variantId: item.variantId,
+                    productId: item.productId,
+                    delta: -item.quantity,
+                    type: MovementType.SALE_OUT,
+                })),
+                reason: `Order #${orderNumber} placed`,
+                reference: orderNumber,
+                sourceType: StockSourceType.ORDER,
+                sourceId: newOrder.id,
+                performedById: customerId,
+            });
 
             // 3. Record coupon usage if applied
             if (validCouponId) {
