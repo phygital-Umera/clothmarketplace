@@ -10,7 +10,7 @@ import {BillKind} from '@/types/bill';
 import {ShopDashboard as Dashboard} from '@/types/shopOps';
 import {getErrorMessage} from '@/utils/axios';
 import {inr, inrShort} from '@/utils/money';
-import {Link} from '@tanstack/react-router';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {Plus} from 'lucide-react';
 import {ReactNode, useEffect, useState} from 'react';
 
@@ -82,6 +82,7 @@ const payableLine = (s: Payable) => {
  * expense or counter change.
  */
 export default function ShopDashboard() {
+  const navigate = useNavigate();
   const {data, isPending, isError, error} = useShopDashboard(PANEL);
   const [newBill, setNewBill] = useState<BillKind | null>(null);
   const [returning, setReturning] = useState(false);
@@ -103,7 +104,7 @@ export default function ShopDashboard() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'F2' && !modalOpen) {
         e.preventDefault();
-        setNewBill('sales');
+        navigate({to: '/shop-admin/new-bill'});
       }
     };
     window.addEventListener('keydown', onKey);
@@ -156,13 +157,12 @@ export default function ShopDashboard() {
           >
             <Plus size={14} /> Purchase
           </button>
-          <button
-            type="button"
+          <Link
+            to="/shop-admin/sales-return"
             className="btn-ghost"
-            onClick={() => setReturning(true)}
           >
             Return
-          </button>
+          </Link>
           <button
             type="button"
             className="btn-primary"

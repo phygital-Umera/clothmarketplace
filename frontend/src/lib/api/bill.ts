@@ -26,6 +26,15 @@ export const getBills = (
 export const getBill = (panel: string, kind: BillKind, id: string) =>
   api.get<Res<Bill>>(`${base(panel, kind)}/${id}`).then((res: any) => res);
 
+export const getBillByNumber = (
+  panel: string,
+  kind: BillKind,
+  billNumber: string,
+) =>
+  api
+    .get<Res<Bill>>(`${base(panel, kind)}/find`, {params: {billNumber}})
+    .then((res: any) => res);
+
 export const createBill = (panel: string, kind: BillKind, data: BillPayload) =>
   api.post<Res<Bill>>(base(panel, kind), data).then((res: any) => res);
 
@@ -66,4 +75,16 @@ export const recordBillPayment = (
 ) =>
   api
     .post<Res<Bill>>(`${base(panel, kind)}/${id}/payments`, data)
+    .then((res: any) => res);
+
+export interface CustomerSuggestion {
+  name: string;
+  phone: string;
+  previousDue: number;
+  loyaltyPoints: number;
+}
+
+export const searchCustomers = (panel: string, q: string) =>
+  api
+    .get<Res<CustomerSuggestion[]>>(`/${panel}/customers`, {params: {q}})
     .then((res: any) => res);

@@ -4,6 +4,7 @@ import {
   createBill,
   deleteBill,
   getBill,
+  getBillByNumber,
   getBills,
   recordBillPayment,
   updateBill,
@@ -112,3 +113,24 @@ export const useRecordPayment = (panel: string, kind: BillKind) =>
       recordBillPayment(panel, kind, id, data),
     'Failed to record payment',
   );
+
+export const useCustomerSearch = (panel: string, q: string) =>
+  useQuery({
+    queryKey: [BILL_KEYS.BILLS, panel, 'customers', q],
+    queryFn: () => searchCustomers(panel, q),
+    select: (res) => res.data,
+    enabled: q.trim().length >= 2,
+  });
+
+export const useBillByNumber = (
+  panel: string,
+  kind: BillKind,
+  billNumber?: string,
+) =>
+  useQuery({
+    queryKey: [BILL_KEYS.BILLS, panel, kind, 'by-number', billNumber],
+    queryFn: () => getBillByNumber(panel, kind, billNumber!),
+    select: (res) => res.data,
+    enabled: !!billNumber && billNumber.trim().length > 0,
+    retry: false,
+  });

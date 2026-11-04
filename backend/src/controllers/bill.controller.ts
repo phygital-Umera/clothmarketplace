@@ -25,6 +25,16 @@ const ok = (
 ) => res.status(status).json(new ApiResponse(status, data, message));
 
 const purchase = {
+    findByNumber: catchAsync(async (req, res) => {
+        const billNumber = String(req.query.billNumber || req.params.billNumber || '');
+        if (!billNumber.trim()) throw new ApiError(httpStatus.BAD_REQUEST, 'Bill number is required');
+        return ok(
+            res,
+            await billService.getSalesByBillNumber(shopOf(req), billNumber),
+            'Sales bill fetched successfully',
+        );
+    }),
+
     list: catchAsync(async (req, res) => {
         const query = v.billListSchema.parse(req.query);
         return ok(
@@ -118,6 +128,16 @@ const purchase = {
 };
 
 const sales = {
+    findByNumber: catchAsync(async (req, res) => {
+        const billNumber = String(req.query.billNumber || req.params.billNumber || '');
+        if (!billNumber.trim()) throw new ApiError(httpStatus.BAD_REQUEST, 'Bill number is required');
+        return ok(
+            res,
+            await billService.getSalesByBillNumber(shopOf(req), billNumber),
+            'Sales bill fetched successfully',
+        );
+    }),
+
     list: catchAsync(async (req, res) => {
         const query = v.billListSchema.parse(req.query);
         return ok(
@@ -210,4 +230,9 @@ const sales = {
     }),
 };
 
-export default {purchase, sales};
+const customers = catchAsync(async (req, res) => {
+    const q = String(req.query.q || '');
+    return ok(res, await billService.searchCustomers(shopOf(req), q), 'Customers fetched');
+});
+
+export default {purchase, sales, customers};

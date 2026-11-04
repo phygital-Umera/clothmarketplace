@@ -16,7 +16,7 @@ import {
 } from '@/lib/react-query/queriesAndMutations/bill';
 import {Bill, BillKind, BillListParams, BillStatus} from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';
-import {useSearch} from '@tanstack/react-router';
+import {Link, useSearch} from '@tanstack/react-router';
 import {
   Ban,
   CheckCircle2,
@@ -207,13 +207,22 @@ export default function BillsPage({panel, kind}: Props) {
             : 'Stock is deducted automatically when a sales bill is confirmed.'
         }
         actions={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="btn-primary"
-          >
-            <Plus size={14} /> New {isPurchase ? 'Purchase' : 'Sales'} Bill
-          </button>
+          isPurchase ? (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="btn-primary"
+            >
+              <Plus size={14} /> New Purchase Bill
+            </button>
+          ) : (
+            <Link
+              to="/shop-admin/new-bill"
+              className="btn-primary"
+            >
+              <Plus size={14} /> New Bill (POS)
+            </Link>
+          )
         }
       />
 

@@ -2,6 +2,7 @@ import {
   closeCounter,
   createExpense,
   createSalesReturn,
+  getSalesReturns,
   getShopDashboard,
   openCounter,
 } from '@/lib/api/shopOps';
@@ -50,3 +51,14 @@ export const useCreateExpense = (panel: string) =>
     (data: ExpensePayload) => createExpense(panel, data),
     'Failed to add expense',
   );
+
+
+export const useSalesReturns = (
+  panel: string,
+  params?: {limit?: number; salesBillId?: string; search?: string},
+) =>
+  useQuery({
+    queryKey: ['sales_returns', panel, params],
+    queryFn: () => getSalesReturns(panel, params),
+    select: (res) => res.data,
+  });

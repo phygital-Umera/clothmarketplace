@@ -577,6 +577,27 @@ class BillService {
     // SALES BILLS (stock out)
     // -------------------------------------------------------------
 
+    public getSalesByBillNumber = async (scope: ShopScope, billNumber: string) => {
+        const bill = await prisma.salesBill.findFirst({
+            where: {
+                shopId: scope.shopId,
+                billNumber: {equals: billNumber.trim(), mode: 'insensitive'},
+                deletedAt: null,
+            },
+            include: {
+                ...BILL_INCLUDE,
+                items: {include: {...ITEM_INCLUDE, returnItems: {select: {quantity: true}}}},
+                payments: PAYMENT_ORDER,
+                returns: {
+                    select: {id: true, returnNumber: true, totalAmount: true, returnDate: true},
+                    orderBy: {returnDate: 'asc'},
+                },
+            },
+        });
+        if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Bill not found');
+        return bill;
+    };
+
     public listSales = (scope: ShopScope, query: BillList) => this.list('SALES', scope, query);
 
     public getSales = async (scope: ShopScope, id: string) => {
@@ -805,6 +826,50 @@ class BillService {
     // LISTING
     // -------------------------------------------------------------
 
+    /** Past customers: distinct phone+name combos from CONFIRMED sales bills */
+    public searchCustomers = async (scope: ShopScope, q: string) => {
+        const rows = await prisma.salesBill.findMany({
+            where: {
+                shopId: scope.shopId,
+                deletedAt: null,
+                status: 'CONFIRMED',
+                customerPhone: {not: null},
+                ...(q.trim()
+                    ? {
+                          OR: [
+                              {customerName: {contains: q, mode: 'insensitive'}},
+                              {customerPhone: {contains: q}},
+                          ],
+                      }
+                    : {}),
+            },
+            select: {customerName: true, customerPhone: true, balanceDue: true},
+            orderBy: {billDate: 'desc'},
+            take: 20,
+        });
+
+        // Deduplicate by phone, aggregate balance due
+        const seen = new Map<string, {name: string; phone: string; totalDue: number}>();
+        for (const r of rows) {
+            const key = r.customerPhone!;
+            if (seen.has(key)) {
+                seen.get(key)!.totalDue = round2(seen.get(key)!.totalDue + r.balanceDue);
+            } else {
+                seen.set(key, {
+                    name: r.customerName ?? '',
+                    phone: r.customerPhone!,
+                    totalDue: r.balanceDue,
+                });
+            }
+        }
+        return [...seen.values()].slice(0, 10).map((c) => ({
+            name: c.name,
+            phone: c.phone,
+            previousDue: round2(c.totalDue),
+            loyaltyPoints: 0,
+        }));
+    };
+
     private async list(kind: Kind, scope: ShopScope, query: BillList) {
         const base = {
             shopId: scope.shopId,
@@ -888,4 +953,9 @@ const endOfDay = (d: Date) => {
     return end;
 };
 
+    // -------------------------------------------------------------
+    // CUSTOMER LOOKUP
+    // -------------------------------------------------------------
+
 export default new BillService();
+
