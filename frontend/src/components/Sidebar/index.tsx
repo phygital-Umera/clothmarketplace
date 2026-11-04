@@ -9,11 +9,13 @@ import {
   FileOutput,
   Layers,
   Palette,
+  RotateCcw,
   Ruler,
   Tags,
   TicketPercent,
   KeyRound,
   LayoutDashboard,
+  Monitor,
   Package,
   ShieldCheck,
   ShoppingBag,
@@ -82,6 +84,14 @@ const NAV: Record<Role, NavGroup[]> = {
   SHOP_ADMIN: [
     dashboard(ROLES.SHOP_ADMIN.home),
     {
+      heading: 'Billing',
+      items: [
+        item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
+        item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
+        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+      ],
+    },
+    {
       heading: 'Masters',
       items: [
         item('Categories', '/shop-admin/categories', Tags),
@@ -103,12 +113,20 @@ const NAV: Record<Role, NavGroup[]> = {
     {
       heading: 'Sales & Fulfillment',
       items: [
-        item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
         item('Orders', '/shop-admin/orders', ShoppingBag),
       ],
     },
   ],
-  EMPLOYEE: [dashboard(ROLES.EMPLOYEE.home)],
+  EMPLOYEE: [
+    dashboard(ROLES.EMPLOYEE.home),
+    {
+      heading: 'Billing',
+      items: [
+        item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
+        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+      ],
+    },
+  ],
   USER: [
     {
       heading: 'Account',

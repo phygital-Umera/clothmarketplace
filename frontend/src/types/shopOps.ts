@@ -1,6 +1,6 @@
 import {PaymentMethod} from './bill';
 
-export type RefundMode = PaymentMethod | 'STORE_CREDIT' | 'ADJUST_DUE';
+export type RefundMode = PaymentMethod | 'STORE_CREDIT' | 'ADJUST_DUE' | 'EXCHANGE';
 
 export const EXPENSE_CATEGORIES = [
   'Tea / Snacks',
@@ -103,11 +103,19 @@ export interface ShopDashboard {
   }>;
 }
 
+export interface ExchangeItemPayload {
+  variantId: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate?: number;
+}
+
 export interface SalesReturnPayload {
   salesBillId: string;
   refundMode: RefundMode;
   reason?: string;
   items: {salesBillItemId: string; quantity: number}[];
+  exchangeItems?: ExchangeItemPayload[];
 }
 
 export interface ExpensePayload {

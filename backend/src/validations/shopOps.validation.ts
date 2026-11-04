@@ -17,7 +17,7 @@ const money = (label: string) =>
 const positive = (label: string) =>
     money(label).refine((v) => v > 0, `${label} must be more than 0`);
 
-export const REFUND_MODES = [...PAYMENT_MODES, 'STORE_CREDIT', 'ADJUST_DUE'] as const;
+export const REFUND_MODES = [...PAYMENT_MODES, 'STORE_CREDIT', 'ADJUST_DUE', 'EXCHANGE'] as const;
 export const EXPENSE_CATEGORIES = [
     'Tea / Snacks',
     'Transport',
@@ -31,6 +31,16 @@ const createSalesReturnSchema = z.object({
     salesBillId: z.string().uuid('Select a valid sales bill'),
     refundMode: z.enum(REFUND_MODES, {errorMap: () => ({message: 'Select a refund mode'})}),
     reason: text('Reason', 300),
+    exchangeItems: z
+        .array(
+            z.object({
+                variantId: z.string().uuid('Select a valid item'),
+                quantity: z.coerce.number().int().min(1),
+                unitPrice: money('Unit Price'),
+                taxRate: z.coerce.number().default(0),
+            }),
+        )
+        .optional(),
     items: z
         .array(
             z.object({

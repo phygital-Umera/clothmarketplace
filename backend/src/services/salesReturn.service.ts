@@ -189,11 +189,101 @@ class SalesReturnService {
                         sourceId: row.id,
                         performedById: actorId,
                     });
-                    return row;
+                    let exchangeBillNumber: string | null = null;
+                    if (data.refundMode === 'EXCHANGE' && data.exchangeItems && data.exchangeItems.length > 0) {
+                        const exVariants = await tx.productVariant.findMany({
+                            where: {id: {in: data.exchangeItems.map((i) => i.variantId)}},
+                            include: {product: true},
+                        });
+                        const vMap = new Map(exVariants.map((v) => [v.id, v]));
+                        let exSubtotal = 0;
+                        let exTax = 0;
+                        const exLines = data.exchangeItems.map((item) => {
+                            const v = vMap.get(item.variantId);
+                            const net = round2(item.quantity * item.unitPrice);
+                            const tax = round2((net * item.taxRate) / 100);
+                            exSubtotal += net;
+                            exTax += tax;
+                            return {
+                                productId: v?.productId ?? '',
+                                variantId: item.variantId,
+                                quantity: item.quantity,
+                                unitPrice: item.unitPrice,
+                                taxRate: item.taxRate,
+                                totalPrice: round2(net + tax),
+                                productName: v?.product.name,
+                                variantSku: v?.variantSku,
+                                size: v?.size,
+                                color: v?.color,
+                            };
+                        });
+                        const exTotal = round2(exSubtotal + exTax);
+                        const amountPaid = Math.min(totalAmount, exTotal);
+                        const balanceDue = Math.max(0, round2(exTotal - totalAmount));
+
+                        const prefix = `${shop.billPrefix || shop.code}/${financialYear()}/`;
+                        const newBillNumber = await accountService.nextCode(tx, prefix, 5, async (p) => {
+                            const rws = await tx.salesBill.findMany({
+                                where: {shopId: shop.id, billNumber: {startsWith: p}},
+                                select: {billNumber: true},
+                            });
+                            return rws.map((r) => r.billNumber);
+                        });
+
+                        const newBill = await tx.salesBill.create({
+                            data: {
+                                billNumber: newBillNumber,
+                                companyId: shop.companyId,
+                                branchId: shop.branchId,
+                                shopId: shop.id,
+                                customerName: bill.customerName,
+                                customerPhone: bill.customerPhone,
+                                paymentMethod: 'CASH',
+                                subtotal: round2(exSubtotal),
+                                discount: 0,
+                                taxAmount: round2(exTax),
+                                totalAmount: exTotal,
+                                amountPaid,
+                                balanceDue,
+                                paymentStatus: paymentStatusOf(amountPaid, balanceDue),
+                                notes: `Exchange against return ${returnNumber}`,
+                                createdById: actorId,
+                                items: {create: exLines},
+                                payments: {
+                                    create: [{
+                                        mode: 'CASH',
+                                        amount: amountPaid,
+                                        note: `From Credit Note ${returnNumber}`,
+                                        receivedById: actorId,
+                                    }],
+                                },
+                            },
+                        });
+
+                        await inventoryService.applyStockChanges(tx, {
+                            branchId: shop.branchId,
+                            changes: exLines.map((l) => ({
+                                variantId: l.variantId,
+                                productId: l.productId,
+                                delta: -l.quantity,
+                                type: MovementType.SALE_OUT,
+                            })),
+                            reason: `Exchange bill ${newBillNumber} against return ${returnNumber}`,
+                            reference: newBillNumber,
+                            sourceType: StockSourceType.SALES_BILL,
+                            sourceId: newBill.id,
+                            performedById: actorId,
+                        });
+                    }
+                    return {row, exchangeBillNumber};
                 }),
             'returnNumber',
         );
-        return this.get(scope, created.id);
+        const record = await this.get(scope, created.row.id);
+        return {
+            ...record,
+            newBillNumber: created.exchangeBillNumber,
+        };
     };
 }
 

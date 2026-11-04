@@ -31,3 +31,11 @@ export const closeCounter = (panel: string, closingCash: number) =>
 
 export const createExpense = (panel: string, data: ExpensePayload) =>
   api.post<Res<unknown>>(`/${panel}/expenses`, data).then((res: any) => res);
+
+export const getSalesReturns = (
+  panel: string,
+  params?: {limit?: number; salesBillId?: string; search?: string},
+) =>
+  api
+    .get<Res<{items: any[]; pagination: any}>>(`/${panel}/sales-returns`, {params})
+    .then((res: any) => res);

@@ -13,6 +13,10 @@ export const mountBills = (router: Router) => {
     router.post('/purchase-bills/:id/cancel', b.purchase.cancel);
     router.post('/purchase-bills/:id/payments', b.purchase.payment);
 
+    router.get('/customers', b.customers);
+    router.get('/sales-bills/customers', b.customers);
+    router.get('/sales-bills/find', b.sales.findByNumber);
+    router.get('/sales-bills/by-number/:billNumber', b.sales.findByNumber);
     router.route('/sales-bills').get(b.sales.list).post(b.sales.create);
     router.route('/sales-bills/:id').get(b.sales.get).patch(b.sales.update).delete(b.sales.remove);
     router.post('/sales-bills/:id/confirm', b.sales.confirm);
