@@ -80,6 +80,7 @@ const NAV: Record<Role, NavGroup[]> = {
     },
   ],
   SHOP_ADMIN: [
+    dashboard(ROLES.SHOP_ADMIN.home),
     {
       heading: 'Masters',
       items: [

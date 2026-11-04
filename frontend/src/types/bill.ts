@@ -1,6 +1,18 @@
 export type BillKind = 'purchase' | 'sales';
 export type BillStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'UPI';
+/** Paid in full, partly on credit, or fully on credit */
+export type PaymentStatus = 'PAID' | 'PART_CREDIT' | 'CREDIT';
+
+export interface BillPayment {
+  id: string;
+  mode: PaymentMethod;
+  amount: number;
+  paidAt: string;
+  note?: string | null;
+  /** true = taken when the bill was saved; false = collected / paid later */
+  atBilling: boolean;
+}
 
 export interface BillItemVariant {
   id: string;
@@ -25,6 +37,8 @@ export interface BillItem {
   discount?: number;
   totalPrice?: number;
   variant?: BillItemVariant;
+  /** sales: quantities already returned on credit notes */
+  returnItems?: {quantity: number}[];
 }
 
 export interface Bill {
@@ -36,6 +50,11 @@ export interface Bill {
   taxAmount: number;
   discount: number;
   totalAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  paymentStatus: PaymentStatus;
+  dueDate?: string | null;
+  payments?: BillPayment[];
   notes?: string | null;
   version: number;
   cancelledAt?: string | null;
@@ -51,7 +70,14 @@ export interface Bill {
   // sales
   customerName?: string | null;
   customerPhone?: string | null;
-  paymentMethod?: PaymentMethod;
+  /** CREDIT when nothing was paid at billing */
+  paymentMethod?: PaymentMethod | 'CREDIT';
+  returns?: {
+    id: string;
+    returnNumber: string;
+    totalAmount: number;
+    returnDate: string;
+  }[];
 }
 
 export interface BillListParams {
@@ -61,6 +87,8 @@ export interface BillListParams {
   status?: BillStatus;
   from?: string;
   to?: string;
+  /** DUE = part credit or credit */
+  paymentStatus?: PaymentStatus | 'DUE';
 }
 
 export interface BillLinePayload {
@@ -87,4 +115,16 @@ export interface BillPayload {
   customerName?: string;
   customerPhone?: string;
   paymentMethod?: PaymentMethod;
+  /** sales: split payment; omitted = whole bill in paymentMethod */
+  payments?: {mode: PaymentMethod; amount: number}[];
+  dueDate?: string;
+  /** purchase: paid to the supplier now; omitted = paid in full */
+  amountPaid?: number;
+  paymentMode?: PaymentMethod;
+}
+
+export interface RecordPaymentPayload {
+  mode: PaymentMethod;
+  amount: number;
+  note?: string;
 }

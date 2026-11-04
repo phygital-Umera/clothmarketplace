@@ -1,8 +1,16 @@
 import {useBill} from '@/lib/react-query/queriesAndMutations/bill';
 import {useStockMovements} from '@/lib/react-query/queriesAndMutations/ecommerce';
-import {BillKind} from '@/types/bill';
+import {Bill, BillKind, BillPayment} from '@/types/bill';
 import {ArrowDown, ArrowUp, X} from 'lucide-react';
 import BillStatusBadge from './BillStatusBadge';
+import PaymentStatusBadge from './PaymentStatusBadge';
+
+const MODE_LABEL: Record<string, string> = {
+  CASH: 'Cash',
+  UPI: 'UPI',
+  CARD: 'Card',
+  CREDIT: 'Credit',
+};
 
 interface Props {
   panel: string;
@@ -36,7 +44,7 @@ export default function BillDetailsModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 p-3 backdrop-blur-sm sm:p-5">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-espresso/60 p-3 backdrop-blur-sm sm:p-5">
       <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-ivory-300 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-ivory-200 bg-ivory-50/50 px-6 py-4">
           <div>
@@ -85,7 +93,9 @@ export default function BillDetailsModal({
                   {isPurchase ? 'Supplier Invoice' : 'Payment'}
                 </p>
                 <p className="font-medium text-espresso">
-                  {(isPurchase ? bill.supplierInvoiceNo : bill.paymentMethod) ||
+                  {(isPurchase
+                    ? bill.supplierInvoiceNo
+                    : bill.paymentMethod && MODE_LABEL[bill.paymentMethod]) ||
                     '—'}
                 </p>
               </div>
@@ -95,6 +105,19 @@ export default function BillDetailsModal({
                   ₹{bill.totalAmount.toFixed(2)}
                 </p>
               </div>
+              {bill.status === 'CONFIRMED' && (
+                <div>
+                  <p className="text-xs text-outline">Payment</p>
+                  <PaymentStatusBadge status={bill.paymentStatus} />
+                  {bill.balanceDue > 0 && (
+                    <p className="mt-0.5 text-xs text-outline">
+                      Due ₹{bill.balanceDue.toFixed(2)}
+                      {bill.dueDate &&
+                        ` by ${new Date(bill.dueDate).toLocaleDateString('en-IN')}`}
+                    </p>
+                  )}
+                </div>
+              )}
               {bill.status === 'CANCELLED' && (
                 <div>
                   <p className="text-xs text-outline">Cancelled</p>
@@ -167,6 +190,68 @@ export default function BillDetailsModal({
                 <span>₹{bill.totalAmount.toFixed(2)}</span>
               </div>
             </div>
+
+            {!!bill.payments?.length && (
+              <div>
+                <h4 className="mb-2 text-label-caps uppercase text-outline">
+                  Payments
+                </h4>
+                <ul className="divide-y divide-ivory-100 rounded-lg border border-ivory-200">
+                  {bill.payments.map((p: BillPayment) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                    >
+                      <span className="font-medium text-espresso">
+                        {MODE_LABEL[p.mode] ?? p.mode}
+                      </span>
+                      <span className="text-outline">
+                        {p.atBilling
+                          ? 'At billing'
+                          : isPurchase
+                            ? 'Paid later'
+                            : 'Collected later'}
+                        {p.note ? ` · ${p.note}` : ''}
+                      </span>
+                      <span className="whitespace-nowrap text-outline">
+                        {fmtDate(p.paidAt)}
+                      </span>
+                      <span className="font-bold text-espresso">
+                        ₹{p.amount.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!!bill.returns?.length && (
+              <div>
+                <h4 className="mb-2 text-label-caps uppercase text-outline">
+                  Returns (credit notes)
+                </h4>
+                <ul className="divide-y divide-ivory-100 rounded-lg border border-ivory-200">
+                  {bill.returns.map(
+                    (r: NonNullable<Bill['returns']>[number]) => (
+                      <li
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                      >
+                        <span className="font-mono text-espresso">
+                          {r.returnNumber}
+                        </span>
+                        <span className="whitespace-nowrap text-outline">
+                          {fmtDate(r.returnDate)}
+                        </span>
+                        <span className="font-bold text-rose-700">
+                          −₹{r.totalAmount.toFixed(2)}
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
 
             <div>
               <h4 className="mb-2 text-label-caps uppercase text-outline">

@@ -102,6 +102,19 @@ const purchase = {
         );
         return ok(res, {}, 'Purchase bill deleted');
     }),
+    payment: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.recordPaymentSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'purchaseBill.payment', module: 'billing', targetId: id},
+            async () => ({
+                after: await billService.recordPayment('PURCHASE', scope, req.user.id, id, data),
+            }),
+        );
+        return ok(res, after, 'Payment to supplier recorded');
+    }),
 };
 
 const sales = {
@@ -181,6 +194,19 @@ const sales = {
             },
         );
         return ok(res, {}, 'Sales bill deleted');
+    }),
+    payment: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.recordPaymentSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'salesBill.payment', module: 'billing', targetId: id},
+            async () => ({
+                after: await billService.recordPayment('SALES', scope, req.user.id, id, data),
+            }),
+        );
+        return ok(res, after, 'Payment received');
     }),
 };
 

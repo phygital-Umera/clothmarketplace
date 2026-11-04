@@ -66,12 +66,44 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   const wasPosted = bill?.status === 'CONFIRMED';
   const save = useSaveBill(panel, kind);
 
+  // Payments taken when the bill was saved are re-entered here; payments
+  // collected / paid later stay on the bill and count towards it.
+  const billingPays = (bill?.payments ?? []).filter((p) => p.atBilling);
+  const paidLater = round2(
+    (bill?.payments ?? [])
+      .filter((p) => !p.atBilling)
+      .reduce((s, p) => s + p.amount, 0),
+  );
+  const billingPaid = round2(billingPays.reduce((s, p) => s + p.amount, 0));
+  const wasPaidInFull =
+    !bill || round2(bill.totalAmount - paidLater) === billingPaid;
+
   const [party, setParty] = useState({
     name: (isPurchase ? bill?.supplierName : bill?.customerName) ?? '',
     phone: (isPurchase ? bill?.supplierPhone : bill?.customerPhone) ?? '',
     invoiceNo: bill?.supplierInvoiceNo ?? '',
-    paymentMethod: (bill?.paymentMethod ?? 'CASH') as PaymentMethod,
+    // One mode for the whole bill, or SPLIT for several modes / credit
+    paymentMethod: (wasPaidInFull && billingPays.length <= 1
+      ? (billingPays[0]?.mode ?? 'CASH')
+      : 'SPLIT') as PaymentMethod | 'SPLIT',
   });
+  const [split, setSplit] = useState<Record<PaymentMethod, number | ''>>(() => {
+    const amounts: Record<PaymentMethod, number | ''> = {
+      CASH: '',
+      UPI: '',
+      CARD: '',
+    };
+    billingPays.forEach((p) => (amounts[p.mode] = p.amount));
+    return amounts;
+  });
+  /** Purchase: paid to the supplier now; null = the whole bill */
+  const [paidNow, setPaidNow] = useState<number | '' | null>(
+    isPurchase && !wasPaidInFull ? billingPaid : null,
+  );
+  const [paymentMode, setPaymentMode] = useState<PaymentMethod>(
+    billingPays[0]?.mode ?? 'CASH',
+  );
+  const [dueDate, setDueDate] = useState(bill?.dueDate?.slice(0, 10) ?? '');
   const [billDate, setBillDate] = useState(
     bill ? bill.billDate.slice(0, 10) : today(),
   );
@@ -186,6 +218,28 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   if (totals.total < 0)
     errors.push('Discount cannot be more than the bill amount.');
 
+  // What is paid now; the rest (after any later payments) is credit
+  const payable = round2(Math.max(0, totals.total - paidLater));
+  const isSplit = !isPurchase && party.paymentMethod === 'SPLIT';
+  const payNow = isPurchase
+    ? paidNow === null
+      ? payable
+      : Number(paidNow) || 0
+    : isSplit
+      ? round2(
+          Object.values(split).reduce<number>((s, v) => s + (Number(v) || 0), 0),
+        )
+      : payable;
+  const balance = round2(payable - payNow);
+  if (balance < 0)
+    errors.push(
+      isPurchase
+        ? 'Amount paid is more than the bill amount.'
+        : 'Payment received is more than the bill amount.',
+    );
+  if (!isPurchase && balance > 0 && (!party.name.trim() || !party.phone.trim()))
+    errors.push('Customer name and phone are required to give credit.');
+
   const submit = async (status: 'DRAFT' | 'CONFIRMED') => {
     setSubmitted(true);
     if (errors.length || save.isPending) return;
@@ -203,16 +257,32 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
           : {unitPrice: Number(l.rate), discount: Number(l.discount) || 0}),
       })),
       ...(isEdit ? {version: bill!.version} : {status}),
+      dueDate: balance > 0 && dueDate ? dueDate : undefined,
       ...(isPurchase
         ? {
             supplierName: party.name.trim(),
             supplierInvoiceNo: party.invoiceNo.trim() || undefined,
             supplierPhone: party.phone.trim() || undefined,
+            amountPaid: payNow,
+            paymentMode,
           }
         : {
             customerName: party.name.trim() || undefined,
             customerPhone: party.phone.trim() || undefined,
-            paymentMethod: party.paymentMethod,
+            paymentMethod:
+              party.paymentMethod === 'SPLIT' ? 'CASH' : party.paymentMethod,
+            payments: isSplit
+              ? (Object.entries(split) as [PaymentMethod, number | ''][])
+                  .filter(([, amount]) => Number(amount) > 0)
+                  .map(([mode, amount]) => ({mode, amount: Number(amount)}))
+              : payable > 0
+                ? [
+                    {
+                      mode: party.paymentMethod as PaymentMethod,
+                      amount: payable,
+                    },
+                  ]
+                : [],
           }),
     };
 
@@ -231,7 +301,7 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 p-3 backdrop-blur-sm sm:p-5">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-espresso/60 p-3 backdrop-blur-sm sm:p-5">
       <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-ivory-300 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ivory-200 bg-ivory-50/50 px-6 py-4">
@@ -311,13 +381,14 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                   onChange={(e) =>
                     setParty({
                       ...party,
-                      paymentMethod: e.target.value as PaymentMethod,
+                      paymentMethod: e.target.value as PaymentMethod | 'SPLIT',
                     })
                   }
                 >
                   <option value="CASH">Cash</option>
                   <option value="CARD">Card</option>
                   <option value="UPI">UPI</option>
+                  <option value="SPLIT">Split / Credit</option>
                 </select>
               </label>
             )}
@@ -665,6 +736,81 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                 <span>Total</span>
                 <span>₹{totals.total.toFixed(2)}</span>
               </div>
+
+              {/* Payment: split / credit (sales) or part payment (purchase) */}
+              {paidLater > 0 && (
+                <div className="flex justify-between text-xs text-outline">
+                  <span>{isPurchase ? 'Paid later' : 'Collected later'}</span>
+                  <span>₹{paidLater.toFixed(2)}</span>
+                </div>
+              )}
+              {isSplit &&
+                (['CASH', 'UPI', 'CARD'] as PaymentMethod[]).map((mode) => (
+                  <div key={mode} className="flex items-center justify-between">
+                    <span className="text-outline">
+                      {mode === 'CASH' ? 'Cash' : mode === 'UPI' ? 'UPI' : 'Card'}
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      aria-label={`${mode} received`}
+                      value={split[mode]}
+                      onChange={(e) =>
+                        setSplit({...split, [mode]: num(e.target.value)})
+                      }
+                      className="w-28 rounded-lg border border-ivory-300 px-2 py-1 text-right focus:border-burgundy focus:outline-none"
+                    />
+                  </div>
+                ))}
+              {isPurchase && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-outline">Paid now</span>
+                  <span className="flex gap-1.5">
+                    <select
+                      aria-label="Payment mode"
+                      value={paymentMode}
+                      onChange={(e) =>
+                        setPaymentMode(e.target.value as PaymentMethod)
+                      }
+                      className="rounded-lg border border-ivory-300 px-1 py-1 focus:border-burgundy focus:outline-none"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="CARD">Card</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      aria-label="Amount paid now"
+                      value={paidNow === null ? payable : paidNow}
+                      onChange={(e) => setPaidNow(num(e.target.value))}
+                      className="w-28 rounded-lg border border-ivory-300 px-2 py-1 text-right focus:border-burgundy focus:outline-none"
+                    />
+                  </span>
+                </div>
+              )}
+              {(isSplit || isPurchase) && (
+                <div
+                  className={`flex justify-between font-semibold ${balance > 0 ? 'text-amber-800' : 'text-espresso'}`}
+                >
+                  <span>{isPurchase ? 'Balance payable' : 'Credit (due)'}</span>
+                  <span>₹{Math.max(0, balance).toFixed(2)}</span>
+                </div>
+              )}
+              {balance > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-outline">Due date</span>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    min={billDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-36 rounded-lg border border-ivory-300 px-2 py-1 focus:border-burgundy focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

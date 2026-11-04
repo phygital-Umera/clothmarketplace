@@ -67,6 +67,8 @@ export interface Shop {
   email: string | null;
   phone: string | null;
   address: string | null;
+  gstin: string | null;
+  billPrefix: string | null;
   openingTime: string | null;
   closingTime: string | null;
   notes: string | null;
