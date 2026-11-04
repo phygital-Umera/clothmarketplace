@@ -11,3 +11,5 @@ export * as promotionController from './promotion.controller';
 
 export {default as billController} from './bill.controller';
 export {default as shopOpsController} from './shopOps.controller';
+export {customerController} from './customer.controller';
+

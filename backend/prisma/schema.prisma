@@ -128,6 +128,7 @@ model Company {
   coupons       Coupon[]
   purchaseBills PurchaseBill[]
   salesBills    SalesBill[]
+  customers     ShopCustomer[]
 
   @@index([name])
   @@index([status])
@@ -197,6 +198,7 @@ model Branch {
   coupons         Coupon[]
   purchaseBills   PurchaseBill[]
   salesBills      SalesBill[]
+  customers       ShopCustomer[]
 
   @@index([companyId])
   @@index([status])
@@ -236,6 +238,7 @@ model Shop {
   salesReturns  SalesReturn[]
   counterSessions CounterSession[]
   expenses      Expense[]
+  customers     ShopCustomer[]
 
   @@index([companyId])
   @@index([branchId])
@@ -1213,4 +1216,34 @@ model CouponUsage {
   @@index([couponId])
   @@index([userId])
   @@index([orderId])
+}
+
+model ShopCustomer {
+  id           String    @id @default(uuid())
+  shopId       String
+  companyId    String
+  branchId     String
+  name         String
+  mobile       String
+  customerType String    @default("Retail")
+  businessName String?
+  gstin        String?
+  address      String?
+  creditLimit  Float     @default(0)
+  openingDue   Float     @default(0)
+  totalBought  Float     @default(0)
+  balanceDue   Float     @default(0)
+  notes        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  company      Company   @relation(fields: [companyId], references: [id])
+  branch       Branch    @relation(fields: [branchId], references: [id])
+  shop         Shop      @relation(fields: [shopId], references: [id])
+
+  @@unique([shopId, mobile])
+  @@index([shopId])
+  @@index([mobile])
+  @@index([customerType])
 }
