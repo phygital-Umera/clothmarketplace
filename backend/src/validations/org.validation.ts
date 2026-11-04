@@ -106,6 +106,18 @@ const shopBody = z.object({
     email: field({label: 'Shop Email', kind: 'email', required: false}),
     phone: field({label: 'Contact Phone', kind: 'phone', required: false}),
     address: field({label: 'Address / Floor', kind: 'text', max: 500, required: false}),
+    gstin: z.preprocess(
+        (v) => (typeof v === 'string' ? v.trim().toUpperCase() || undefined : v),
+        field({label: 'GSTIN', kind: 'gstin', required: false}),
+    ),
+    // Sales bill series, e.g. WW -> WW/26-27/00001; the shop code is used when empty
+    billPrefix: z.preprocess(
+        (v) => (typeof v === 'string' ? v.trim().toUpperCase() || undefined : v),
+        z
+            .string()
+            .regex(/^[A-Z]{2,6}$/, 'Bill Prefix must be 2 to 6 letters')
+            .optional(),
+    ),
     openingTime: time('Opening Time'),
     closingTime: time('Closing Time'),
     notes: field({label: 'Notes', kind: 'text', max: 500, required: false}),

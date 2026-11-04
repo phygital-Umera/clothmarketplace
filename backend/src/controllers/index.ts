@@ -10,3 +10,4 @@ export {default as shopProductController} from './shopProduct.controller';
 export * as promotionController from './promotion.controller';
 
 export {default as billController} from './bill.controller';
+export {default as shopOpsController} from './shopOps.controller';

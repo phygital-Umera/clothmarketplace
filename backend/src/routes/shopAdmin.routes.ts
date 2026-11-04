@@ -9,6 +9,7 @@ import {
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
 import {mountBills} from './bill.routes';
+import {mountShopOps} from './shopOps.routes';
 
 const router = Router();
 
@@ -60,6 +61,9 @@ mountPromotions(router);
 
 // ---- 8. Purchase & Sales Bills (automatic stock in / out) ----
 mountBills(router);
+
+// ---- Shop dashboard, credit notes, cash counter, expenses ----
+mountShopOps(router);
 
 // ---- 9. Order Management & Returns ----
 router.get('/orders/dashboard', e.orderDashboard);

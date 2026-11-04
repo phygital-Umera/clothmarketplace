@@ -181,6 +181,8 @@ export const ShopEditor = ({
               email: shop.email ?? '',
               phone: shop.phone ?? '',
               address: shop.address ?? '',
+              gstin: shop.gstin ?? '',
+              billPrefix: shop.billPrefix ?? '',
               openingTime: shop.openingTime ?? '',
               closingTime: shop.closingTime ?? '',
               notes: shop.notes ?? '',

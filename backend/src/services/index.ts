@@ -17,3 +17,7 @@ export {default as shopProductService} from './shopProduct.service';
 export {default as aiPreviewService} from './aiPreview.service';
 export {default as promotionService} from './promotion.service';
 export {default as billService} from './bill.service';
+export {default as salesReturnService} from './salesReturn.service';
+export {default as counterService} from './counter.service';
+export {default as expenseService} from './expense.service';
+export {default as dashboardService} from './dashboard.service';

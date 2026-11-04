@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import {BillStatus, MovementType, Prisma, StockSourceType} from '@prisma/client';
+import {BillPaymentStatus, BillStatus, MovementType, Prisma, StockSourceType} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
@@ -15,6 +15,8 @@ type UpdatePurchase = z.infer<typeof billValidation.updatePurchaseBillSchema>;
 type CreateSales = z.infer<typeof billValidation.createSalesBillSchema>;
 type UpdateSales = z.infer<typeof billValidation.updateSalesBillSchema>;
 type BillList = z.infer<typeof billValidation.billListSchema>;
+type RecordPayment = z.infer<typeof billValidation.recordPaymentSchema>;
+type Payment = {mode: string; amount: number};
 
 /*
  * Shop billing. Inventory is never changed directly here: every stock effect
@@ -50,9 +52,26 @@ type PostedLine = {variantId: string; productId: string; quantity: number};
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+/** Indian financial year label, April to March: 3 Nov 2026 -> "26-27" */
+export const financialYear = (d = new Date()) => {
+    const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+    const yy = (y: number) => String(y % 100).padStart(2, '0');
+    return `${yy(start)}-${yy(start + 1)}`;
+};
+
+/** Paid / part credit / credit from what is still owed */
+export const paymentStatusOf = (amountPaid: number, balanceDue: number) =>
+    balanceDue <= 0
+        ? BillPaymentStatus.PAID
+        : amountPaid > 0
+          ? BillPaymentStatus.PART_CREDIT
+          : BillPaymentStatus.CREDIT;
+
 const BILL_INCLUDE = {
     createdBy: {select: {id: true, fullname: true}},
 } satisfies Prisma.PurchaseBillInclude;
+
+const PAYMENT_ORDER = {orderBy: {paidAt: 'asc'}} as const;
 
 const ITEM_INCLUDE = {
     variant: {
@@ -76,10 +95,10 @@ const ITEM_INCLUDE = {
 
 class BillService {
     /** Bills live in the signed-in user's shop; the branch comes from the shop */
-    private async shopContext(scope: ShopScope) {
+    public async shopContext(scope: ShopScope) {
         const shop = await prisma.shop.findFirst({
             where: {id: scope.shopId, companyId: scope.companyId, deletedAt: null},
-            select: {id: true, branchId: true, companyId: true},
+            select: {id: true, branchId: true, companyId: true, code: true, billPrefix: true},
         });
         if (!shop)
             throw new ApiError(httpStatus.FORBIDDEN, 'No active shop is linked to this account');
@@ -112,10 +131,19 @@ class BillService {
         return new Map(variants.map((v) => [v.id, v]));
     }
 
-    private async nextBillNumber(tx: Tx, kind: Kind, shopId: string) {
+    /** Purchase: PB-YYYYMMDD-0001. Sales: {bill prefix}/{FY}/00001, e.g. WW/26-27/00232 */
+    private async nextBillNumber(
+        tx: Tx,
+        kind: Kind,
+        shop: {id: string; code: string; billPrefix: string | null},
+    ) {
+        const shopId = shop.id;
         const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const prefix = `${KIND[kind].prefix}-${day}-`;
-        return accountService.nextCode(tx, prefix, 4, async (p) => {
+        const prefix =
+            kind === 'SALES'
+                ? `${shop.billPrefix || shop.code}/${financialYear()}/`
+                : `${KIND[kind].prefix}-${day}-`;
+        return accountService.nextCode(tx, prefix, kind === 'SALES' ? 5 : 4, async (p) => {
             const rows =
                 kind === 'PURCHASE'
                     ? await tx.purchaseBill.findMany({
@@ -144,6 +172,74 @@ class BillService {
             discount,
             totalAmount: round2(gross - discount),
         };
+    }
+
+    /**
+     * Payment fields for a bill: what is paid now plus any later payments
+     * already on it must not exceed the total; the rest is credit.
+     */
+    private settle(
+        kind: Kind,
+        totalAmount: number,
+        paidNow: Payment[],
+        collected: number,
+        party: {name?: string | null; phone?: string | null},
+    ) {
+        const amountPaid = round2(paidNow.reduce((sum, p) => sum + p.amount, 0) + collected);
+        if (amountPaid > totalAmount) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                kind === 'SALES'
+                    ? 'Payment received is more than the bill amount'
+                    : 'Amount paid is more than the bill amount',
+            );
+        }
+        const balanceDue = round2(totalAmount - amountPaid);
+        if (kind === 'SALES' && balanceDue > 0 && (!party.name || !party.phone)) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'Customer name and phone are required to give credit',
+            );
+        }
+        return {amountPaid, balanceDue, paymentStatus: paymentStatusOf(amountPaid, balanceDue)};
+    }
+
+    /** Split payments, or the whole bill in paymentMethod when none are sent */
+    private salesPaidNow(data: CreateSales | UpdateSales, totalAmount: number): Payment[] {
+        if (data.payments) return data.payments;
+        return totalAmount > 0 ? [{mode: data.paymentMethod, amount: totalAmount}] : [];
+    }
+
+    /** Main mode shown in lists: the largest payment, or CREDIT when nothing was paid */
+    private mainMode(paidNow: Payment[]) {
+        const top = [...paidNow].sort((a, b) => b.amount - a.amount)[0];
+        return top ? top.mode : 'CREDIT';
+    }
+
+    /** Paid to the supplier now; omitted = paid in full */
+    private purchasePaidNow(data: CreatePurchase | UpdatePurchase, totalAmount: number): Payment[] {
+        const amount = data.amountPaid ?? totalAmount;
+        return amount > 0 ? [{mode: data.paymentMode, amount}] : [];
+    }
+
+    /** Sum of payments recorded after the bill was saved (kept across edits) */
+    private async collected(tx: Tx, kind: Kind, billId: string) {
+        const where = {billId, atBilling: false};
+        const agg =
+            kind === 'SALES'
+                ? await tx.salesBillPayment.aggregate({where, _sum: {amount: true}})
+                : await tx.purchaseBillPayment.aggregate({where, _sum: {amount: true}});
+        return agg._sum.amount ?? 0;
+    }
+
+    /** Credit notes point at bill lines, so a bill with returns is frozen */
+    private async assertNoReturns(tx: Tx, id: string) {
+        if (await tx.salesReturn.count({where: {salesBillId: id}})) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'This bill has returns (credit notes) and can no longer be changed',
+            );
+        }
     }
 
     private async purchaseLines(tx: Tx, scope: ShopScope, data: CreatePurchase | UpdatePurchase) {
@@ -324,7 +420,7 @@ class BillService {
     public getPurchase = async (scope: ShopScope, id: string) => {
         const bill = await prisma.purchaseBill.findFirst({
             where: {id, shopId: scope.shopId, deletedAt: null},
-            include: {...BILL_INCLUDE, items: {include: ITEM_INCLUDE}},
+            include: {...BILL_INCLUDE, items: {include: ITEM_INCLUDE}, payments: PAYMENT_ORDER},
         });
         if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Purchase bill not found');
         return bill;
@@ -332,18 +428,23 @@ class BillService {
 
     public createPurchase = async (scope: ShopScope, actorId: string, data: CreatePurchase) => {
         const shop = await this.shopContext(scope);
-        const {items, status, ...header} = data;
+        const {items, status, amountPaid, paymentMode, ...header} = data;
         void items;
+        void amountPaid;
+        void paymentMode;
 
         const created = await accountService.withRetry(
             () =>
                 prisma.$transaction(async (tx) => {
                     const {lines, totals} = await this.purchaseLines(tx, scope, data);
+                    const paidNow = this.purchasePaidNow(data, totals.totalAmount);
                     const bill = await tx.purchaseBill.create({
                         data: {
                             ...header,
                             ...totals,
-                            billNumber: await this.nextBillNumber(tx, 'PURCHASE', shop.id),
+                            ...this.settle('PURCHASE', totals.totalAmount, paidNow, 0, {}),
+                            payments: {create: paidNow.map((p) => ({...p, paidById: actorId}))},
+                            billNumber: await this.nextBillNumber(tx, 'PURCHASE', shop),
                             status,
                             companyId: shop.companyId,
                             branchId: shop.branchId,
@@ -368,8 +469,10 @@ class BillService {
         id: string,
         data: UpdatePurchase,
     ) => {
-        const {items, version, ...header} = data;
+        const {items, version, amountPaid, paymentMode, ...header} = data;
         void items;
+        void amountPaid;
+        void paymentMode;
 
         await prisma.$transaction(async (tx) => {
             await this.lock(
@@ -385,11 +488,20 @@ class BillService {
                 include: {items: true},
             });
             const {lines, totals} = await this.purchaseLines(tx, scope, data);
+            const paidNow = this.purchasePaidNow(data, totals.totalAmount);
+            const later = await this.collected(tx, 'PURCHASE', id);
 
             await tx.purchaseBillItem.deleteMany({where: {billId: id}});
+            await tx.purchaseBillPayment.deleteMany({where: {billId: id, atBilling: true}});
             await tx.purchaseBill.update({
                 where: {id},
-                data: {...header, ...totals, items: {create: lines}},
+                data: {
+                    ...header,
+                    ...totals,
+                    ...this.settle('PURCHASE', totals.totalAmount, paidNow, later, {}),
+                    items: {create: lines},
+                    payments: {create: paidNow.map((p) => ({...p, paidById: actorId}))},
+                },
             });
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(tx, 'PURCHASE', before, before.items, lines, 'edited', actorId);
@@ -470,7 +582,15 @@ class BillService {
     public getSales = async (scope: ShopScope, id: string) => {
         const bill = await prisma.salesBill.findFirst({
             where: {id, shopId: scope.shopId, deletedAt: null},
-            include: {...BILL_INCLUDE, items: {include: ITEM_INCLUDE}},
+            include: {
+                ...BILL_INCLUDE,
+                items: {include: {...ITEM_INCLUDE, returnItems: {select: {quantity: true}}}},
+                payments: PAYMENT_ORDER,
+                returns: {
+                    select: {id: true, returnNumber: true, totalAmount: true, returnDate: true},
+                    orderBy: {returnDate: 'asc'},
+                },
+            },
         });
         if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Sales bill not found');
         return bill;
@@ -478,18 +598,28 @@ class BillService {
 
     public createSales = async (scope: ShopScope, actorId: string, data: CreateSales) => {
         const shop = await this.shopContext(scope);
-        const {items, status, ...header} = data;
+        const {items, status, payments, ...header} = data;
         void items;
+        void payments;
 
         const created = await accountService.withRetry(
             () =>
                 prisma.$transaction(async (tx) => {
                     const {lines, totals} = await this.salesLines(tx, scope, data);
+                    const paidNow = this.salesPaidNow(data, totals.totalAmount);
                     const bill = await tx.salesBill.create({
                         data: {
                             ...header,
                             ...totals,
-                            billNumber: await this.nextBillNumber(tx, 'SALES', shop.id),
+                            ...this.settle('SALES', totals.totalAmount, paidNow, 0, {
+                                name: data.customerName,
+                                phone: data.customerPhone,
+                            }),
+                            paymentMethod: this.mainMode(paidNow),
+                            payments: {
+                                create: paidNow.map((p) => ({...p, receivedById: actorId})),
+                            },
+                            billNumber: await this.nextBillNumber(tx, 'SALES', shop),
                             status,
                             companyId: shop.companyId,
                             branchId: shop.branchId,
@@ -514,8 +644,9 @@ class BillService {
         id: string,
         data: UpdateSales,
     ) => {
-        const {items, version, ...header} = data;
+        const {items, version, payments, ...header} = data;
         void items;
+        void payments;
 
         await prisma.$transaction(async (tx) => {
             await this.lock(
@@ -530,12 +661,26 @@ class BillService {
                 where: {id},
                 include: {items: true},
             });
+            await this.assertNoReturns(tx, id);
             const {lines, totals} = await this.salesLines(tx, scope, data);
+            const paidNow = this.salesPaidNow(data, totals.totalAmount);
+            const later = await this.collected(tx, 'SALES', id);
 
             await tx.salesBillItem.deleteMany({where: {billId: id}});
+            await tx.salesBillPayment.deleteMany({where: {billId: id, atBilling: true}});
             await tx.salesBill.update({
                 where: {id},
-                data: {...header, ...totals, items: {create: lines}},
+                data: {
+                    ...header,
+                    ...totals,
+                    ...this.settle('SALES', totals.totalAmount, paidNow, later, {
+                        name: data.customerName,
+                        phone: data.customerPhone,
+                    }),
+                    paymentMethod: this.mainMode(paidNow),
+                    items: {create: lines},
+                    payments: {create: paidNow.map((p) => ({...p, receivedById: actorId}))},
+                },
             });
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(tx, 'SALES', before, before.items, lines, 'edited', actorId);
@@ -560,6 +705,7 @@ class BillService {
     public cancelSales = async (scope: ShopScope, actorId: string, id: string, reason: string) => {
         await prisma.$transaction(async (tx) => {
             await this.lock(tx, 'SALES', scope, id, [BillStatus.DRAFT, BillStatus.CONFIRMED]);
+            await this.assertNoReturns(tx, id);
             const before = await tx.salesBill.findUniqueOrThrow({
                 where: {id},
                 include: {items: true},
@@ -586,6 +732,7 @@ class BillService {
     public deleteSales = async (scope: ShopScope, actorId: string, id: string) => {
         await prisma.$transaction(async (tx) => {
             await this.lock(tx, 'SALES', scope, id, Object.values(BillStatus));
+            await this.assertNoReturns(tx, id);
             const before = await tx.salesBill.findUniqueOrThrow({
                 where: {id},
                 include: {items: true},
@@ -602,6 +749,59 @@ class BillService {
     };
 
     // -------------------------------------------------------------
+    // PAYMENTS AFTER BILLING (due collection / supplier payment)
+    // -------------------------------------------------------------
+
+    public recordPayment = async (
+        kind: Kind,
+        scope: ShopScope,
+        actorId: string,
+        id: string,
+        data: RecordPayment,
+    ) => {
+        await prisma.$transaction(async (tx) => {
+            await this.lock(tx, kind, scope, id, [BillStatus.CONFIRMED]);
+            const bill =
+                kind === 'SALES'
+                    ? await tx.salesBill.findUniqueOrThrow({where: {id}})
+                    : await tx.purchaseBill.findUniqueOrThrow({where: {id}});
+            if (data.amount > bill.balanceDue) {
+                throw new ApiError(
+                    httpStatus.BAD_REQUEST,
+                    bill.balanceDue > 0
+                        ? `Amount cannot be more than the balance due (₹${bill.balanceDue})`
+                        : 'Nothing is due on this bill',
+                );
+            }
+            const amountPaid = round2(bill.amountPaid + data.amount);
+            const balanceDue = round2(bill.balanceDue - data.amount);
+            const fields = {
+                amountPaid,
+                balanceDue,
+                paymentStatus: paymentStatusOf(amountPaid, balanceDue),
+            };
+            const payment = {
+                mode: data.mode,
+                amount: data.amount,
+                note: data.note,
+                atBilling: false,
+            };
+            if (kind === 'SALES') {
+                await tx.salesBill.update({
+                    where: {id},
+                    data: {...fields, payments: {create: {...payment, receivedById: actorId}}},
+                });
+            } else {
+                await tx.purchaseBill.update({
+                    where: {id},
+                    data: {...fields, payments: {create: {...payment, paidById: actorId}}},
+                });
+            }
+        });
+        return kind === 'SALES' ? this.getSales(scope, id) : this.getPurchase(scope, id);
+    };
+
+    // -------------------------------------------------------------
     // LISTING
     // -------------------------------------------------------------
 
@@ -610,6 +810,14 @@ class BillService {
             shopId: scope.shopId,
             deletedAt: null,
             status: query.status,
+            ...(query.paymentStatus
+                ? {
+                      paymentStatus:
+                          query.paymentStatus === 'DUE'
+                              ? {in: [BillPaymentStatus.PART_CREDIT, BillPaymentStatus.CREDIT]}
+                              : query.paymentStatus,
+                  }
+                : {}),
             ...(query.from || query.to
                 ? {
                       billDate: {

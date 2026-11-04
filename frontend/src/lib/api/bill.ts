@@ -1,5 +1,11 @@
 import {api} from '@/utils/axios';
-import {Bill, BillKind, BillListParams, BillPayload} from '@/types/bill';
+import {
+  Bill,
+  BillKind,
+  BillListParams,
+  BillPayload,
+  RecordPaymentPayload,
+} from '@/types/bill';
 
 // Purchase bills add stock, sales bills deduct it; the backend posts the
 // stock change automatically on save / edit / confirm / cancel / delete.
@@ -50,3 +56,14 @@ export const cancelBill = (
 
 export const deleteBill = (panel: string, kind: BillKind, id: string) =>
   api.delete(`${base(panel, kind)}/${id}`).then((res: any) => res);
+
+/** Due collected from a customer (sales) or a payment to the supplier (purchase) */
+export const recordBillPayment = (
+  panel: string,
+  kind: BillKind,
+  id: string,
+  data: RecordPaymentPayload,
+) =>
+  api
+    .post<Res<Bill>>(`${base(panel, kind)}/${id}/payments`, data)
+    .then((res: any) => res);

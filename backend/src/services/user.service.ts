@@ -236,7 +236,7 @@ class UserService {
                 ...SAFE_USER,
                 company: {select: {id: true, name: true, code: true, status: true}},
                 branch: {select: {id: true, name: true, code: true, status: true}},
-                shop: {select: {id: true, name: true, code: true, status: true}},
+                shop: {select: {id: true, name: true, code: true, status: true, gstin: true}},
             },
         });
         if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
