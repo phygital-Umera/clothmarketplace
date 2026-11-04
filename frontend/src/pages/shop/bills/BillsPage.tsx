@@ -27,7 +27,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 type PaymentFilter = NonNullable<BillListParams['paymentStatus']>;
 const PAYMENT_FILTERS: PaymentFilter[] = [
@@ -71,6 +71,10 @@ const EditBill = ({
 };
 
 export default function BillsPage({panel, kind}: Props) {
+  console.log(`[Shop Panel] Rendering BillsPage (panel: ${panel}, kind: ${kind})`);
+  useEffect(() => {
+    console.log(`[Shop Panel] BillsPage mounted (panel: ${panel}, kind: ${kind})`);
+  }, [panel, kind]);
   const isPurchase = kind === 'purchase';
   const label = isPurchase ? 'Purchase Bills' : 'Sales Bills';
   const list = useListState();

@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Column, GenericTable} from '@/components/Forms';
 import {PageHeader} from '@/components/ui';
 import {
@@ -61,6 +61,10 @@ const TABS: {label: string; value: string; countKey?: string}[] = [
 ];
 
 export default function ShopOrdersPage({panel}: Props) {
+  console.log(`[Shop Panel] Rendering ShopOrdersPage (panel: ${panel})`);
+  useEffect(() => {
+    console.log(`[Shop Panel] ShopOrdersPage mounted (panel: ${panel})`);
+  }, [panel]);
   const [activeTab, setActiveTab] = useState<string>('');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');

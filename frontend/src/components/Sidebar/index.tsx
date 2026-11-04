@@ -172,6 +172,15 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
   const nav = [...(NAV[role as Role] ?? []), ...employeeTools, ACCOUNT_GROUP];
 
   useEffect(() => {
+    if (role === 'SHOP_ADMIN') {
+      console.log(
+        '[Shop Panel Sidebar] Mounted with nav items:',
+        nav.flatMap((g) => g.items.map((i) => ({ heading: g.heading, label: i.label, to: i.to })))
+      );
+    }
+  }, [role, nav]);
+
+  useEffect(() => {
     if (!sidebarOpen) return;
     const onKey = (e: KeyboardEvent) =>
       e.key === 'Escape' && setSidebarOpen(false);
@@ -229,7 +238,10 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
                     <Link
                       to={item.to}
                       activeOptions={{exact: item.exact}}
-                      onClick={() => setSidebarOpen(false)}
+                      onClick={() => {
+                        console.log(`[Shop Panel Sidebar] Navigation clicked: "${item.label}" -> ${item.to}`);
+                        setSidebarOpen(false);
+                      }}
                       className="flex items-center gap-3 border-l-2 border-transparent px-3 py-2.5 text-body-sm text-ivory/75 transition-colors hover:bg-ivory/5 hover:text-ivory"
                       activeProps={{
                         className: '!border-blush bg-ivory/10 !text-ivory',

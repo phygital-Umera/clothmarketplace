@@ -29,7 +29,7 @@ import {
   Ruler,
   Trash2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import {z} from 'zod';
 
@@ -87,6 +87,10 @@ const STATUS_TABS = [
 ];
 
 const SizeMaster = () => {
+  console.log('[Shop Panel] Rendering SizeMaster');
+  useEffect(() => {
+    console.log('[Shop Panel] SizeMaster mounted');
+  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} = useMasterSizes({
     ...list.params,

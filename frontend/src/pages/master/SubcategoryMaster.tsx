@@ -31,7 +31,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import {z} from 'zod';
 
@@ -71,6 +71,10 @@ const STATUS_TABS = [
 ];
 
 const SubcategoryMaster = () => {
+  console.log('[Shop Panel] Rendering SubcategoryMaster');
+  useEffect(() => {
+    console.log('[Shop Panel] SubcategoryMaster mounted');
+  }, []);
   const list = useListState();
   // Fetch real categories from the backend
   const categoryOptionsQuery = useMasterCategoryOptions();
@@ -90,7 +94,9 @@ const SubcategoryMaster = () => {
   const save = useSaveMasterSubcategory();
   const remove = useDeleteMasterSubcategory();
 
-  const [editing, setEditing] = useState<MasterSubcategory | 'new' | null>(null);
+  const [editing, setEditing] = useState<MasterSubcategory | 'new' | null>(
+    null,
+  );
   const [viewing, setViewing] = useState<MasterSubcategory | null>(null);
   const [toDelete, setToDelete] = useState<MasterSubcategory | null>(null);
   const [formError, setFormError] = useState('');
@@ -150,7 +156,7 @@ const SubcategoryMaster = () => {
     {
       header: 'Parent Category',
       render: (s) => (
-        <span className="inline-flex items-center rounded-sm bg-sand/30 px-2.5 py-0.5 text-body-sm font-medium text-espresso">
+        <span className="bg-sand/30 inline-flex items-center rounded-sm px-2.5 py-0.5 text-body-sm font-medium text-espresso">
           {s.category?.name ?? '–'}
         </span>
       ),
@@ -160,7 +166,7 @@ const SubcategoryMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (s) => (
-        <span className="line-clamp-1 text-espresso-muted">
+        <span className="text-espresso-muted line-clamp-1">
           {s.description || '–'}
         </span>
       ),
@@ -212,9 +218,7 @@ const SubcategoryMaster = () => {
         onRetry={() => refetch()}
         emptyIcon={<Layers size={22} strokeWidth={1.5} />}
         emptyTitle={
-          list.hasFilters
-            ? 'No matching subcategories'
-            : 'No subcategories yet'
+          list.hasFilters ? 'No matching subcategories' : 'No subcategories yet'
         }
         emptyMessage={
           list.hasFilters
@@ -223,8 +227,16 @@ const SubcategoryMaster = () => {
         }
         onRowClick={(s) => setViewing(s)}
         rowActions={(s) => [
-          {label: 'View', icon: <Eye size={16} />, onClick: () => setViewing(s)},
-          {label: 'Edit', icon: <Pencil size={16} />, onClick: () => openForm(s)},
+          {
+            label: 'View',
+            icon: <Eye size={16} />,
+            onClick: () => setViewing(s),
+          },
+          {
+            label: 'Edit',
+            icon: <Pencil size={16} />,
+            onClick: () => openForm(s),
+          },
           {
             label: s.isActive ? 'Deactivate' : 'Activate',
             icon: s.isActive ? (
@@ -301,9 +313,7 @@ const SubcategoryMaster = () => {
           onSubmit={submit}
           saving={form.formState.isSubmitting}
           error={formError}
-          saveLabel={
-            editing === 'new' ? 'Save Subcategory' : 'Save Changes'
-          }
+          saveLabel={editing === 'new' ? 'Save Subcategory' : 'Save Changes'}
         >
           <GenericDropdown
             name="categoryId"
@@ -404,4 +414,3 @@ const SubcategoryMaster = () => {
 };
 
 export default SubcategoryMaster;
-

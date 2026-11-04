@@ -73,6 +73,10 @@ const BILL_TYPES = [
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 export default function NewBillPOSPage() {
+  console.log('[Shop Panel] Rendering NewBillPOSPage');
+  useEffect(() => {
+    console.log('[Shop Panel] NewBillPOSPage mounted');
+  }, []);
   const {user} = useAuthContext();
   const navigate = useNavigate();
   const save = useSaveBill(PANEL, 'sales');

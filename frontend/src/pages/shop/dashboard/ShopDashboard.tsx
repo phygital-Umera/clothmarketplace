@@ -82,6 +82,10 @@ const payableLine = (s: Payable) => {
  * expense or counter change.
  */
 export default function ShopDashboard() {
+  console.log('[Shop Panel] Rendering ShopDashboard');
+  useEffect(() => {
+    console.log('[Shop Panel] ShopDashboard mounted');
+  }, []);
   const navigate = useNavigate();
   const {data, isPending, isError, error} = useShopDashboard(PANEL);
   const [newBill, setNewBill] = useState<BillKind | null>(null);
