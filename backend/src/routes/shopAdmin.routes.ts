@@ -1,6 +1,7 @@
 import {Router} from 'express';
 import {Role} from '@prisma/client';
 import {
+    customerController,
     ecommerceController as e,
     masterController as m,
     orgController as c,
@@ -61,6 +62,13 @@ mountPromotions(router);
 
 // ---- 8. Purchase & Sales Bills (automatic stock in / out) ----
 mountBills(router);
+
+// ---- Shop Customers ----
+router.get('/customers', customerController.list);
+router.post('/customers', customerController.create);
+router.get('/customers/:id', customerController.get);
+router.patch('/customers/:id', customerController.update);
+router.post('/customers/import', customerController.importExcel);
 
 // ---- Shop dashboard, credit notes, cash counter, expenses ----
 mountShopOps(router);

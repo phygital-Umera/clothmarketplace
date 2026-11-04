@@ -5,6 +5,7 @@ import {Link} from '@tanstack/react-router';
 import {roleConfig, Role, ROLES} from '@/lib/roles';
 import {
   Boxes,
+  CreditCard,
   FileInput,
   FileOutput,
   Layers,
@@ -89,6 +90,13 @@ const NAV: Record<Role, NavGroup[]> = {
         item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
         item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
         item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+      ],
+    },
+    {
+      heading: 'Customers',
+      items: [
+        item('Customers', '/shop-admin/customers', Users),
+        item('Credit / Udhaar', '/shop-admin/customers?tab=WITH_DUE', CreditCard),
       ],
     },
     {

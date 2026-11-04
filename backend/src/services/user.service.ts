@@ -178,6 +178,7 @@ class UserService {
         if (!user || refreshToken !== user.refreshToken) {
             throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired refresh token');
         }
+
         await this.assertCanSignIn(user);
 
         return tokenService.generateAccessAndRefreshToken({
