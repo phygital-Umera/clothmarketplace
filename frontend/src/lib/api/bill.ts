@@ -10,7 +10,6 @@ import {
   BillPayload,
   BranchSalesParams,
   BranchSalesSummary,
-,
   RecordPaymentPayload,
 } from '@/types/bill';
 

@@ -111,10 +111,6 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
     bill?.discount ?? 0,
   );
   const [notes, setNotes] = useState(bill?.notes ?? '');
-  /** Credit bills: what the customer pays now; the rest is owed */
-  const [paidNow, setPaidNow] = useState<number | ''>(
-    bill?.paymentMethod === 'CREDIT' ? (bill.paidAmount ?? 0) : 0,
-  );
   const isCredit = !isPurchase && party.paymentMethod === 'CREDIT';
   const [lines, setLines] = useState<Line[]>(() =>
     bill ? fromBill(bill, kind) : [],
