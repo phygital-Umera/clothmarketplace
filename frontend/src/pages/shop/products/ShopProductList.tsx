@@ -12,7 +12,7 @@ import {LOW_STOCK, ShopProduct, StockFilter} from '@/types/shopProduct';
 import {getErrorMessage} from '@/utils/axios';
 import {useNavigate} from '@tanstack/react-router';
 import {Eye, ImageOff, Package, Pencil, Plus, Trash2} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 const STATUS_TABS = [
   {label: 'All', value: undefined},
@@ -42,6 +42,10 @@ export const StockBadge = ({qty}: {qty: number}) =>
   );
 
 const ShopProductList = () => {
+  console.log('[Shop Panel] Rendering ShopProductList');
+  useEffect(() => {
+    console.log('[Shop Panel] ShopProductList mounted');
+  }, []);
   const navigate = useNavigate();
   const list = useListState();
   const masters = useProductMasters(list.filters.categoryId);

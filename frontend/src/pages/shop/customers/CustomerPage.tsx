@@ -26,7 +26,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import React, {useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import toast from 'react-hot-toast';
 
 const PANEL = 'shop-admin';
@@ -61,6 +61,10 @@ function getAvatarColor(name: string): string {
 }
 
 export default function CustomerPage() {
+  console.log('[Shop Panel] Rendering CustomerPage');
+  useEffect(() => {
+    console.log('[Shop Panel] CustomerPage mounted');
+  }, []);
   const {user} = useAuthContext();
   const navigate = useNavigate();
 

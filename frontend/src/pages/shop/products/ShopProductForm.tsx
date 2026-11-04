@@ -31,7 +31,7 @@ import {getErrorMessage} from '@/utils/axios';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {Link, useNavigate, useParams} from '@tanstack/react-router';
 import {Loader2} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import toast from 'react-hot-toast';
 
@@ -352,6 +352,10 @@ const Form = ({product}: {product?: ShopProduct}) => {
 
 /** /shop-admin/products/new and /shop-admin/products/edit/:productId */
 const ShopProductForm = () => {
+  console.log('[Shop Panel] Rendering ShopProductForm');
+  useEffect(() => {
+    console.log('[Shop Panel] ShopProductForm mounted');
+  }, []);
   const {productId} = useParams({strict: false}) as {productId?: string};
   const {data: product, isPending, isError, error} = useShopProduct(productId);
 

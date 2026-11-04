@@ -11,7 +11,7 @@ import ProductStatusBadge from '@/pages/catalog/ProductStatusBadge';
 import {getErrorMessage} from '@/utils/axios';
 import {Link, useNavigate, useParams} from '@tanstack/react-router';
 import {Loader2, Pencil, Trash2} from 'lucide-react';
-import {ReactNode, useState} from 'react';
+import {ReactNode, useEffect, useState} from 'react';
 import {StockBadge} from './ShopProductList';
 
 const money = (n: number) =>
@@ -37,6 +37,10 @@ const Detail = ({
 
 /** /shop-admin/products/:productId */
 const ShopProductDetail = () => {
+  console.log('[Shop Panel] Rendering ShopProductDetail');
+  useEffect(() => {
+    console.log('[Shop Panel] ShopProductDetail mounted');
+  }, []);
   const {productId} = useParams({strict: false}) as {productId: string};
   const navigate = useNavigate();
   const {data: p, isPending, isError, error} = useShopProduct(productId);

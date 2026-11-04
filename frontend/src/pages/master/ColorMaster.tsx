@@ -28,7 +28,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm, useWatch} from 'react-hook-form';
 import {z} from 'zod';
 
@@ -59,6 +59,10 @@ const STATUS_TABS = [
 ];
 
 const ColorMaster = () => {
+  console.log('[Shop Panel] Rendering ColorMaster');
+  useEffect(() => {
+    console.log('[Shop Panel] ColorMaster mounted');
+  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} =
     useMasterColors({

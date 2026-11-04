@@ -101,6 +101,10 @@ const REASONS = [
 ];
 
 export default function SalesReturnPage() {
+  console.log('[Shop Panel] Rendering SalesReturnPage');
+  useEffect(() => {
+    console.log('[Shop Panel] SalesReturnPage mounted');
+  }, []);
   const {user} = useAuthContext();
   const navigate = useNavigate();
 
