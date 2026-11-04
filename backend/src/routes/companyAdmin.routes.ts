@@ -22,6 +22,7 @@ router.patch('/branches/:id/status', c.setBranchStatus);
 
 // Shops
 router.get('/shops/options', c.shopOptions);
+router.get('/shops/stats', c.shopStats);
 router.route('/shops').get(c.listShops).post(c.createShop);
 router.route('/shops/:id').get(c.getShop).patch(c.updateShop);
 router.patch('/shops/:id/status', c.setShopStatus);

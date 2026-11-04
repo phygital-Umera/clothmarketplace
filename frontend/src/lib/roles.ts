@@ -38,11 +38,9 @@ export const ROLES: Record<Role, RoleConfig> = {
     prefix: '/company-admin',
   },
   SUB_ADMIN: {
-    label: 'Admin', // Display as Admin / Branch Admin per specification
-    home: '/branch-admin/shops',
+    label: 'Branch Admin',
+    home: '/branch-admin/dashboard',
     prefix: '/branch-admin',
-    // Branch admins start on Shops with the Add Shop form open
-    landing: {to: '/branch-admin/shops', search: {add: '1'}},
   },
   SHOP_ADMIN: {
     label: 'Shop',

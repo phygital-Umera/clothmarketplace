@@ -1,6 +1,6 @@
-import ShopList from '@/pages/org/ShopList';
+import BranchShopsPage from '@/pages/branch/BranchShopsPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/branch-admin/shops/')({
-  component: () => <ShopList panel="branch-admin" />,
+  component: BranchShopsPage,
 });

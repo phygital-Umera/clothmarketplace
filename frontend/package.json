@@ -20,6 +20,7 @@
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
     "dayjs": "^1.11.12",
+    "exceljs": "^4.4.0",
     "flatpickr": "^4.6.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",

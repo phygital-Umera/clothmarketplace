@@ -251,6 +251,89 @@ class ShopService {
         return shop;
     }
 
+    /**
+     * Branch Shops page: per-shop stock units, sales this month and the next
+     * sales bill number, plus the code the next new shop will get.
+     */
+    public async branchStats(scope: Scope) {
+        const shops = await prisma.shop.findMany({
+            where: this.scopeWhere(scope),
+            select: {id: true},
+        });
+        const ids = shops.map((s) => s.id);
+        const now = new Date();
+        const month = new Date(now.getFullYear(), now.getMonth(), 1);
+        const billPrefix = `SB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-`;
+        const branch = scope.branchId
+            ? await prisma.branch.findUnique({
+                  where: {id: scope.branchId},
+                  select: {code: true},
+              })
+            : null;
+
+        const [stock, sales, todaysBills, codes] = await Promise.all([
+            prisma.inventory.findMany({
+                where: {
+                    ...(scope.branchId ? {branchId: scope.branchId} : {}),
+                    variant: {product: {shopId: {in: ids}}},
+                },
+                select: {physicalQty: true, variant: {select: {product: {select: {shopId: true}}}}},
+            }),
+            prisma.salesBill.groupBy({
+                by: ['shopId'],
+                where: {
+                    shopId: {in: ids},
+                    deletedAt: null,
+                    status: 'CONFIRMED',
+                    billDate: {gte: month},
+                },
+                _sum: {totalAmount: true},
+            }),
+            prisma.salesBill.findMany({
+                where: {shopId: {in: ids}, billNumber: {startsWith: billPrefix}},
+                select: {shopId: true, billNumber: true},
+            }),
+            branch
+                ? prisma.shop.findMany({
+                      where: {code: {startsWith: `${branch.code}-S`}},
+                      select: {code: true},
+                  })
+                : Promise.resolve([]),
+        ]);
+
+        const lastNo = (shopId: string) =>
+            todaysBills
+                .filter((b) => b.shopId === shopId)
+                .reduce(
+                    (m, b) => Math.max(m, Number(b.billNumber.slice(billPrefix.length)) || 0),
+                    0,
+                );
+        const prefix = branch ? `${branch.code}-S` : '';
+        const maxCode = codes.reduce(
+            (m, c) => Math.max(m, Number(c.code.slice(prefix.length)) || 0),
+            0,
+        );
+
+        return {
+            nextShopCode: branch ? `${prefix}${String(maxCode + 1).padStart(2, '0')}` : null,
+            shops: Object.fromEntries(
+                ids.map((id) => [
+                    id,
+                    {
+                        stockUnits: stock
+                            .filter((i) => (i.variant as any)?.product?.shopId === id)
+                            .reduce((t, i) => t + Math.max(i.physicalQty, 0), 0),
+                        salesMtd:
+                            Math.round(
+                                (sales.find((x) => x.shopId === id)?._sum.totalAmount ?? 0) * 100,
+                            ) / 100,
+                        nextBillNumber: `${billPrefix}${String(lastNo(id) + 1).padStart(4, '0')}`,
+                    },
+                ]),
+            ),
+        };
+    }
+
     /** Counts used by dashboards */
     public async counts(scope: Scope) {
         const base = this.scopeWhere(scope);

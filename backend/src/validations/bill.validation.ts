@@ -63,11 +63,15 @@ const purchaseFields = {
     items: items({unitCost: money('Unit Cost'), taxRate}),
 };
 
+export const PAYMENT_METHODS = ['CASH', 'CARD', 'UPI', 'CREDIT'] as const;
+
 const salesFields = {
     customerName: text('Customer Name', 120),
     customerPhone: field({label: 'Customer Phone', kind: 'phone', required: false}),
     billDate,
-    paymentMethod: z.enum(['CASH', 'CARD', 'UPI']).default('CASH'),
+    paymentMethod: z.enum(PAYMENT_METHODS).default('CASH'),
+    /** Received at billing; omitted means paid in full (or nothing, for CREDIT) */
+    paidAmount: z.preprocess(emptyToUndefined, money('Amount Paid').optional()),
     discount: money('Discount').default(0),
     notes: text('Notes', 1000),
     items: items({
@@ -98,6 +102,19 @@ const billListSchema = listQuerySchema(
     to: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
 });
 
+/** Branch admin: sales bills of every shop in the branch (view only) */
+const branchSalesListSchema = billListSchema.extend({
+    shopId: z.preprocess(emptyToUndefined, z.string().uuid('Invalid shop').optional()),
+    paymentMethod: z.preprocess(emptyToUndefined, z.enum(PAYMENT_METHODS).optional()),
+    flag: z.preprocess(emptyToUndefined, z.enum(['EDITED', 'ON_CREDIT']).optional()),
+});
+
+const branchSalesSummarySchema = z.object({
+    shopId: z.preprocess(emptyToUndefined, z.string().uuid('Invalid shop').optional()),
+    from: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
+    to: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
+});
+
 const idSchema = z.object({id: z.string().uuid('Invalid ID parameter')});
 
 export default {
@@ -107,5 +124,7 @@ export default {
     updateSalesBillSchema,
     cancelBillSchema,
     billListSchema,
+    branchSalesListSchema,
+    branchSalesSummarySchema,
     idSchema,
 };

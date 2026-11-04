@@ -1,6 +1,6 @@
-import EmployeeList from '@/pages/org/EmployeeList';
+import BranchStaffPage from '@/pages/branch/BranchStaffPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/branch-admin/employees/')({
-  component: () => <EmployeeList panel="branch-admin" />,
+  component: BranchStaffPage,
 });

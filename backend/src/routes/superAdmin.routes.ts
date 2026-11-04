@@ -15,6 +15,7 @@ router.get('/dashboard', checkPermission('dashboard.view'), c.superAdminDashboar
 router.get('/branches', checkPermission('branches.view'), c.listBranches);
 router.get('/branches/:id', checkPermission('branches.view'), c.getBranch);
 router.get('/shops', checkPermission('branches.view'), c.listShops);
+router.get('/shops/stats', checkPermission('branches.view'), c.shopStats);
 router.get('/shops/:id', checkPermission('branches.view'), c.getShop);
 router.get('/users', checkPermission('users.view'), c.listUsers);
 router.patch('/users/:id/status', checkPermission('users.block'), c.setUserStatus);

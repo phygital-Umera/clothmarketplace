@@ -184,4 +184,51 @@ const sales = {
     }),
 };
 
-export default {purchase, sales};
+/** Branch admin: read-only view of the sales bills of every shop in the branch */
+const branchOf = (req: Request) => {
+    const {companyId, branchId} = req.user;
+    if (!companyId || !branchId) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'No branch is linked to this account');
+    }
+    return {companyId, branchId};
+};
+
+const branchSales = {
+    list: catchAsync(async (req, res) => {
+        const query = v.branchSalesListSchema.parse(req.query);
+        return ok(
+            res,
+            await billService.listSales(branchOf(req), query),
+            'Sales bills fetched successfully',
+        );
+    }),
+
+    summary: catchAsync(async (req, res) => {
+        const query = v.branchSalesSummarySchema.parse(req.query);
+        return ok(
+            res,
+            await billService.salesSummary(branchOf(req), query),
+            'Sales summary fetched successfully',
+        );
+    }),
+
+    export: catchAsync(async (req, res) => {
+        const query = v.branchSalesListSchema.parse(req.query);
+        return ok(
+            res,
+            await billService.exportSales(branchOf(req), query),
+            'Sales bills exported successfully',
+        );
+    }),
+
+    get: catchAsync(async (req, res) => {
+        const {id} = v.idSchema.parse(req.params);
+        return ok(
+            res,
+            await billService.getSales(branchOf(req), id),
+            'Sales bill fetched successfully',
+        );
+    }),
+};
+
+export default {purchase, sales, branchSales};

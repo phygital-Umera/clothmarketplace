@@ -1,6 +1,6 @@
 export type BillKind = 'purchase' | 'sales';
 export type BillStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
-export type PaymentMethod = 'CASH' | 'CARD' | 'UPI';
+export type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
 
 export interface BillItemVariant {
   id: string;
@@ -52,6 +52,13 @@ export interface Bill {
   customerName?: string | null;
   customerPhone?: string | null;
   paymentMethod?: PaymentMethod;
+  /** Received at billing; creditAmount is still owed */
+  paidAmount?: number;
+  creditAmount?: number;
+  /** Edits made after the bill was confirmed */
+  editCount?: number;
+  lastEditedAt?: string | null;
+  shop?: {id: string; name: string; code: string};
 }
 
 export interface BillListParams {
@@ -61,6 +68,45 @@ export interface BillListParams {
   status?: BillStatus;
   from?: string;
   to?: string;
+}
+
+/** Branch admin: sales bills of every shop in the branch */
+export interface BranchSalesParams extends BillListParams {
+  shopId?: string;
+  paymentMethod?: PaymentMethod;
+  flag?: 'EDITED' | 'ON_CREDIT';
+}
+
+export interface BranchSalesSummary {
+  range: {from: string; to: string};
+  kpis: {
+    bills: number;
+    creditBills: number;
+    cancelled: number;
+    netSales: number;
+    taxAmount: number;
+    discount: number;
+    discountPct: number;
+    onCredit: number;
+    edited: number;
+  };
+  shopCounts: {shopId: string; name: string; bills: number}[];
+  cashiers: {
+    id: string;
+    name: string;
+    shop: string;
+    bills: number;
+    sales: number;
+    discount: number;
+    edits: number;
+    cancels: number;
+  }[];
+  watch: {
+    highDiscount: number;
+    edited: number;
+    cancelled: number;
+    noMobile: number;
+  };
 }
 
 export interface BillLinePayload {
@@ -87,4 +133,5 @@ export interface BillPayload {
   customerName?: string;
   customerPhone?: string;
   paymentMethod?: PaymentMethod;
+  paidAmount?: number;
 }

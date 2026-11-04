@@ -15,6 +15,16 @@ type UpdatePurchase = z.infer<typeof billValidation.updatePurchaseBillSchema>;
 type CreateSales = z.infer<typeof billValidation.createSalesBillSchema>;
 type UpdateSales = z.infer<typeof billValidation.updateSalesBillSchema>;
 type BillList = z.infer<typeof billValidation.billListSchema>;
+type BranchSalesList = z.infer<typeof billValidation.branchSalesListSchema>;
+type BranchSalesSummary = z.infer<typeof billValidation.branchSalesSummarySchema>;
+
+/** One shop (shop admin) or every shop of a branch (branch admin, read only) */
+export type BillScope = {companyId: string; shopId?: string; branchId?: string};
+
+const scopeWhere = (scope: BillScope) => ({
+    companyId: scope.companyId,
+    ...(scope.shopId ? {shopId: scope.shopId} : {branchId: scope.branchId}),
+});
 
 /*
  * Shop billing. Inventory is never changed directly here: every stock effect
@@ -52,6 +62,7 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 
 const BILL_INCLUDE = {
     createdBy: {select: {id: true, fullname: true}},
+    shop: {select: {id: true, name: true, code: true}},
 } satisfies Prisma.PurchaseBillInclude;
 
 const ITEM_INCLUDE = {
@@ -144,6 +155,18 @@ class BillService {
             discount,
             totalAmount: round2(gross - discount),
         };
+    }
+
+    /** Paid now vs owed; CREDIT with no amount means nothing was paid */
+    private payment(totalAmount: number, data: {paymentMethod: string; paidAmount?: number}) {
+        const paid = data.paidAmount ?? (data.paymentMethod === 'CREDIT' ? 0 : totalAmount);
+        if (paid > totalAmount) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'Amount paid cannot be more than the bill total',
+            );
+        }
+        return {paidAmount: round2(paid), creditAmount: round2(totalAmount - paid)};
     }
 
     private async purchaseLines(tx: Tx, scope: ShopScope, data: CreatePurchase | UpdatePurchase) {
@@ -465,11 +488,12 @@ class BillService {
     // SALES BILLS (stock out)
     // -------------------------------------------------------------
 
-    public listSales = (scope: ShopScope, query: BillList) => this.list('SALES', scope, query);
+    public listSales = (scope: BillScope, query: BillList | BranchSalesList) =>
+        this.list('SALES', scope, query);
 
-    public getSales = async (scope: ShopScope, id: string) => {
+    public getSales = async (scope: BillScope, id: string) => {
         const bill = await prisma.salesBill.findFirst({
-            where: {id, shopId: scope.shopId, deletedAt: null},
+            where: {id, ...scopeWhere(scope), deletedAt: null},
             include: {...BILL_INCLUDE, items: {include: ITEM_INCLUDE}},
         });
         if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Sales bill not found');
@@ -478,8 +502,9 @@ class BillService {
 
     public createSales = async (scope: ShopScope, actorId: string, data: CreateSales) => {
         const shop = await this.shopContext(scope);
-        const {items, status, ...header} = data;
+        const {items, status, paidAmount, ...header} = data;
         void items;
+        void paidAmount;
 
         const created = await accountService.withRetry(
             () =>
@@ -489,6 +514,7 @@ class BillService {
                         data: {
                             ...header,
                             ...totals,
+                            ...this.payment(totals.totalAmount, data),
                             billNumber: await this.nextBillNumber(tx, 'SALES', shop.id),
                             status,
                             companyId: shop.companyId,
@@ -514,8 +540,9 @@ class BillService {
         id: string,
         data: UpdateSales,
     ) => {
-        const {items, version, ...header} = data;
+        const {items, version, paidAmount, ...header} = data;
         void items;
+        void paidAmount;
 
         await prisma.$transaction(async (tx) => {
             await this.lock(
@@ -535,7 +562,16 @@ class BillService {
             await tx.salesBillItem.deleteMany({where: {billId: id}});
             await tx.salesBill.update({
                 where: {id},
-                data: {...header, ...totals, items: {create: lines}},
+                data: {
+                    ...header,
+                    ...totals,
+                    ...this.payment(totals.totalAmount, data),
+                    // Edits after confirming are tracked for the branch watch list
+                    ...(before.status === BillStatus.CONFIRMED
+                        ? {editCount: {increment: 1}, lastEditedAt: new Date()}
+                        : {}),
+                    items: {create: lines},
+                },
             });
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(tx, 'SALES', before, before.items, lines, 'edited', actorId);
@@ -605,9 +641,159 @@ class BillService {
     // LISTING
     // -------------------------------------------------------------
 
-    private async list(kind: Kind, scope: ShopScope, query: BillList) {
+    /** Filters shared by the sales list and the Excel export */
+    private salesWhere(
+        scope: BillScope,
+        query: BillList | BranchSalesList,
+    ): Prisma.SalesBillWhereInput {
+        const branch = query as Partial<BranchSalesList>;
+        return {
+            ...scopeWhere(scope),
+            deletedAt: null,
+            status: query.status,
+            ...dateRange(query.from, query.to),
+            ...(!scope.shopId && branch.shopId ? {shopId: branch.shopId} : {}),
+            ...(branch.paymentMethod ? {paymentMethod: branch.paymentMethod} : {}),
+            ...(branch.flag === 'EDITED' ? {editCount: {gt: 0}} : {}),
+            ...(branch.flag === 'ON_CREDIT'
+                ? {creditAmount: {gt: 0}, status: {not: BillStatus.CANCELLED}}
+                : {}),
+            ...(query.search
+                ? {
+                      OR: [
+                          {billNumber: {contains: query.search, mode: 'insensitive'}},
+                          {customerName: {contains: query.search, mode: 'insensitive'}},
+                          {customerPhone: {contains: query.search, mode: 'insensitive'}},
+                          {items: itemSearchOf(query.search)},
+                      ],
+                  }
+                : {}),
+        };
+    }
+
+    /** Every matching bill for the Excel export (no paging, capped) */
+    public exportSales = (scope: BillScope, query: BranchSalesList) =>
+        prisma.salesBill.findMany({
+            where: this.salesWhere(scope, query),
+            include: BILL_INCLUDE,
+            orderBy: {billDate: 'desc'},
+            take: 5000,
+        });
+
+    /**
+     * Branch sales summary for a date range (default: today): KPIs, bills
+     * per shop, per-cashier totals and the watch list.
+     */
+    public salesSummary = async (scope: BillScope, query: BranchSalesSummary) => {
+        const from = query.from ?? startOfToday();
+        const to = query.to ?? from;
+        const range = {...scopeWhere(scope), deletedAt: null, ...dateRange(from, to)};
+        const where = query.shopId ? {...range, shopId: query.shopId} : range;
+
+        const [shops, perShop, bills] = await Promise.all([
+            prisma.shop.findMany({
+                where: {...scopeWhere(scope), deletedAt: null},
+                select: {id: true, name: true},
+                orderBy: {name: 'asc'},
+            }),
+            prisma.salesBill.groupBy({by: ['shopId'], where: range, _count: {_all: true}}),
+            prisma.salesBill.findMany({
+                where,
+                select: {
+                    status: true,
+                    totalAmount: true,
+                    taxAmount: true,
+                    discount: true,
+                    creditAmount: true,
+                    editCount: true,
+                    customerPhone: true,
+                    createdById: true,
+                    createdBy: {select: {fullname: true}},
+                    shop: {select: {name: true}},
+                    items: {select: {discount: true}},
+                },
+            }),
+        ]);
+
+        type Row = (typeof bills)[number];
+        /** Bill discount plus every line discount */
+        const discountOf = (b: Row) => b.discount + b.items.reduce((t, i) => t + i.discount, 0);
+        const live = bills.filter((b) => b.status === BillStatus.CONFIRMED);
+        const netSales = live.reduce((t, b) => t + b.totalAmount, 0);
+        const discount = live.reduce((t, b) => t + discountOf(b), 0);
+        const onCredit = live.filter((b) => b.creditAmount > 0);
+        const cancelled = bills.filter((b) => b.status === BillStatus.CANCELLED).length;
+        const edited = bills.filter((b) => b.editCount > 0).length;
+
+        type Cashier = {
+            id: string;
+            name: string;
+            shop: string;
+            bills: number;
+            sales: number;
+            discount: number;
+            edits: number;
+            cancels: number;
+        };
+        const cashiers = new Map<string, Cashier>();
+        bills.forEach((b) => {
+            const row = cashiers.get(b.createdById) ?? {
+                id: b.createdById,
+                name: b.createdBy.fullname,
+                shop: b.shop.name,
+                bills: 0,
+                sales: 0,
+                discount: 0,
+                edits: 0,
+                cancels: 0,
+            };
+            row.bills += 1;
+            if (b.status === BillStatus.CONFIRMED) {
+                row.sales += b.totalAmount;
+                row.discount += discountOf(b);
+            }
+            if (b.editCount > 0) row.edits += 1;
+            if (b.status === BillStatus.CANCELLED) row.cancels += 1;
+            cashiers.set(b.createdById, row);
+        });
+
+        return {
+            range: {from, to},
+            kpis: {
+                bills: bills.length,
+                creditBills: onCredit.length,
+                cancelled,
+                netSales: round2(netSales),
+                taxAmount: round2(live.reduce((t, b) => t + b.taxAmount, 0)),
+                discount: round2(discount),
+                discountPct:
+                    netSales + discount ? round2((discount / (netSales + discount)) * 100) : 0,
+                onCredit: round2(onCredit.reduce((t, b) => t + b.creditAmount, 0)),
+                edited,
+            },
+            shopCounts: shops.map((sh) => ({
+                shopId: sh.id,
+                name: sh.name,
+                bills: perShop.find((p) => p.shopId === sh.id)?._count._all ?? 0,
+            })),
+            cashiers: [...cashiers.values()]
+                .map((c) => ({...c, sales: round2(c.sales), discount: round2(c.discount)}))
+                .sort((a, b) => b.sales - a.sales),
+            watch: {
+                /** Discount above 10% of the amount before discount */
+                highDiscount: live.filter(
+                    (b) => discountOf(b) > 0.1 * (b.totalAmount + discountOf(b)),
+                ).length,
+                edited,
+                cancelled,
+                noMobile: bills.filter((b) => !b.customerPhone).length,
+            },
+        };
+    };
+
+    private async list(kind: Kind, scope: BillScope, query: BillList | BranchSalesList) {
         const base = {
-            shopId: scope.shopId,
+            ...scopeWhere(scope),
             deletedAt: null,
             status: query.status,
             ...(query.from || query.to
@@ -619,16 +805,7 @@ class BillService {
                   }
                 : {}),
         };
-        const itemSearch = {
-            some: {
-                variant: {
-                    OR: [
-                        {variantSku: {contains: query.search, mode: 'insensitive' as const}},
-                        {product: {name: {contains: query.search, mode: 'insensitive' as const}}},
-                    ],
-                },
-            },
-        };
+        const itemSearch = itemSearchOf(query.search);
         const args = listArgs(query);
         const include = {...BILL_INCLUDE, _count: {select: {items: true}}};
 
@@ -653,19 +830,7 @@ class BillService {
             return toListResult(items, total, query);
         }
 
-        const where: Prisma.SalesBillWhereInput = {
-            ...base,
-            ...(query.search
-                ? {
-                      OR: [
-                          {billNumber: {contains: query.search, mode: 'insensitive'}},
-                          {customerName: {contains: query.search, mode: 'insensitive'}},
-                          {customerPhone: {contains: query.search, mode: 'insensitive'}},
-                          {items: itemSearch},
-                      ],
-                  }
-                : {}),
-        };
+        const where = this.salesWhere(scope, query);
         const [items, total] = await prisma.$transaction([
             prisma.salesBill.findMany({where, ...args, include}),
             prisma.salesBill.count({where}),
@@ -673,6 +838,33 @@ class BillService {
         return toListResult(items, total, query);
     }
 }
+
+const itemSearchOf = (search: string) => ({
+    some: {
+        variant: {
+            OR: [
+                {variantSku: {contains: search, mode: 'insensitive' as const}},
+                {product: {name: {contains: search, mode: 'insensitive' as const}}},
+            ],
+        },
+    },
+});
+
+const dateRange = (from?: Date, to?: Date) =>
+    from || to
+        ? {
+              billDate: {
+                  ...(from ? {gte: from} : {}),
+                  ...(to ? {lte: endOfDay(to)} : {}),
+              },
+          }
+        : {};
+
+const startOfToday = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
 
 const endOfDay = (d: Date) => {
     const end = new Date(d);

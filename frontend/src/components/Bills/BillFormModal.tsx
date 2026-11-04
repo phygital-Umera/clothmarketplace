@@ -79,6 +79,11 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
     bill?.discount ?? 0,
   );
   const [notes, setNotes] = useState(bill?.notes ?? '');
+  /** Credit bills: what the customer pays now; the rest is owed */
+  const [paidNow, setPaidNow] = useState<number | ''>(
+    bill?.paymentMethod === 'CREDIT' ? (bill.paidAmount ?? 0) : 0,
+  );
+  const isCredit = !isPurchase && party.paymentMethod === 'CREDIT';
   const [lines, setLines] = useState<Line[]>(() =>
     bill ? fromBill(bill, kind) : [],
   );
@@ -185,6 +190,8 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   }
   if (totals.total < 0)
     errors.push('Discount cannot be more than the bill amount.');
+  if (isCredit && (Number(paidNow) || 0) > totals.total)
+    errors.push('Amount paid now cannot be more than the bill total.');
 
   const submit = async (status: 'DRAFT' | 'CONFIRMED') => {
     setSubmitted(true);
@@ -213,6 +220,7 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
             customerName: party.name.trim() || undefined,
             customerPhone: party.phone.trim() || undefined,
             paymentMethod: party.paymentMethod,
+            ...(isCredit ? {paidAmount: Number(paidNow) || 0} : {}),
           }),
     };
 
@@ -318,7 +326,21 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                   <option value="CASH">Cash</option>
                   <option value="CARD">Card</option>
                   <option value="UPI">UPI</option>
+                  <option value="CREDIT">Credit (pay later)</option>
                 </select>
+              </label>
+            )}
+            {isCredit && (
+              <label className="text-xs text-outline">
+                Amount Paid Now
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className={inputCls}
+                  value={paidNow}
+                  onChange={(e) => setPaidNow(num(e.target.value))}
+                />
               </label>
             )}
             <label className="text-xs text-outline">
@@ -367,7 +389,11 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                 onClick={() => setShowPicker((prev) => !prev)}
                 className="flex items-center gap-1 rounded-lg border border-ivory-300 bg-ivory-50 px-3 py-2 text-xs font-medium text-espresso hover:bg-ivory-100"
               >
-                {showPicker ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {showPicker ? (
+                  <ChevronUp size={14} />
+                ) : (
+                  <ChevronDown size={14} />
+                )}
                 {showPicker ? 'Hide Products' : 'Browse Products'}
               </button>
               <Link
@@ -381,7 +407,9 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
             {(showPicker || search.trim()) && (
               <div className="mb-3 max-h-56 divide-y divide-ivory-100 overflow-y-auto rounded-lg border border-ivory-200 bg-white shadow-sm">
                 {pickerLoading && !pickerItems.length ? (
-                  <p className="p-3 text-xs text-outline">Searching products…</p>
+                  <p className="p-3 text-xs text-outline">
+                    Searching products…
+                  </p>
                 ) : !pickerItems.length ? (
                   <div className="p-4 text-center">
                     <p className="text-xs text-outline">
@@ -390,7 +418,8 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                         : 'No products found in this shop.'}
                     </p>
                     <p className="mt-1 text-[11px] text-outline">
-                      Products must be added in the Catalog before creating bills.
+                      Products must be added in the Catalog before creating
+                      bills.
                     </p>
                     <Link
                       to={`/${panel}/products/new`}
@@ -422,13 +451,21 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                               style={{backgroundColor: i.variant.colorHex}}
                             />
                           ) : (
-                            <Package size={14} className="shrink-0 text-outline" />
+                            <Package
+                              size={14}
+                              className="shrink-0 text-outline"
+                            />
                           )}
                           <span className="text-body-sm text-espresso">
-                            <span className="font-medium">{i.product?.name}</span>{' '}
+                            <span className="font-medium">
+                              {i.product?.name}
+                            </span>{' '}
                             <span className="text-xs text-outline">
-                              ({i.variant?.color} / Size {i.variant?.size}) · SKU:{' '}
-                              <span className="font-mono">{i.variant?.sku}</span>
+                              ({i.variant?.color} / Size {i.variant?.size}) ·
+                              SKU:{' '}
+                              <span className="font-mono">
+                                {i.variant?.sku}
+                              </span>
                             </span>
                           </span>
                         </div>
@@ -665,6 +702,18 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                 <span>Total</span>
                 <span>₹{totals.total.toFixed(2)}</span>
               </div>
+              {isCredit && (
+                <div className="flex justify-between text-rose-800">
+                  <span>Credit due</span>
+                  <span>
+                    ₹
+                    {Math.max(
+                      0,
+                      round2(totals.total - (Number(paidNow) || 0)),
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

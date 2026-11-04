@@ -5,10 +5,16 @@ import {
   deleteBill,
   getBill,
   getBills,
+  getBranchSalesSummary,
   updateBill,
 } from '@/lib/api/bill';
 import {ECOMM_KEYS} from '@/lib/react-query/queriesAndMutations/ecommerce';
-import {BillKind, BillListParams, BillPayload} from '@/types/bill';
+import {
+  BillKind,
+  BillListParams,
+  BillPayload,
+  BranchSalesParams,
+} from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';
 import {
   keepPreviousData,
@@ -40,6 +46,16 @@ export const useBills = (
   useQuery({
     queryKey: [BILL_KEYS.BILLS, panel, kind, params],
     queryFn: () => getBills(panel, kind, params),
+    select: (res) => res.data,
+    placeholderData: keepPreviousData,
+  });
+
+export const useBranchSalesSummary = (
+  params: Pick<BranchSalesParams, 'shopId' | 'from' | 'to'>,
+) =>
+  useQuery({
+    queryKey: [BILL_KEYS.BILLS, 'branch-admin', 'summary', params],
+    queryFn: () => getBranchSalesSummary(params),
     select: (res) => res.data,
     placeholderData: keepPreviousData,
   });

@@ -5,6 +5,7 @@ import {
     accountService,
     auditService,
     branchService,
+    branchOverviewService,
     companyService,
     employeeService,
     shopService,
@@ -121,6 +122,11 @@ const shopOptions = catchAsync(async (req, res) => {
     return ok(res, await shopService.options(scopeOf(req), branchId), 'Shops fetched successfully');
 });
 
+/** Branch Shops page: stock, sales and next bill number per shop */
+const shopStats = catchAsync(async (req, res) => {
+    return ok(res, await shopService.branchStats(scopeOf(req)), 'Shop figures fetched');
+});
+
 const createShop = catchAsync(async (req, res) => {
     const data = orgValidation.createShopSchema.parse(req.body);
     const {after} = await auditService.track(
@@ -143,6 +149,13 @@ const updateShop = catchAsync(async (req, res) => {
 });
 
 const setShopStatus = catchAsync(async (req, res) => {
+    // Branch admins add shops; opening or closing one is the company admin's call
+    if (req.user.role === Role.SUB_ADMIN) {
+        throw new ApiError(
+            httpStatus.FORBIDDEN,
+            'Activating or closing a shop needs the Company Admin',
+        );
+    }
     const {id} = orgValidation.idSchema.parse(req.params);
     const {status, reason} = orgValidation.shopStatusSchema.parse(req.body);
     const {after} = await auditService.track(
@@ -311,6 +324,16 @@ const scopedDashboard = catchAsync(async (req, res) => {
     );
 });
 
+/** Branch admin overview: sales, purchases, stock and shops of their branch */
+const branchOverview = catchAsync(async (req, res) => {
+    const {companyId, branchId} = scopeOf(req);
+    return ok(
+        res,
+        await branchOverviewService.get({companyId: companyId!, branchId: branchId!}),
+        'Branch overview fetched successfully',
+    );
+});
+
 const companyProfile = catchAsync(async (req, res) => {
     const {companyId} = scopeOf(req);
     return ok(res, await companyService.getCompanyById(companyId!), 'Company fetched successfully');
@@ -331,6 +354,7 @@ export default {
     listShops,
     getShop,
     shopOptions,
+    shopStats,
     createShop,
     updateShop,
     setShopStatus,
@@ -343,6 +367,7 @@ export default {
     revokeSessions,
     superAdminDashboard,
     scopedDashboard,
+    branchOverview,
     companyProfile,
     branchProfile,
 };

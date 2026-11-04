@@ -5,6 +5,7 @@ import {
     masterController as m,
     orgController as c,
     shopProductController as p,
+    creditNoteController,
 } from '@controllers/index';
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
@@ -60,6 +61,12 @@ mountPromotions(router);
 
 // ---- 8. Purchase & Sales Bills (automatic stock in / out) ----
 mountBills(router);
+
+// ---- Sales returns (credit notes); cash / large refunds wait for the branch admin ----
+const cn = creditNoteController.shop;
+router.route('/credit-notes').get(cn.list).post(cn.create);
+router.get('/credit-notes/returnable', cn.returnable);
+router.get('/credit-notes/:id', cn.get);
 
 // ---- 9. Order Management & Returns ----
 router.get('/orders/dashboard', e.orderDashboard);

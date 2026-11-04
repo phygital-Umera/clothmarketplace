@@ -60,6 +60,7 @@ export interface Shop {
   id: string;
   code: string;
   name: string;
+  shopType: string | null;
   companyId: string;
   branchId: string;
   company: Ref;
@@ -81,6 +82,15 @@ export interface Shop {
   employeeCount: number;
   createdAt: string;
 }
+
+/** Branch Shops page figures, keyed by shop id */
+export type ShopStats = {
+  nextShopCode: string | null;
+  shops: Record<
+    string,
+    {stockUnits: number; salesMtd: number; nextBillNumber: string}
+  >;
+};
 
 /** A user as the admin panels see it (never a password) */
 export interface Account {
@@ -151,6 +161,60 @@ export type ScopedDashboard = {
   employees: number;
   activeEmployees: number;
   recentEmployees: Account[];
+};
+
+type DraftBill = {
+  id: string;
+  billNumber: string;
+  totalAmount: number;
+  billDate: string;
+  shop: {name: string};
+  createdBy: {fullname: string} | null;
+};
+
+/** Branch admin overview: money figures count confirmed bills only */
+export type BranchOverview = {
+  today: {
+    sales: number;
+    bills: number;
+    cash: number;
+    digital: number;
+    changePct: number | null;
+  };
+  month: {
+    sales: number;
+    salesBills: number;
+    purchases: number;
+    purchaseBills: number;
+    outputTax: number;
+    inputTax: number;
+    netTax: number;
+  };
+  stock: {units: number; value: number; lowStock: number};
+  shops: {
+    total: number;
+    active: number;
+    rows: {
+      id: string;
+      name: string;
+      code: string;
+      status: 'ACTIVE' | 'INACTIVE';
+      manager: string | null;
+      bills: number;
+      sales: number;
+      cash: number;
+      digital: number;
+      monthSales: number;
+    }[];
+  };
+  staff: {total: number; active: number};
+  pending: {
+    count: number;
+    sales: (DraftBill & {customerName: string | null})[];
+    purchases: (DraftBill & {supplierName: string})[];
+  };
+  topCustomers: {name: string; bills: number; amount: number}[];
+  topSuppliers: {name: string; bills: number; amount: number}[];
 };
 
 export type SuperAdminDashboard = {

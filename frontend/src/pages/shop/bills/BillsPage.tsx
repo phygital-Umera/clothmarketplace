@@ -4,6 +4,7 @@ import {PageHeader} from '@/components/ui';
 import BillDetailsModal from '@/components/Bills/BillDetailsModal';
 import BillFormModal from '@/components/Bills/BillFormModal';
 import BillStatusBadge from '@/components/Bills/BillStatusBadge';
+import NewReturnModal from '@/components/CreditNotes/NewReturnModal';
 import useListState from '@/hooks/useListState';
 import {
   useBill,
@@ -22,6 +23,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import {useState} from 'react';
 
@@ -85,6 +87,7 @@ export default function BillsPage({panel, kind}: Props) {
   const [toConfirm, setToConfirm] = useState<Bill | null>(null);
   const [toCancel, setToCancel] = useState<Bill | null>(null);
   const [toDelete, setToDelete] = useState<Bill | null>(null);
+  const [returning, setReturning] = useState<string | null>(null);
 
   const stockWord = isPurchase ? 'added to' : 'deducted from';
   const reverseWord = isPurchase ? 'removed from' : 'returned to';
@@ -222,6 +225,16 @@ export default function BillsPage({panel, kind}: Props) {
                 },
               ]
             : []),
+          // Shop returns are taken against confirmed sales bills
+          ...(!isPurchase && b.status === 'CONFIRMED'
+            ? [
+                {
+                  label: 'Return items',
+                  icon: <Undo2 size={16} />,
+                  onClick: () => setReturning(b.billNumber),
+                },
+              ]
+            : []),
           ...(b.status !== 'CANCELLED'
             ? [
                 {
@@ -282,6 +295,11 @@ export default function BillsPage({panel, kind}: Props) {
         }
       />
 
+      <NewReturnModal
+        open={!!returning}
+        billNumber={returning ?? undefined}
+        onClose={() => setReturning(null)}
+      />
       {creating && (
         <BillFormModal
           panel={panel}

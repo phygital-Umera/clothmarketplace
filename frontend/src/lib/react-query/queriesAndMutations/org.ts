@@ -9,9 +9,11 @@ import {
   getCompanyProfile,
   getEmployee,
   getEmployees,
+  getBranchOverview,
   getScopedDashboard,
   getShop,
   getShopOptions,
+  getShopStats,
   getShops,
   getSuperAdminDashboard,
   getUsers,
@@ -59,6 +61,13 @@ export const useSuperAdminDashboard = () =>
   useQuery({
     queryKey: [ORG_KEYS.DASHBOARD, 'super-admin'],
     queryFn: getSuperAdminDashboard,
+    select: (res) => res.data,
+  });
+
+export const useBranchOverview = () =>
+  useQuery({
+    queryKey: [ORG_KEYS.DASHBOARD, 'branch-overview'],
+    queryFn: getBranchOverview,
     select: (res) => res.data,
   });
 
@@ -125,6 +134,14 @@ export const useShop = (panel: Panel, id?: string) =>
   });
 
 /** Active shops for pickers; company admins narrow them to one branch */
+/** Branch Shops page: stock, sales (MTD) and next bill number per shop */
+export const useShopStats = (panel: Panel = 'branch-admin') =>
+  useQuery({
+    queryKey: [ORG_KEYS.SHOPS, panel, 'stats'],
+    queryFn: () => getShopStats(panel),
+    select: (res) => res.data,
+  });
+
 export const useShopOptions = (
   panel: Panel,
   branchId?: string,

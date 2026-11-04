@@ -3,11 +3,13 @@ import {Company} from '@/types/company';
 import {
   Account,
   Branch,
+  BranchOverview,
   ListParams,
   ListResult,
   Panel,
   ScopedDashboard,
   Shop,
+  ShopStats,
   SuperAdminDashboard,
 } from '@/types/org';
 import {api} from '@/utils/axios';
@@ -25,6 +27,8 @@ const clean = (params: ListParams) =>
 // Dashboards and profiles
 export const getSuperAdminDashboard = () =>
   api.get('/super-admin/dashboard') as unknown as Res<SuperAdminDashboard>;
+export const getBranchOverview = () =>
+  api.get('/branch-admin/overview') as unknown as Res<BranchOverview>;
 export const getScopedDashboard = (panel: Panel) =>
   api.get(`/${panel}/dashboard`) as unknown as Res<ScopedDashboard>;
 export const getCompanyProfile = () =>
@@ -73,6 +77,8 @@ export const getShopOptions = (panel: Panel, branchId?: string) =>
   }) as unknown as Res<
     {id: string; name: string; code: string; branchId: string}[]
   >;
+export const getShopStats = (panel: Panel = 'branch-admin') =>
+  api.get('/' + panel + '/shops/stats') as unknown as Res<ShopStats>;
 export const createShop = (panel: Panel, body: Body) =>
   api.post(`/${panel}/shops`, body) as unknown as Res<Shop>;
 export const updateShop = (panel: Panel, id: string, body: Body) =>

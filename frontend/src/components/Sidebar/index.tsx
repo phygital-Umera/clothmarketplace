@@ -1,9 +1,23 @@
 import {useAuthContext} from '@/context/AuthContext';
+import useCurrentUser from '@/hooks/useCurrentUser';
 import usePermissions from '@/hooks/usePermissions';
 import {SidebarProps} from '@/types';
 import {Link} from '@tanstack/react-router';
 import {roleConfig, Role, ROLES} from '@/lib/roles';
 import {
+  ArrowLeftRight,
+  BarChart3,
+  BookUser,
+  Building2,
+  CreditCard,
+  FilePlus2,
+  Percent,
+  Tag,
+  Truck,
+  Undo2,
+  UserCheck,
+  UserCog,
+  Wallet,
   Boxes,
   FileInput,
   FileOutput,
@@ -46,7 +60,6 @@ const item = (label: string, to: string, Icon: typeof LayoutDashboard) => ({
 
 // What each role sees; the backend still checks every request
 const NAV: Record<Role, NavGroup[]> = {
-  // Each panel shows only its own master: Admins > Branches > Shops > Employees
   SUPER_ADMIN: [
     dashboard(ROLES.SUPER_ADMIN.home),
     {
@@ -69,13 +82,61 @@ const NAV: Record<Role, NavGroup[]> = {
   ],
   SUB_ADMIN: [
     {
-      heading: 'Masters',
-      items: [item('Shops', '/branch-admin/shops', Warehouse)],
+      heading: 'Overview',
+      items: [
+        item('Dashboard', ROLES.SUB_ADMIN.home, LayoutDashboard),
+        item('Approvals', '/branch-admin/approvals', UserCheck),
+      ],
     },
     {
-      heading: 'Sales & Fulfillment',
+      heading: 'Sales',
       items: [
-        item('Orders', '/branch-admin/orders', ShoppingBag),
+        item('Sales Bills', '/branch-admin/sales-bills', FileOutput),
+        item('Sales Returns', '/branch-admin/sales-returns', Undo2),
+        item('Customers & Dues', '/branch-admin/customers', BookUser),
+      ],
+    },
+    {
+      heading: 'Purchase',
+      items: [
+        item('Purchase Bills', '/branch-admin/purchase-bills', FileInput),
+        item('Suppliers', '/branch-admin/suppliers', Truck),
+      ],
+    },
+    {
+      heading: 'Stock',
+      items: [
+        item('Products & Prices', '/branch-admin/products', Tag),
+        item('Stock by Shop', '/branch-admin/inventory', Boxes),
+        item(
+          'Stock Transfers',
+          '/branch-admin/stock-transfers',
+          ArrowLeftRight,
+        ),
+      ],
+    },
+    {
+      heading: 'Accounts',
+      items: [
+        item('Cash & Day Close', '/branch-admin/day-close', Wallet),
+        item('Expenses', '/branch-admin/expenses', CreditCard),
+      ],
+    },
+    {
+      heading: 'Reports',
+      items: [
+        item('Reports', '/branch-admin/reports', BarChart3),
+        item('GST Summary', '/branch-admin/gst', Percent),
+      ],
+    },
+    {
+      heading: 'Setup',
+      items: [
+        item('Shops', '/branch-admin/shops', Warehouse),
+        item('Staff', '/branch-admin/employees', Users),
+        item('Shop Assignment', '/branch-admin/shop-assignment', UserCog),
+        item('Branch Profile', '/branch-admin/profile', Building2),
+        item('My Profile', '/branch-admin/my-profile', User),
       ],
     },
   ],
@@ -103,6 +164,7 @@ const NAV: Record<Role, NavGroup[]> = {
       heading: 'Sales & Fulfillment',
       items: [
         item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
+        item('Sales Returns', '/shop-admin/sales-returns', Undo2),
         item('Orders', '/shop-admin/orders', ShoppingBag),
       ],
     },
@@ -127,6 +189,16 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
   const {role} = useAuthContext();
   const {can} = usePermissions();
   const config = roleConfig(role);
+  const {data: me} = useCurrentUser();
+
+  // Branch admins see "BRANCH ADMIN · SANGLI" (or their branch name)
+  const panelLabel =
+    role === 'SUB_ADMIN'
+      ? me?.branch?.name
+        ? `BRANCH ADMIN · ${me.branch.name.replace(/branch/i, '').trim().toUpperCase()}`
+        : 'BRANCH ADMIN'
+      : config?.label;
+
   // Employees see the tools their permissions allow
   const workItems =
     role === 'EMPLOYEE'
@@ -164,52 +236,55 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
 
       <aside
         id="sidebar"
-        className={`fixed inset-y-0 left-0 z-[70] flex w-64 flex-col bg-burgundy-deep text-ivory transition-transform duration-300 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[70] flex w-64 flex-col border-r border-stone-200/80 bg-white text-stone-700 shadow-sm transition-transform duration-300 lg:static lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-ivory/10 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <Link
             to={config?.home ?? '/'}
             className="block"
             onClick={() => setSidebarOpen(false)}
           >
-            <span className="block font-serif text-headline-sm leading-none">
+            <span className="block font-serif text-2xl font-bold tracking-tight text-[#4A1521]">
               Cloth Pro
             </span>
-            <span className="mt-1 block text-label-caps uppercase text-blush/80">
-              {config?.label}
+            <span className="mt-1 inline-block rounded border border-stone-200/70 bg-stone-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-600">
+              {panelLabel}
             </span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1 text-ivory/70 hover:text-ivory lg:hidden"
+            className="p-1 text-stone-400 hover:text-stone-700 lg:hidden"
             aria-label="Close menu"
           >
             <X size={20} />
           </button>
         </div>
 
-        <nav className="no-scrollbar flex-1 overflow-y-auto px-3 py-5">
+        <nav className="no-scrollbar flex-1 overflow-y-auto px-3 py-4">
           {nav.map((group) => (
-            <div key={group.heading} className="mb-6">
-              <p className="mb-2 px-3 text-label-caps uppercase text-ivory/40">
+            <div key={group.heading} className="mb-5">
+              <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-stone-400">
                 {group.heading}
               </p>
               <ul className="space-y-0.5">
-                {group.items.map((item) => (
-                  <li key={item.to}>
+                {group.items.map((navItem) => (
+                  <li key={navItem.to}>
                     <Link
-                      to={item.to}
-                      activeOptions={{exact: item.exact}}
+                      to={navItem.to}
+                      activeOptions={{exact: navItem.exact}}
                       onClick={() => setSidebarOpen(false)}
-                      className="flex items-center gap-3 border-l-2 border-transparent px-3 py-2.5 text-body-sm text-ivory/75 transition-colors hover:bg-ivory/5 hover:text-ivory"
+                      className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-stone-600 transition-all duration-150 hover:bg-stone-100/80 hover:text-[#4A1521]"
                       activeProps={{
-                        className: '!border-blush bg-ivory/10 !text-ivory',
+                        className:
+                          '!bg-[#4A1521] !text-white shadow-sm font-semibold',
                       }}
                     >
-                      {item.icon}
-                      {item.label}
+                      <span className="flex-shrink-0 transition-transform duration-150 group-hover:scale-105">
+                        {navItem.icon}
+                      </span>
+                      <span className="truncate">{navItem.label}</span>
                     </Link>
                   </li>
                 ))}
@@ -218,7 +293,7 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
           ))}
         </nav>
 
-        <p className="border-t border-ivory/10 px-6 py-4 text-technical-data text-ivory/40">
+        <p className="border-t border-stone-100 px-5 py-3 text-[11px] font-medium text-stone-400">
           © {new Date().getFullYear()} Cloth Pro
         </p>
       </aside>

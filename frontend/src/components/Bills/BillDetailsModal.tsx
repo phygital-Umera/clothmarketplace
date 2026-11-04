@@ -95,6 +95,30 @@ export default function BillDetailsModal({
                   ₹{bill.totalAmount.toFixed(2)}
                 </p>
               </div>
+              {!isPurchase && !!bill.creditAmount && (
+                <div>
+                  <p className="text-xs text-outline">Paid / Credit due</p>
+                  <p className="font-medium text-espresso">
+                    ₹{(bill.paidAmount ?? 0).toFixed(2)}
+                    <span className="text-rose-700">
+                      {' '}
+                      / ₹{bill.creditAmount.toFixed(2)}
+                    </span>
+                  </p>
+                </div>
+              )}
+              {!!bill.editCount && (
+                <div>
+                  <p className="text-xs text-outline">
+                    Edited after confirming
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    {bill.editCount} time{bill.editCount === 1 ? '' : 's'}
+                    {bill.lastEditedAt &&
+                      ` · last ${new Date(bill.lastEditedAt).toLocaleString('en-IN')}`}
+                  </p>
+                </div>
+              )}
               {bill.status === 'CANCELLED' && (
                 <div>
                   <p className="text-xs text-outline">Cancelled</p>

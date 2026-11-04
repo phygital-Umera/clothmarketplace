@@ -101,6 +101,7 @@ const branchStatusSchema = statusWithReason(BranchStatus);
 
 const shopBody = z.object({
     name: field({label: 'Shop Name', kind: 'text'}),
+    shopType: field({label: 'Shop Type', kind: 'text', max: 60, required: false}),
     // Company admins choose; for branch admins it is always their own branch
     branchId: z.preprocess(emptyToUndefined, z.string().uuid('Select a branch').optional()),
     email: field({label: 'Shop Email', kind: 'email', required: false}),
@@ -127,14 +128,13 @@ const shopRules = (v: ShopShape, ctx: z.RefinementCtx) => {
             message: 'Closing Time must be after Opening Time',
         });
     }
-    // Shop login: all of name / email / phone, or none
+    // Shop login: name and phone together (email optional), or none
     const login = {
         adminName: 'Login Full Name',
-        adminEmail: 'Login Email',
         adminPhone: 'Login Phone Number',
     };
     const given = Object.keys(login).filter((k) => v[k as keyof ShopShape]);
-    if (given.length || v.adminPassword) {
+    if (given.length || v.adminPassword || v.adminEmail) {
         Object.entries(login)
             .filter(([k]) => !v[k as keyof ShopShape])
             .forEach(([k, label]) =>
