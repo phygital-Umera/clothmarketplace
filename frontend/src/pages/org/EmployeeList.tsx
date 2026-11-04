@@ -15,6 +15,7 @@ import {Account, Panel} from '@/types/org';
 import {getErrorMessage} from '@/utils/axios';
 import {useSearch} from '@tanstack/react-router';
 import {Pencil, Plus, Users} from 'lucide-react';
+import {useEffect} from 'react';
 
 const STATUS_TABS = [
   {label: 'All', value: undefined},
@@ -29,6 +30,10 @@ const STATUS_TABS = [
  * admin: the whole company.
  */
 const EmployeeList = ({panel}: {panel: Panel}) => {
+  console.log(`[Shop Panel] Rendering EmployeeList (panel: ${panel})`);
+  useEffect(() => {
+    console.log(`[Shop Panel] EmployeeList mounted (panel: ${panel})`);
+  }, [panel]);
   const companyWide = panel === 'company-admin';
   const ownShop = panel === 'shop-admin';
   const editor = useInlineEditor();

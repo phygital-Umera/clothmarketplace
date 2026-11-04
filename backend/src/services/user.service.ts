@@ -178,6 +178,7 @@ class UserService {
         if (!user || refreshToken !== user.refreshToken) {
             throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired refresh token');
         }
+
         await this.assertCanSignIn(user);
 
         return tokenService.generateAccessAndRefreshToken({
@@ -236,7 +237,7 @@ class UserService {
                 ...SAFE_USER,
                 company: {select: {id: true, name: true, code: true, status: true}},
                 branch: {select: {id: true, name: true, code: true, status: true}},
-                shop: {select: {id: true, name: true, code: true, status: true}},
+                shop: {select: {id: true, name: true, code: true, status: true, gstin: true}},
             },
         });
         if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');

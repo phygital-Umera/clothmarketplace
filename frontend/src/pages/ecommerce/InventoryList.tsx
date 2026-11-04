@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 interface Props {
   panel: string;
@@ -34,6 +34,10 @@ const VIEW_TABS = [
 ];
 
 export default function InventoryList({panel, canAdjust = true}: Props) {
+  console.log(`[Shop Panel] Rendering InventoryList (panel: ${panel})`);
+  useEffect(() => {
+    console.log(`[Shop Panel] InventoryList mounted (panel: ${panel})`);
+  }, [panel]);
   const [viewMode, setViewMode] = useState<ViewTab>('products');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');

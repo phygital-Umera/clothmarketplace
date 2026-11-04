@@ -5,6 +5,8 @@ import BillDetailsModal from '@/components/Bills/BillDetailsModal';
 import BillFormModal from '@/components/Bills/BillFormModal';
 import BillStatusBadge from '@/components/Bills/BillStatusBadge';
 import NewReturnModal from '@/components/CreditNotes/NewReturnModal';
+import PaymentStatusBadge from '@/components/Bills/PaymentStatusBadge';
+import RecordPaymentModal from '@/components/Bills/RecordPaymentModal';
 import useListState from '@/hooks/useListState';
 import {
   useBill,
@@ -13,19 +15,29 @@ import {
   useConfirmBill,
   useDeleteBill,
 } from '@/lib/react-query/queriesAndMutations/bill';
-import {Bill, BillKind, BillStatus} from '@/types/bill';
+import {Bill, BillKind, BillListParams, BillStatus} from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';
+import {Link, useSearch} from '@tanstack/react-router';
 import {
   Ban,
   CheckCircle2,
   Eye,
   FileText,
+  IndianRupee,
   Pencil,
   Plus,
   Trash2,
   Undo2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+
+type PaymentFilter = NonNullable<BillListParams['paymentStatus']>;
+const PAYMENT_FILTERS: PaymentFilter[] = [
+  'PAID',
+  'PART_CREDIT',
+  'CREDIT',
+  'DUE',
+];
 
 interface Props {
   panel: string;
@@ -61,11 +73,23 @@ const EditBill = ({
 };
 
 export default function BillsPage({panel, kind}: Props) {
+  console.log(`[Shop Panel] Rendering BillsPage (panel: ${panel}, kind: ${kind})`);
+  useEffect(() => {
+    console.log(`[Shop Panel] BillsPage mounted (panel: ${panel}, kind: ${kind})`);
+  }, [panel, kind]);
   const isPurchase = kind === 'purchase';
   const label = isPurchase ? 'Purchase Bills' : 'Sales Bills';
   const list = useListState();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  // The dashboard's Ledger / Suppliers links open this list filtered to dues
+  const {payment: linked} = useSearch({strict: false}) as {payment?: string};
+  const [payment, setPayment] = useState<PaymentFilter | ''>(
+    PAYMENT_FILTERS.includes(linked as PaymentFilter)
+      ? (linked as PaymentFilter)
+      : '',
+  );
+  const [paying, setPaying] = useState<Bill | null>(null);
 
   const {data, isPending, isFetching, isError, error, refetch} = useBills(
     panel,
@@ -75,6 +99,7 @@ export default function BillsPage({panel, kind}: Props) {
       status: list.filters.status as BillStatus | undefined,
       from: from || undefined,
       to: to || undefined,
+      paymentStatus: payment || undefined,
     },
   );
   const confirm = useConfirmBill(panel, kind);
@@ -145,6 +170,23 @@ export default function BillsPage({panel, kind}: Props) {
       ),
     },
     {
+      header: 'Payment',
+      hideBelow: 'md',
+      render: (b) =>
+        b.status === 'CONFIRMED' ? (
+          <div>
+            <PaymentStatusBadge status={b.paymentStatus} />
+            {b.balanceDue > 0 && (
+              <p className="mt-0.5 text-technical-data text-outline">
+                Due {money(b.balanceDue)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-outline">—</span>
+        ),
+    },
+    {
       header: 'Status',
       key: 'status',
       render: (b) => <BillStatusBadge status={b.status} />,
@@ -172,13 +214,22 @@ export default function BillsPage({panel, kind}: Props) {
             : 'Stock is deducted automatically when a sales bill is confirmed.'
         }
         actions={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="btn-primary"
-          >
-            <Plus size={14} /> New {isPurchase ? 'Purchase' : 'Sales'} Bill
-          </button>
+          isPurchase ? (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="btn-primary"
+            >
+              <Plus size={14} /> New Purchase Bill
+            </button>
+          ) : (
+            <Link
+              to="/shop-admin/new-bill"
+              className="btn-primary"
+            >
+              <Plus size={14} /> New Bill (POS)
+            </Link>
+          )
         }
       />
 
@@ -196,7 +247,7 @@ export default function BillsPage({panel, kind}: Props) {
         onRetry={() => refetch()}
         emptyIcon={<FileText size={22} strokeWidth={1.5} />}
         emptyTitle={
-          list.hasFilters || from || to
+          list.hasFilters || from || to || payment
             ? 'No matching bills'
             : `No ${label.toLowerCase()} yet`
         }
@@ -213,6 +264,15 @@ export default function BillsPage({panel, kind}: Props) {
                   label: 'Edit',
                   icon: <Pencil size={16} />,
                   onClick: () => setEditingId(b.id),
+                },
+              ]
+            : []),
+          ...(b.status === 'CONFIRMED' && b.balanceDue > 0
+            ? [
+                {
+                  label: isPurchase ? 'Pay Supplier' : 'Collect Due',
+                  icon: <IndianRupee size={16} />,
+                  onClick: () => setPaying(b),
                 },
               ]
             : []),
@@ -291,6 +351,21 @@ export default function BillsPage({panel, kind}: Props) {
               title="To date"
               className="rounded-lg border border-ivory-300 bg-white px-3 py-1.5 text-xs text-espresso focus:border-burgundy focus:outline-none"
             />
+            <select
+              value={payment}
+              onChange={(e) => {
+                setPayment(e.target.value as PaymentFilter | '');
+                list.setPage(1);
+              }}
+              title="Payment"
+              className="rounded-lg border border-ivory-300 bg-white px-3 py-1.5 text-xs text-espresso focus:border-burgundy focus:outline-none"
+            >
+              <option value="">All payments</option>
+              <option value="DUE">{isPurchase ? 'Payable' : 'Due'}</option>
+              <option value="PAID">Paid</option>
+              <option value="PART_CREDIT">Part credit</option>
+              <option value="CREDIT">Credit</option>
+            </select>
           </ListToolbar>
         }
       />
@@ -321,6 +396,25 @@ export default function BillsPage({panel, kind}: Props) {
           kind={kind}
           billId={viewingId}
           onClose={() => setViewingId(null)}
+        />
+      )}
+
+      {paying && (
+        <RecordPaymentModal
+          panel={panel}
+          kind={kind}
+          party={
+            (isPurchase ? paying.supplierName : paying.customerName) ||
+            paying.billNumber
+          }
+          bills={[
+            {
+              id: paying.id,
+              billNumber: paying.billNumber,
+              balanceDue: paying.balanceDue,
+            },
+          ]}
+          onClose={() => setPaying(null)}
         />
       )}
 

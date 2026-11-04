@@ -19,15 +19,18 @@ import {
   UserCog,
   Wallet,
   Boxes,
+
   FileInput,
   FileOutput,
   Layers,
   Palette,
+  RotateCcw,
   Ruler,
   Tags,
   TicketPercent,
   KeyRound,
   LayoutDashboard,
+  Monitor,
   Package,
   ShieldCheck,
   ShoppingBag,
@@ -141,6 +144,22 @@ const NAV: Record<Role, NavGroup[]> = {
     },
   ],
   SHOP_ADMIN: [
+    dashboard(ROLES.SHOP_ADMIN.home),
+    {
+      heading: 'Billing',
+      items: [
+        item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
+        item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
+        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+      ],
+    },
+    {
+      heading: 'Customers',
+      items: [
+        item('Customers', '/shop-admin/customers', Users),
+        item('Credit / Udhaar', '/shop-admin/customers?tab=WITH_DUE', CreditCard),
+      ],
+    },
     {
       heading: 'Masters',
       items: [
@@ -163,13 +182,21 @@ const NAV: Record<Role, NavGroup[]> = {
     {
       heading: 'Sales & Fulfillment',
       items: [
-        item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
         item('Sales Returns', '/shop-admin/sales-returns', Undo2),
         item('Orders', '/shop-admin/orders', ShoppingBag),
       ],
     },
   ],
-  EMPLOYEE: [dashboard(ROLES.EMPLOYEE.home)],
+  EMPLOYEE: [
+    dashboard(ROLES.EMPLOYEE.home),
+    {
+      heading: 'Billing',
+      items: [
+        item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
+        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+      ],
+    },
+  ],
   USER: [
     {
       heading: 'Account',
@@ -215,6 +242,15 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
     ? [{heading: 'Work', items: workItems}]
     : [];
   const nav = [...(NAV[role as Role] ?? []), ...employeeTools, ACCOUNT_GROUP];
+
+  useEffect(() => {
+    if (role === 'SHOP_ADMIN') {
+      console.log(
+        '[Shop Panel Sidebar] Mounted with nav items:',
+        nav.flatMap((g) => g.items.map((i) => ({ heading: g.heading, label: i.label, to: i.to })))
+      );
+    }
+  }, [role, nav]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -274,7 +310,10 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
                     <Link
                       to={navItem.to}
                       activeOptions={{exact: navItem.exact}}
-                      onClick={() => setSidebarOpen(false)}
+                      onClick={() => {
+                        console.log(`[Shop Panel Sidebar] Navigation clicked: "${item.label}" -> ${item.to}`);
+                        setSidebarOpen(false);
+                      }}
                       className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-stone-600 transition-all duration-150 hover:bg-stone-100/80 hover:text-[#4A1521]"
                       activeProps={{
                         className:

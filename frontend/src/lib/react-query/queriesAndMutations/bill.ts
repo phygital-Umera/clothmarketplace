@@ -4,8 +4,9 @@ import {
   createBill,
   deleteBill,
   getBill,
+  getBillByNumber,
   getBills,
-  getBranchSalesSummary,
+  recordBillPayment,
   updateBill,
 } from '@/lib/api/bill';
 import {ECOMM_KEYS} from '@/lib/react-query/queriesAndMutations/ecommerce';
@@ -13,7 +14,7 @@ import {
   BillKind,
   BillListParams,
   BillPayload,
-  BranchSalesParams,
+  RecordPaymentPayload,
 } from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';
 import {
@@ -27,11 +28,14 @@ import toast from 'react-hot-toast';
 
 export const BILL_KEYS = {
   BILLS: 'shop_bills',
+  /** Shop dashboard figures come from bills, so they refresh with them */
+  DASHBOARD: 'shop_dashboard',
 };
 
 /** Bills change stock, so every inventory view must refresh too */
-const invalidateStock = (queryClient: QueryClient) => {
+export const invalidateStock = (queryClient: QueryClient) => {
   queryClient.invalidateQueries({queryKey: [BILL_KEYS.BILLS]});
+  queryClient.invalidateQueries({queryKey: [BILL_KEYS.DASHBOARD]});
   queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY]});
   queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.INVENTORY_DASHBOARD]});
   queryClient.invalidateQueries({queryKey: [ECOMM_KEYS.MOVEMENTS]});
@@ -68,7 +72,7 @@ export const useBill = (panel: string, kind: BillKind, id?: string) =>
     enabled: !!id,
   });
 
-const useBillMutation = <V>(
+export const useBillMutation = <V>(
   run: (vars: V) => Promise<any>,
   failure: string,
 ) => {
@@ -112,3 +116,31 @@ export const useDeleteBill = (panel: string, kind: BillKind) =>
     (id: string) => deleteBill(panel, kind, id),
     'Failed to delete bill',
   );
+
+export const useRecordPayment = (panel: string, kind: BillKind) =>
+  useBillMutation(
+    ({id, data}: {id: string; data: RecordPaymentPayload}) =>
+      recordBillPayment(panel, kind, id, data),
+    'Failed to record payment',
+  );
+
+export const useCustomerSearch = (panel: string, q: string) =>
+  useQuery({
+    queryKey: [BILL_KEYS.BILLS, panel, 'customers', q],
+    queryFn: () => searchCustomers(panel, q),
+    select: (res) => res.data,
+    enabled: q.trim().length >= 2,
+  });
+
+export const useBillByNumber = (
+  panel: string,
+  kind: BillKind,
+  billNumber?: string,
+) =>
+  useQuery({
+    queryKey: [BILL_KEYS.BILLS, panel, kind, 'by-number', billNumber],
+    queryFn: () => getBillByNumber(panel, kind, billNumber!),
+    select: (res) => res.data,
+    enabled: !!billNumber && billNumber.trim().length > 0,
+    retry: false,
+  });

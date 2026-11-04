@@ -8,3 +8,4 @@ export {default as masterValidation} from './master.validation';
 export {default as shopProductValidation} from './shopProduct.validation';
 export {default as billValidation} from './bill.validation';
 export {default as creditNoteValidation} from './creditNote.validation';
+export {default as shopOpsValidation} from './shopOps.validation';

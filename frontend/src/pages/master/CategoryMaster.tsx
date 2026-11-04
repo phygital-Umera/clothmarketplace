@@ -29,7 +29,7 @@ import {
   Tags,
   Trash2,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import {z} from 'zod';
 
@@ -65,6 +65,10 @@ const STATUS_TABS = [
 ];
 
 const CategoryMaster = () => {
+  console.log('[Shop Panel] Rendering CategoryMaster');
+  useEffect(() => {
+    console.log('[Shop Panel] CategoryMaster mounted');
+  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} =
     useMasterCategories({
@@ -131,7 +135,7 @@ const CategoryMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (c) => (
-        <span className="line-clamp-1 text-espresso-muted">
+        <span className="text-espresso-muted line-clamp-1">
           {c.description || '–'}
         </span>
       ),
@@ -203,8 +207,16 @@ const CategoryMaster = () => {
         }
         onRowClick={(c) => setViewing(c)}
         rowActions={(c) => [
-          {label: 'View', icon: <Eye size={16} />, onClick: () => setViewing(c)},
-          {label: 'Edit', icon: <Pencil size={16} />, onClick: () => openForm(c)},
+          {
+            label: 'View',
+            icon: <Eye size={16} />,
+            onClick: () => setViewing(c),
+          },
+          {
+            label: 'Edit',
+            icon: <Pencil size={16} />,
+            onClick: () => openForm(c),
+          },
           {
             label: c.isActive ? 'Deactivate' : 'Activate',
             icon: c.isActive ? (
@@ -328,4 +340,3 @@ const CategoryMaster = () => {
 };
 
 export default CategoryMaster;
-

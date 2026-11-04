@@ -16,7 +16,13 @@ export type CurrentUser = {
   lastLoginAt: string | null;
   company: {id: string; name: string; code: string; status: string} | null;
   branch: {id: string; name: string; code: string; status: string} | null;
-  shop: {id: string; name: string; code: string; status: string} | null;
+  shop: {
+    id: string;
+    name: string;
+    code: string;
+    status: string;
+    gstin?: string | null;
+  } | null;
   employeeCode: string | null;
   permissions: string[];
 };

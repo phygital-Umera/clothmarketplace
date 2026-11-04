@@ -111,7 +111,21 @@ const ShopForm = ({
                 kind="text"
                 maxLength={500}
                 placeholder="1st floor, left wing"
-                className="sm:col-span-2 md:col-span-4"
+                className="sm:col-span-2 md:col-span-2"
+              />
+              <GenericInputField
+                name="gstin"
+                label="GSTIN"
+                kind="gstin"
+                placeholder="27ABCDE1234F1Z5"
+              />
+              <GenericInputField
+                name="billPrefix"
+                label="Bill Prefix"
+                kind="text"
+                maxLength={6}
+                placeholder="WW"
+                hint="Sales bills: WW/26-27/00001"
               />
             </div>
           </FormGroup>

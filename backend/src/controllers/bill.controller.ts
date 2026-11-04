@@ -25,6 +25,16 @@ const ok = (
 ) => res.status(status).json(new ApiResponse(status, data, message));
 
 const purchase = {
+    findByNumber: catchAsync(async (req, res) => {
+        const billNumber = String(req.query.billNumber || req.params.billNumber || '');
+        if (!billNumber.trim()) throw new ApiError(httpStatus.BAD_REQUEST, 'Bill number is required');
+        return ok(
+            res,
+            await billService.getSalesByBillNumber(shopOf(req), billNumber),
+            'Sales bill fetched successfully',
+        );
+    }),
+
     list: catchAsync(async (req, res) => {
         const query = v.billListSchema.parse(req.query);
         return ok(
@@ -102,9 +112,32 @@ const purchase = {
         );
         return ok(res, {}, 'Purchase bill deleted');
     }),
+    payment: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.recordPaymentSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'purchaseBill.payment', module: 'billing', targetId: id},
+            async () => ({
+                after: await billService.recordPayment('PURCHASE', scope, req.user.id, id, data),
+            }),
+        );
+        return ok(res, after, 'Payment to supplier recorded');
+    }),
 };
 
 const sales = {
+    findByNumber: catchAsync(async (req, res) => {
+        const billNumber = String(req.query.billNumber || req.params.billNumber || '');
+        if (!billNumber.trim()) throw new ApiError(httpStatus.BAD_REQUEST, 'Bill number is required');
+        return ok(
+            res,
+            await billService.getSalesByBillNumber(shopOf(req), billNumber),
+            'Sales bill fetched successfully',
+        );
+    }),
+
     list: catchAsync(async (req, res) => {
         const query = v.billListSchema.parse(req.query);
         return ok(
@@ -182,6 +215,19 @@ const sales = {
         );
         return ok(res, {}, 'Sales bill deleted');
     }),
+    payment: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.recordPaymentSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'salesBill.payment', module: 'billing', targetId: id},
+            async () => ({
+                after: await billService.recordPayment('SALES', scope, req.user.id, id, data),
+            }),
+        );
+        return ok(res, after, 'Payment received');
+    }),
 };
 
 /** Branch admin: read-only view of the sales bills of every shop in the branch */
@@ -231,4 +277,13 @@ const branchSales = {
     }),
 };
 
-export default {purchase, sales, branchSales};
+
+
+const customers = catchAsync(async (req, res) => {
+    const q = String(req.query.q || '');
+    return ok(res, await billService.searchCustomers(shopOf(req), q), 'Customers fetched');
+});
+
+
+
+export default {purchase, sales, branchSales, customers};

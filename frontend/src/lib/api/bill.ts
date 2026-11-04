@@ -1,11 +1,17 @@
 import {api} from '@/utils/axios';
 import {
+  
   Bill,
+ 
   BillKind,
+ 
   BillListParams,
+ 
   BillPayload,
   BranchSalesParams,
   BranchSalesSummary,
+,
+  RecordPaymentPayload,
 } from '@/types/bill';
 
 // Purchase bills add stock, sales bills deduct it; the backend posts the
@@ -26,6 +32,15 @@ export const getBills = (
 
 export const getBill = (panel: string, kind: BillKind, id: string) =>
   api.get<Res<Bill>>(`${base(panel, kind)}/${id}`).then((res: any) => res);
+
+export const getBillByNumber = (
+  panel: string,
+  kind: BillKind,
+  billNumber: string,
+) =>
+  api
+    .get<Res<Bill>>(`${base(panel, kind)}/find`, {params: {billNumber}})
+    .then((res: any) => res);
 
 export const createBill = (panel: string, kind: BillKind, data: BillPayload) =>
   api.post<Res<Bill>>(base(panel, kind), data).then((res: any) => res);
@@ -57,6 +72,29 @@ export const cancelBill = (
 
 export const deleteBill = (panel: string, kind: BillKind, id: string) =>
   api.delete(`${base(panel, kind)}/${id}`).then((res: any) => res);
+
+/** Due collected from a customer (sales) or a payment to the supplier (purchase) */
+export const recordBillPayment = (
+  panel: string,
+  kind: BillKind,
+  id: string,
+  data: RecordPaymentPayload,
+) =>
+  api
+    .post<Res<Bill>>(`${base(panel, kind)}/${id}/payments`, data)
+    .then((res: any) => res);
+
+export interface CustomerSuggestion {
+  name: string;
+  phone: string;
+  previousDue: number;
+  loyaltyPoints: number;
+}
+
+export const searchCustomers = (panel: string, q: string) =>
+  api
+    .get<Res<CustomerSuggestion[]>>(`/${panel}/customers`, {params: {q}})
+    .then((res: any) => res);
 
 // Branch admin: read-only view of every shop's sales bills
 // (the axios response interceptor already unwraps `res.data`)

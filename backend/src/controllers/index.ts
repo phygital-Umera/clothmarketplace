@@ -24,4 +24,5 @@ export {default as branchShopController} from './branchShop.controller';
 export {default as branchStaffController} from './branchStaff.controller';
 export {default as branchShopAssignmentController} from './branchShopAssignment.controller';
 export {default as branchProfileSetupController} from './branchProfileSetup.controller';
-
+export {default as shopOpsController} from './shopOps.controller';
+export {customerController} from './customer.controller';

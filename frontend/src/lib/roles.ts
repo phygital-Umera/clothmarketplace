@@ -44,7 +44,7 @@ export const ROLES: Record<Role, RoleConfig> = {
   },
   SHOP_ADMIN: {
     label: 'Shop',
-    home: '/shop-admin/employees',
+    home: '/shop-admin/dashboard',
     prefix: '/shop-admin',
   },
   EMPLOYEE: {

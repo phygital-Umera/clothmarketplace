@@ -1,6 +1,7 @@
 import {Router} from 'express';
 import {Role} from '@prisma/client';
 import {
+    customerController,
     ecommerceController as e,
     masterController as m,
     orgController as c,
@@ -10,6 +11,7 @@ import {
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
 import {mountBills} from './bill.routes';
+import {mountShopOps} from './shopOps.routes';
 
 const router = Router();
 
@@ -40,7 +42,7 @@ router.route('/colors/:id').get(m.getColor).patch(m.updateColor).delete(m.delete
 router.route('/sizes').get(m.listSizes).post(m.createSize);
 router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSize);
 
-// ---- 5. Products (scoped to the user's shop) ----
+// ---- 5. Products ----
 router.route('/products').get(p.listProducts).post(p.createProduct);
 router.route('/products/:id').get(p.getProduct).patch(p.updateProduct).delete(p.deleteProduct);
 router.post('/products/:id/images', imageUpload.array('images', 8), p.uploadImages);
@@ -48,7 +50,7 @@ router.route('/products/:id/images/:imageId').patch(p.updateImage).delete(p.dele
 router.post('/products/:id/previews', p.generatePreviews);
 router.delete('/products/:id/previews/:previewId', p.deletePreview);
 
-// ---- 6. Inventory & Stock Management ----
+// ---- 6. Inventory & Stock Adjustments ----
 router.get('/inventory/dashboard', e.inventoryDashboard);
 router.get('/inventory', e.listInventory);
 router.post('/inventory/adjust', e.adjustStock);
@@ -67,6 +69,16 @@ const cn = creditNoteController.shop;
 router.route('/credit-notes').get(cn.list).post(cn.create);
 router.get('/credit-notes/returnable', cn.returnable);
 router.get('/credit-notes/:id', cn.get);
+
+// ---- Shop Customers ----
+router.get('/customers', customerController.list);
+router.post('/customers', customerController.create);
+router.get('/customers/:id', customerController.get);
+router.patch('/customers/:id', customerController.update);
+router.post('/customers/import', customerController.importExcel);
+
+// ---- Shop dashboard, credit notes, cash counter, expenses ----
+mountShopOps(router);
 
 // ---- 9. Order Management & Returns ----
 router.get('/orders/dashboard', e.orderDashboard);

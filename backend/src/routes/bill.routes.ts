@@ -11,9 +11,15 @@ export const mountBills = (router: Router) => {
         .delete(b.purchase.remove);
     router.post('/purchase-bills/:id/confirm', b.purchase.confirm);
     router.post('/purchase-bills/:id/cancel', b.purchase.cancel);
+    router.post('/purchase-bills/:id/payments', b.purchase.payment);
 
+    router.get('/customers', b.customers);
+    router.get('/sales-bills/customers', b.customers);
+    router.get('/sales-bills/find', b.sales.findByNumber);
+    router.get('/sales-bills/by-number/:billNumber', b.sales.findByNumber);
     router.route('/sales-bills').get(b.sales.list).post(b.sales.create);
     router.route('/sales-bills/:id').get(b.sales.get).patch(b.sales.update).delete(b.sales.remove);
     router.post('/sales-bills/:id/confirm', b.sales.confirm);
     router.post('/sales-bills/:id/cancel', b.sales.cancel);
+    router.post('/sales-bills/:id/payments', b.sales.payment);
 };

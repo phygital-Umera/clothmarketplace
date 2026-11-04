@@ -8,7 +8,7 @@ import {getErrorMessage} from '@/utils/axios';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {useQueryClient} from '@tanstack/react-query';
 import {CircleAlert, Loader2} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {z} from 'zod';
@@ -33,6 +33,10 @@ const FIELDS = ['currentPassword', 'newPassword', 'confirmPassword'];
 
 /** For every role; also where a password chosen by someone else is replaced */
 const ChangePassword = () => {
+  console.log('[Shop Panel] Rendering ChangePassword');
+  useEffect(() => {
+    console.log('[Shop Panel] ChangePassword mounted');
+  }, []);
   const {login} = useAuthContext();
   const queryClient = useQueryClient();
   const {mutateAsync} = useChangeCurrentPassword();

@@ -63,6 +63,9 @@ model User {
   salesBills             SalesBill[]
   creditNotes            CreditNote[]        @relation("CreditNoteCreatedBy")
   decidedCreditNotes     CreditNote[]        @relation("CreditNoteDecidedBy")
+salesReturns           SalesReturn[]          @relation("SalesReturnCreatedBy")
+  expenses               Expense[]              @relation("ExpenseCreatedBy")
+
 }
 
 model Admin {
@@ -129,6 +132,8 @@ model Company {
   purchaseBills PurchaseBill[]
   salesBills    SalesBill[]
   creditNotes   CreditNote[]
+customers     ShopCustomer[]
+
 
   @@index([name])
   @@index([status])
@@ -199,6 +204,8 @@ model Branch {
   purchaseBills   PurchaseBill[]
   salesBills      SalesBill[]
   creditNotes     CreditNote[]
+customers       ShopCustomer[]
+
 
   @@index([companyId])
   @@index([status])
@@ -216,6 +223,10 @@ model Shop {
   email       String?
   phone       String?
   address     String?
+  /// GST registration shown on bills and the shop header
+  gstin       String?
+  /// Sales bill series prefix, e.g. WW -> WW/26-27/00001 (falls back to the shop code)
+  billPrefix  String?
   openingTime String?
   closingTime String?
   notes       String?
@@ -234,6 +245,11 @@ model Shop {
   purchaseBills PurchaseBill[]
   salesBills    SalesBill[]
   creditNotes   CreditNote[]
+salesReturns  SalesReturn[]
+  counterSessions CounterSession[]
+  expenses      Expense[]
+  customers     ShopCustomer[]
+
 
   @@index([companyId])
   @@index([branchId])
@@ -649,6 +665,11 @@ model PurchaseBill {
   taxAmount         Float        @default(0)
   discount          Float        @default(0)
   totalAmount       Float        @default(0)
+  /// Paid to the supplier so far; balanceDue = totalAmount - amountPaid
+  amountPaid        Float        @default(0)
+  balanceDue        Float        @default(0)
+  paymentStatus     BillPaymentStatus @default(PAID)
+  dueDate           DateTime?
   notes             String?
   /// Optimistic lock: bumped on every change so concurrent edits can't post stock twice
   version           Int          @default(0)
@@ -661,6 +682,7 @@ model PurchaseBill {
   updatedAt         DateTime     @updatedAt
 
   items             PurchaseBillItem[]
+  payments          PurchaseBillPayment[]
 
   @@unique([shopId, billNumber])
   @@index([shopId])
@@ -699,6 +721,7 @@ model SalesBill {
   billDate      DateTime   @default(now())
   status        BillStatus @default(CONFIRMED)
   paymentMethod String     @default("CASH") // CASH, CARD, UPI, CREDIT
+
   subtotal      Float      @default(0)
   discount      Float      @default(0)
   taxAmount     Float      @default(0)
@@ -709,6 +732,12 @@ model SalesBill {
   /// Edits made after the bill was confirmed
   editCount     Int        @default(0)
   lastEditedAt  DateTime?
+/// Collected so far (at billing + later collections); balanceDue is the customer's credit
+  amountPaid    Float      @default(0)
+  balanceDue    Float      @default(0)
+  paymentStatus BillPaymentStatus @default(PAID)
+  dueDate       DateTime?
+
   notes         String?
   version       Int        @default(0)
   createdById   String
@@ -721,6 +750,9 @@ model SalesBill {
 
   items         SalesBillItem[]
   creditNotes   CreditNote[]
+payments      SalesBillPayment[]
+  returns       SalesReturn[]
+
 
   @@unique([shopId, billNumber])
   @@index([shopId])
@@ -746,11 +778,133 @@ model SalesBillItem {
   variantSku  String?
   size        String?
   color       String?
+  returnItems SalesReturnItem[]
 
   creditNoteItems CreditNoteItem[]
 
   @@index([billId])
   @@index([variantId])
+}
+
+enum BillPaymentStatus {
+  PAID
+  PART_CREDIT
+  CREDIT
+}
+
+/// Money received against a sales bill: at billing time or a later due collection
+model SalesBillPayment {
+  id           String    @id @default(uuid())
+  billId       String
+  bill         SalesBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  mode         String // CASH, UPI, CARD
+  amount       Float
+  paidAt       DateTime  @default(now())
+  receivedById String
+  note         String?
+  /// true = taken when the bill was saved (replaced on edit); false = a later due collection
+  atBilling    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  @@index([billId])
+  @@index([paidAt])
+}
+
+/// Money paid to the supplier against a purchase bill
+model PurchaseBillPayment {
+  id        String       @id @default(uuid())
+  billId    String
+  bill      PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  mode      String // CASH, UPI, CARD
+  amount    Float
+  paidAt    DateTime     @default(now())
+  paidById  String
+  note      String?
+  /// true = paid when the bill was saved (replaced on edit); false = a later payment
+  atBilling Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  @@index([billId])
+  @@index([paidAt])
+}
+
+/// Credit note: goods returned against a confirmed sales bill (stock is restocked)
+model SalesReturn {
+  id            String    @id @default(uuid())
+  returnNumber  String
+  companyId     String
+  branchId      String
+  shopId        String
+  shop          Shop      @relation(fields: [shopId], references: [id])
+  salesBillId   String
+  salesBill     SalesBill @relation(fields: [salesBillId], references: [id])
+  customerName  String?
+  customerPhone String?
+  returnDate    DateTime  @default(now())
+  totalAmount   Float
+  /// CASH, UPI, CARD (refunded), STORE_CREDIT, or ADJUST_DUE (reduces the bill's balance)
+  refundMode    String
+  reason        String?
+  createdById   String
+  createdBy     User      @relation("SalesReturnCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+
+  items SalesReturnItem[]
+
+  @@unique([shopId, returnNumber])
+  @@index([shopId])
+  @@index([salesBillId])
+  @@index([returnDate])
+}
+
+model SalesReturnItem {
+  id              String        @id @default(uuid())
+  returnId        String
+  salesReturn     SalesReturn   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  salesBillItemId String
+  salesBillItem   SalesBillItem @relation(fields: [salesBillItemId], references: [id])
+  productId       String
+  variantId       String
+  quantity        Int
+  unitPrice       Float
+  totalPrice      Float
+
+  @@index([returnId])
+  @@index([salesBillItemId])
+}
+
+/// A counter day: the opening cash in the drawer, until it is closed
+model CounterSession {
+  id          String    @id @default(uuid())
+  shopId      String
+  shop        Shop      @relation(fields: [shopId], references: [id])
+  openedAt    DateTime  @default(now())
+  openingCash Float
+  openedById  String
+  closedAt    DateTime?
+  closingCash Float?
+  closedById  String?
+
+  @@index([shopId, closedAt])
+}
+
+/// Shop running expense; cash expenses reduce the drawer
+model Expense {
+  id          String   @id @default(uuid())
+  companyId   String
+  branchId    String
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  expenseDate DateTime @default(now())
+  category    String
+  amount      Float
+  mode        String // CASH, UPI, CARD
+  notes       String?
+  createdById String
+  createdBy   User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([shopId, expenseDate])
 }
 
 model StockAdjustment {
@@ -1181,4 +1335,35 @@ model CreditNoteItem {
   @@index([creditNoteId])
   @@index([salesBillItemId])
   @@index([variantId])
+}
+
+model ShopCustomer {
+  id           String    @id @default(uuid())
+  shopId       String
+  companyId    String
+  branchId     String
+  name         String
+  mobile       String
+  customerType String    @default("Retail")
+  businessName String?
+  gstin        String?
+  address      String?
+  creditLimit  Float     @default(0)
+  openingDue   Float     @default(0)
+  totalBought  Float     @default(0)
+  balanceDue   Float     @default(0)
+  notes        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  company      Company   @relation(fields: [companyId], references: [id])
+  branch       Branch    @relation(fields: [branchId], references: [id])
+  shop         Shop      @relation(fields: [shopId], references: [id])
+
+  @@unique([shopId, mobile])
+  @@index([shopId])
+  @@index([mobile])
+  @@index([customerType])
+
 }
