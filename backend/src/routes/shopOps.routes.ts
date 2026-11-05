@@ -12,5 +12,6 @@ export const mountShopOps = (router: Router) => {
     router.post('/counter/open', s.counter.open);
     router.post('/counter/close', s.counter.close);
 
+    router.get('/expenses/next-number', s.expenses.nextNumber);
     router.route('/expenses').get(s.expenses.list).post(s.expenses.create);
 };

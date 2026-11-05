@@ -46,6 +46,8 @@ model User {
   /// Shop staff shift: FULL_DAY, MORNING, EVENING
   shift                  String?
   sessionsRevokedAt      DateTime?
+  photoUrl               String?
+  posPin                 String?
   admin                  Admin?
   branch                 Branch?       @relation(fields: [branchId], references: [id])
   shop                   Shop?         @relation(fields: [shopId], references: [id])
@@ -1057,19 +1059,25 @@ model StockTransferItem {
 
 /// Shop running expense; cash expenses reduce the drawer
 model Expense {
-  id          String   @id @default(uuid())
-  companyId   String
-  branchId    String
-  shopId      String
-  shop        Shop     @relation(fields: [shopId], references: [id])
-  expenseDate DateTime @default(now())
-  category    String
-  amount      Float
-  mode        String // CASH, UPI, CARD
-  notes       String?
-  createdById String
-  createdBy   User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  expenseNumber String?  @unique
+  companyId     String
+  branchId      String
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  expenseDate   DateTime @default(now())
+  category      String
+  head          String?
+  description   String?
+  amount        Float
+  mode          String // CASH, UPI, CARD
+  paidBy        String? // Cash from counter, UPI, Bank
+  gstAmount     Float?   @default(0)
+  photoUrl      String?
+  notes         String?
+  createdById   String
+  createdBy     User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
 
   @@index([shopId, expenseDate])
 }
