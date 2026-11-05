@@ -249,6 +249,8 @@ salesReturns  SalesReturn[]
   counterSessions CounterSession[]
   expenses      Expense[]
   customers     ShopCustomer[]
+  creditPayments CustomerCreditPayment[]
+  purchaseReturns PurchaseReturn[]
 
 
   @@index([companyId])
@@ -584,6 +586,7 @@ model Inventory {
   physicalQty  Int            @default(0)
   reservedQty  Int            @default(0)
   threshold    Int            @default(5)
+  damagedQty   Int            @default(0)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -683,6 +686,7 @@ model PurchaseBill {
 
   items             PurchaseBillItem[]
   payments          PurchaseBillPayment[]
+  returns           PurchaseReturn[]
 
   @@unique([shopId, billNumber])
   @@index([shopId])
@@ -1349,6 +1353,7 @@ model ShopCustomer {
   gstin        String?
   address      String?
   creditLimit  Float     @default(0)
+  creditDays   Int       @default(15)
   openingDue   Float     @default(0)
   totalBought  Float     @default(0)
   balanceDue   Float     @default(0)
@@ -1360,10 +1365,195 @@ model ShopCustomer {
   company      Company   @relation(fields: [companyId], references: [id])
   branch       Branch    @relation(fields: [branchId], references: [id])
   shop         Shop      @relation(fields: [shopId], references: [id])
+  creditPayments CustomerCreditPayment[]
 
   @@unique([shopId, mobile])
   @@index([shopId])
   @@index([mobile])
   @@index([customerType])
+}
 
+model CustomerCreditPayment {
+  id            String       @id @default(uuid())
+  receiptNumber String
+  shopId        String
+  companyId     String
+  branchId      String
+  customerId    String
+  amount        Float
+  mode          String       // CASH, UPI, CARD, NETBANKING, CHEQUE
+  paidAt        DateTime     @default(now())
+  note          String?
+  receivedById  String?
+  createdAt     DateTime     @default(now())
+
+  customer      ShopCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  shop          Shop         @relation(fields: [shopId], references: [id])
+
+  @@index([shopId])
+  @@index([customerId])
+  @@index([paidAt])
+  @@index([receiptNumber])
+}
+
+model PurchaseReturn {
+  id              String               @id @default(uuid())
+  returnNumber    String
+  shopId          String
+  companyId       String
+  branchId        String
+  purchaseBillId  String?
+  supplierName    String
+  supplierPhone   String?
+  supplierGstin   String?
+  returnDate      DateTime             @default(now())
+  status          String               @default("DRAFT")
+  sentVia         String?
+  takeStockFrom   String               @default("DAMAGED_STOCK")
+  noteToSupplier  String?
+  returnValue     Float                @default(0)
+  taxAmount       Float                @default(0)
+  totalAmount     Float                @default(0)
+  totalQuantity   Int                  @default(0)
+  payableBefore   Float                @default(0)
+  payableAfter    Float                @default(0)
+  settleAs        String               @default("DEDUCT_FROM_PAYABLE")
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @default(now()) @updatedAt
+
+  shop            Shop                 @relation(fields: [shopId], references: [id])
+  purchaseBill    PurchaseBill?        @relation(fields: [purchaseBillId], references: [id])
+  items           PurchaseReturnItem[]
+
+  @@unique([shopId, returnNumber])
+  @@index([shopId])
+  @@index([purchaseBillId])
+  @@index([returnDate])
+}
+
+model PurchaseReturnItem {
+  id                 String          @id @default(uuid())
+  returnId           String
+  purchaseReturn     PurchaseReturn  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  purchaseBillItemId String?
+  productId          String?
+  variantId          String?
+  productName        String
+  size               String?
+  hsn                String?
+  boughtQty          Int             @default(0)
+  inStockQty         Int             @default(0)
+  returnQty          Int             @default(0)
+  unitCost           Float           @default(0)
+  taxRate            Float           @default(5)
+  totalCost          Float           @default(0)
+  reason             String?
+
+  @@index([returnId])
+}
+
+
+model Supplier {
+  id             String            @id @default(uuid())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  gstin          String?
+  city           String?
+  state          String?
+  address        String?
+  paymentTerms   String            @default("Net 30")
+  openingBalance Float             @default(0)
+  payable        Float             @default(0)
+  isOverdue      Boolean           @default(false)
+  nextDue        String?
+  companyId      String
+  branchId       String
+  shopId         String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+
+  payments       SupplierPayment[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@index([shopId])
+  @@index([name])
+}
+
+model SupplierPayment {
+  id            String    @id @default(uuid())
+  receiptNumber String
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierName  String
+  billId        String?
+  billNumber    String?
+  amount        Float
+  paymentMode   String    @default("NEFT / RTGS")
+  paidFrom      String    @default("Bank - HDFC current a/c (**4417)")
+  paymentDate   DateTime  @default(now())
+  utrChequeNo   String?
+  tdsDeducted   Float     @default(0)
+  notes         String?
+  companyId     String
+  branchId      String
+  shopId        String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([branchId, receiptNumber])
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([shopId])
+  @@index([paymentDate])
+}
+
+model BarcodePrintJob {
+  id               String   @id @default(uuid())
+  jobId            String   @unique
+  shopId           String?
+  branchId         String
+  companyId        String
+  sourceType       String   @default("PURCHASE_BILL")
+  sourceRef        String?
+  labelSize        String   @default("50x30mm")
+  printer          String   @default("TSC TE244 (USB)")
+  showShopName     Boolean  @default(true)
+  showItemNameSize  Boolean  @default(true)
+  showMrp          Boolean  @default(true)
+  showSalePrice    Boolean  @default(true)
+  showCostCode     Boolean  @default(false)
+  totalLabels      Int      @default(0)
+  itemsSummary     Json?
+  createdById      String?
+  createdAt        DateTime @default(now())
+
+  @@index([branchId])
+  @@index([shopId])
+  @@index([createdAt])
+}
+
+
+
+
+
+
+model PhysicalStockAudit {
+  id                 String   @id @default(uuid())
+  auditNumber        String
+  shopId             String?
+  branchId           String
+  companyId          String
+  conductedById      String
+  status             String   @default("COMPLETED")
+  totalItemsCounted  Int      @default(0)
+  discrepanciesCount Int      @default(0)
+  notes              String?
+  auditItems         Json     @default("[]")
+  createdAt          DateTime @default(now())
+
+  @@index([branchId, createdAt])
 }

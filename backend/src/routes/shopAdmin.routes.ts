@@ -2,6 +2,11 @@ import {Router} from 'express';
 import {Role} from '@prisma/client';
 import {
     customerController,
+    creditController,
+    purchaseReturnController,
+    supplierController,
+    barcodeLabelController,
+    stockController,
     ecommerceController as e,
     masterController as m,
     orgController as c,
@@ -76,6 +81,43 @@ router.post('/customers', customerController.create);
 router.get('/customers/:id', customerController.get);
 router.patch('/customers/:id', customerController.update);
 router.post('/customers/import', customerController.importExcel);
+
+// ---- Credit / Udhaar ----
+router.get('/credit/metrics', creditController.getMetrics);
+router.get('/credit/customers', creditController.getCustomersWithDue);
+router.get('/credit/customers/:customerId/statement', creditController.getCustomerStatement);
+router.get('/credit/next-receipt', creditController.getNextReceiptNumber);
+router.post('/credit/customers/:customerId/payment', creditController.recordPayment);
+router.get('/credit/reminders', creditController.getWhatsAppReminders);
+
+
+// ---- Suppliers & Payments ----
+router.get('/suppliers', supplierController.listSuppliers);
+router.post('/suppliers', supplierController.createSupplier);
+router.get('/suppliers/next-receipt', supplierController.getNextReceipt);
+router.get('/suppliers/:id/ledger', supplierController.getSupplierLedger);
+router.post('/suppliers/payment', supplierController.recordPayment);
+
+
+// ---- Live Stock Summary & Audit ----
+router.get('/stock/summary', stockController.getStockSummary);
+router.post('/stock/adjust', stockController.adjustStock);
+router.post('/stock/physical-count', stockController.recordPhysicalStockCount);
+
+// ---- Barcode Labels ----
+router.get('/barcode-labels/purchase-bills', barcodeLabelController.getPurchaseBills);
+router.get('/barcode-labels/bills/:billId/items', barcodeLabelController.getBillItems);
+router.get('/barcode-labels/products', barcodeLabelController.searchProducts);
+router.get('/barcode-labels/reprint-batches', barcodeLabelController.getReprintBatches);
+router.post('/barcode-labels/print', barcodeLabelController.recordPrintJob);
+
+// ---- Purchase Returns (Debit Notes) ----
+router.get('/purchase-returns/next-number', purchaseReturnController.getNextDebitNoteNumber);
+router.get('/purchase-returns/suppliers', purchaseReturnController.getSuppliers);
+router.get('/purchase-returns/bills', purchaseReturnController.getBillsBySupplier);
+router.get('/purchase-returns/earlier', purchaseReturnController.getEarlierReturns);
+router.post('/purchase-returns', purchaseReturnController.createPurchaseReturn);
+router.get('/purchase-returns/:id', purchaseReturnController.getPurchaseReturn);
 
 // ---- Shop dashboard, credit notes, cash counter, expenses ----
 mountShopOps(router);

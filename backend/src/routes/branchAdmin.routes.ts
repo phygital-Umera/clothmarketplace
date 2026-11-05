@@ -7,6 +7,9 @@ import {
     customerDueController,
     branchPurchaseController,
     supplierPaymentController,
+    supplierController,
+    barcodeLabelController,
+    stockController,
     branchPricingController,
     stockTransferController,
     dayCloseController,
@@ -94,6 +97,19 @@ router.get('/purchase-bills/:id', branchPurchaseController.get);
 router.get('/suppliers', supplierPaymentController.list);
 router.get('/suppliers/summary', supplierPaymentController.summary);
 router.post('/suppliers/payment', supplierPaymentController.recordPayment);
+
+
+// ---- Live Stock Summary & Audit ----
+router.get('/stock/summary', stockController.getStockSummary);
+router.post('/stock/adjust', stockController.adjustStock);
+router.post('/stock/physical-count', stockController.recordPhysicalStockCount);
+
+// ---- Barcode Labels ----
+router.get('/barcode-labels/purchase-bills', barcodeLabelController.getPurchaseBills);
+router.get('/barcode-labels/bills/:billId/items', barcodeLabelController.getBillItems);
+router.get('/barcode-labels/products', barcodeLabelController.searchProducts);
+router.get('/barcode-labels/reprint-batches', barcodeLabelController.getReprintBatches);
+router.post('/barcode-labels/print', barcodeLabelController.recordPrintJob);
 
 // Accounts: Cash & Day Close
 router.get('/day-close', dayCloseController.get);

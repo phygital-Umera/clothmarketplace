@@ -26,3 +26,8 @@ export {default as branchShopAssignmentController} from './branchShopAssignment.
 export {default as branchProfileSetupController} from './branchProfileSetup.controller';
 export {default as shopOpsController} from './shopOps.controller';
 export {customerController} from './customer.controller';
+export {default as creditController} from './credit.controller';
+export {default as purchaseReturnController} from './purchaseReturn.controller';
+export * as supplierController from './supplier.controller';
+export * as barcodeLabelController from './barcodeLabel.controller';
+export * as stockController from './stock.controller';
