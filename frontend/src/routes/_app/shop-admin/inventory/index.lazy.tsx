@@ -1,7 +1,6 @@
-import InventoryList from '@/pages/ecommerce/InventoryList';
+import StockPage from '@/pages/shop/stock/StockPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/shop-admin/inventory/')({
-  component: () => <InventoryList panel="shop-admin" />,
+  component: () => <StockPage panel="shop-admin" />,
 });
-
