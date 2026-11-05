@@ -62,6 +62,27 @@ export const EMPLOYEE_PERMISSIONS = [
     'orders.process',
     'ai.studio',
     'reports.view',
+    // Shop counter rights (Staff & rights page)
+    'pos.bill',
+    'sales.discount',
+    'sales.credit',
+    'purchase.create',
+    'stock.transfer',
+    'cash.manage',
 ] as const;
+
+/**
+ * The rights shown as columns on the shop's Staff & rights page, in order.
+ * ADJUST maps to the existing inventory.adjust permission.
+ */
+export const STAFF_RIGHTS = [
+    {key: 'pos.bill', label: 'POS'},
+    {key: 'sales.discount', label: 'Discount'},
+    {key: 'sales.credit', label: 'Credit sale'},
+    {key: 'purchase.create', label: 'Purchase'},
+    {key: 'inventory.adjust', label: 'Adjust'},
+    {key: 'stock.transfer', label: 'Transfer'},
+    {key: 'cash.manage', label: 'Cash book'},
+] as const satisfies ReadonlyArray<{key: EmployeePermission; label: string}>;
 
 export type EmployeePermission = (typeof EMPLOYEE_PERMISSIONS)[number];

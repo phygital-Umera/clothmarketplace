@@ -198,6 +198,10 @@ const NAV: Record<Role, NavGroup[]> = {
       ],
     },
     {
+      heading: 'Team',
+      items: [item('Staff & Rights', '/shop-admin/staff', UserCog)],
+    },
+    {
       heading: 'Masters',
       items: [
         item('Categories', '/shop-admin/categories', Tags),

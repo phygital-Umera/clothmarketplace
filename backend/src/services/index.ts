@@ -36,3 +36,5 @@ export {default as salesReturnService} from './salesReturn.service';
 export {default as counterService} from './counter.service';
 export {default as expenseService} from './expense.service';
 export {default as dashboardService} from './dashboard.service';
+export {default as cashBookService} from './cashBook.service';
+export {default as staffService} from './staff.service';

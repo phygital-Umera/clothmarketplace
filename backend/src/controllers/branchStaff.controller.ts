@@ -1,38 +1,28 @@
-import {Request} from 'express';
-import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import branchStaffService from '../services/branchStaff.service';
-
-const branchOf = (req: Request) => {
-    const {companyId, branchId} = req.user;
-    if (!companyId || !branchId) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'No branch is linked to this account');
-    }
-    return {companyId, branchId};
-};
-
-const ok = (
-    res: Parameters<Parameters<typeof catchAsync>[0]>[1],
-    data: unknown,
-    message: string,
-    status = 200,
-) => res.status(status).json(new ApiResponse(status, data, message));
+import {auditService, branchStaffService} from '@services/index';
+import {catchAsync} from '@utils/index';
+import {staffValidation as v} from '@validations/index';
+import {branchOf, ok} from './scope';
 
 const list = catchAsync(async (req, res) => {
-    const tab = typeof req.query.tab === 'string' ? req.query.tab : undefined;
-    const shop = typeof req.query.shop === 'string' ? req.query.shop : undefined;
-    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const data = await branchStaffService.getStaff(branchOf(req), {tab, shop, search});
+    const str = (k: string) => (typeof req.query[k] === 'string' ? (req.query[k] as string) : undefined);
+    const data = await branchStaffService.getStaff(branchOf(req), {
+        tab: str('tab'),
+        shop: str('shop'),
+        search: str('search'),
+    });
     return ok(res, data, 'Branch staff fetched successfully');
 });
 
 const invite = catchAsync(async (req, res) => {
-    const data = await branchStaffService.inviteStaff(branchOf(req), req.body);
-    return ok(res, data, data.message, httpStatus.CREATED);
+    const scope = branchOf(req);
+    const data = v.branchInviteSchema.parse(req.body);
+    const {after} = await auditService.track(
+        req,
+        {action: 'staff.invite', module: 'staff'},
+        async () => ({after: await branchStaffService.inviteStaff(scope, req.user.id, data)}),
+    );
+    return ok(res, after, after.message, httpStatus.CREATED);
 });
 
-export default {
-    list,
-    invite,
-};
-
+export default {list, invite};

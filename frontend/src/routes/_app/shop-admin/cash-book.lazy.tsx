@@ -1,7 +1,6 @@
-import BranchCashDayClosePage from '@/pages/branch/BranchCashDayClosePage';
+import CashBookPage from '@/pages/shop/accounts/CashBookPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/shop-admin/cash-book')({
-  component: BranchCashDayClosePage,
+  component: () => <CashBookPage panel="shop-admin" />,
 });
-

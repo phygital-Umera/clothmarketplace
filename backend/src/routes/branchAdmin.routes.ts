@@ -10,6 +10,7 @@ import {
     supplierController,
     barcodeLabelController,
     stockController,
+    stockAdjustmentController,
     branchPricingController,
     stockTransferController,
     dayCloseController,
@@ -18,6 +19,7 @@ import {
     branchReportsController,
     branchShopController,
     branchStaffController,
+    staffController,
     branchShopAssignmentController,
     branchProfileSetupController,
 } from '@controllers/index';
@@ -67,11 +69,13 @@ router.patch('/inventory/threshold', e.updateThreshold);
 router.get('/inventory/movements', e.listMovements);
 
 // Stock Transfers
-router.get('/transfers', stockTransferController.list);
-router.get('/transfers/summary', stockTransferController.summary);
-router.get('/transfers/:id', stockTransferController.get);
-router.post('/transfers', stockTransferController.create);
-router.post('/transfers/:id/receive', stockTransferController.confirmReceipt);
+// Shops request stock; the branch admin approves and picks the source shop
+const tr = stockTransferController.branch;
+router.get('/transfers', tr.list);
+router.get('/transfers/summary', tr.summary);
+router.get('/transfers/:id', tr.get);
+router.get('/transfers/:id/sources', tr.sources);
+router.post('/transfers/:id/decision', tr.decide);
 
 // Sales bills of every shop in the branch (view only; bills are made at the shop POS)
 router.get('/sales-bills', billController.branchSales.list);
@@ -104,6 +108,12 @@ router.get('/stock/summary', stockController.getStockSummary);
 router.post('/stock/adjust', stockController.adjustStock);
 router.post('/stock/physical-count', stockController.recordPhysicalStockCount);
 
+// ---- Stock Adjustments (Dedicated Page) ----
+router.get('/stock-adjustments/next-number', stockAdjustmentController.getNextAdjustmentNumber);
+router.get('/stock-adjustments/variants', stockAdjustmentController.getAdjustmentVariants);
+router.get('/stock-adjustments', stockAdjustmentController.getAdjustmentHistory);
+router.post('/stock-adjustments', stockAdjustmentController.createAdjustment);
+
 // ---- Barcode Labels ----
 router.get('/barcode-labels/purchase-bills', barcodeLabelController.getPurchaseBills);
 router.get('/barcode-labels/bills/:billId/items', barcodeLabelController.getBillItems);
@@ -134,6 +144,8 @@ router.post('/shops-overview', branchShopController.add);
 // Setup: Staff Overview
 router.get('/staff-overview', branchStaffController.list);
 router.post('/staff-overview/invite', branchStaffController.invite);
+router.get('/staff-requests', staffController.branch.listRequests);
+router.post('/staff-requests/:id/decision', staffController.branch.decideRequest);
 
 // Setup: Shop Assignment
 router.get('/shop-assignment', branchShopAssignmentController.get);

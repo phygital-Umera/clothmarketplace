@@ -1,88 +1,143 @@
 import {
-  confirmTransferReceipt,
-  createStockTransfer,
+  createTransferRequest,
+  decideTransfer,
+  dispatchTransfer,
+  getShopTransfers,
   getStockTransfers,
   getStockTransferSummary,
+  getTransferShops,
+  getTransferSources,
+  getTransferVariants,
+  receiveTransfer,
 } from '@/lib/api/stockTransfer';
+import {CreateTransferPayload, TransferDecision} from '@/types/stockTransfer';
 import {getErrorMessage} from '@/utils/axios';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import {invalidateStock} from './bill';
 
 export const TRANSFER_KEYS = {
-  ALL: 'stock_transfers',
-  LIST: 'stock_transfers_list',
-  SUMMARY: 'stock_transfers_summary',
+  all: ['stock-transfers'] as const,
+  shops: (panel: string) => [...TRANSFER_KEYS.all, 'shops', panel] as const,
+  variants: (panel: string, search?: string) =>
+    [...TRANSFER_KEYS.all, 'variants', panel, search ?? ''] as const,
+  shopList: (panel: string, tab: string, search?: string) =>
+    [...TRANSFER_KEYS.all, 'shop', panel, tab, search ?? ''] as const,
+  branchList: (params?: {search?: string; tab?: string}) =>
+    [...TRANSFER_KEYS.all, 'branch', params] as const,
+  summary: () => [...TRANSFER_KEYS.all, 'summary'] as const,
+  sources: (id: string) => [...TRANSFER_KEYS.all, 'sources', id] as const,
 };
 
-export const useStockTransfers = (params?: {search?: string; tab?: string}) =>
+/** Transfers move stock: refresh transfer lists and every stock view */
+const useInvalidate = () => {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({queryKey: TRANSFER_KEYS.all});
+    invalidateStock(qc);
+    qc.invalidateQueries({queryKey: ['stock']});
+  };
+};
+
+// ---- Shop ----
+
+export const useTransferShops = (panel: string) =>
   useQuery({
-    queryKey: [TRANSFER_KEYS.LIST, params],
-    queryFn: () => getStockTransfers(params),
+    queryKey: TRANSFER_KEYS.shops(panel),
+    queryFn: () => getTransferShops(panel),
     select: (res) => res.data,
   });
 
-export const useStockTransferSummary = () =>
+export const useTransferVariants = (panel: string, search?: string, enabled = true) =>
   useQuery({
-    queryKey: [TRANSFER_KEYS.SUMMARY],
-    queryFn: getStockTransferSummary,
+    queryKey: TRANSFER_KEYS.variants(panel, search),
+    queryFn: () => getTransferVariants(panel, search),
+    select: (res) => res.data,
+    enabled,
+  });
+
+export const useShopTransfers = (
+  panel: string,
+  tab: 'MINE' | 'DISPATCH' | 'HISTORY',
+  search?: string,
+) =>
+  useQuery({
+    queryKey: TRANSFER_KEYS.shopList(panel, tab, search),
+    queryFn: () => getShopTransfers(panel, tab, search),
     select: (res) => res.data,
   });
 
-export const useConfirmTransferReceipt = () => {
-  const queryClient = useQueryClient();
+export const useCreateTransferRequest = (panel: string) => {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (data: CreateTransferPayload) => createTransferRequest(panel, data),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || 'Request sent');
+      invalidate();
+    },
+  });
+};
+
+export const useDispatchTransfer = (panel: string) => {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => dispatchTransfer(panel, id),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || 'Marked dispatched');
+      invalidate();
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Could not mark dispatched')),
+  });
+};
+
+export const useReceiveTransfer = (panel: string) => {
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: ({
       id,
       data,
     }: {
       id: string;
-      data: {
-        damagedOnArrival?: number;
-        receivingNote?: string;
-        itemsReceived: Record<string, number>;
-      };
-    }) => confirmTransferReceipt(id, data),
+      data: {items: Array<{itemId: string; receivedQty: number}>; note?: string};
+    }) => receiveTransfer(panel, id, data),
     onSuccess: (res: any) => {
-      toast.success(res?.message || 'Transfer receipt confirmed');
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.ALL]});
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.LIST]});
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.SUMMARY]});
-      queryClient.invalidateQueries({queryKey: ['inventory']});
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, 'Failed to confirm receipt'));
+      toast.success(res?.message || 'Transfer received');
+      invalidate();
     },
   });
 };
 
-export const useCreateStockTransfer = () => {
-  const queryClient = useQueryClient();
+// ---- Branch admin ----
+
+export const useStockTransfers = (params?: {search?: string; tab?: string}) =>
+  useQuery({
+    queryKey: TRANSFER_KEYS.branchList(params),
+    queryFn: () => getStockTransfers(params),
+    select: (res) => res.data,
+  });
+
+export const useStockTransferSummary = () =>
+  useQuery({
+    queryKey: TRANSFER_KEYS.summary(),
+    queryFn: getStockTransferSummary,
+    select: (res) => res.data,
+  });
+
+export const useTransferSources = (id: string | null) =>
+  useQuery({
+    queryKey: TRANSFER_KEYS.sources(id ?? ''),
+    queryFn: () => getTransferSources(id as string),
+    select: (res) => res.data,
+    enabled: !!id,
+  });
+
+export const useDecideTransfer = () => {
+  const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (data: {
-      transferType: string;
-      fromSource: string;
-      toDestination: string;
-      dispatchDate: string;
-      priority: string;
-      items: Array<{
-        productVariant: string;
-        sku: string;
-        availableAtSource: number;
-        qtyToSend: number;
-      }>;
-      reason: string;
-      noteForReceiver?: string;
-      status?: string;
-    }) => createStockTransfer(data),
+    mutationFn: ({id, data}: {id: string; data: TransferDecision}) => decideTransfer(id, data),
     onSuccess: (res: any) => {
-      toast.success(res?.message || 'Stock transfer created successfully');
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.ALL]});
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.LIST]});
-      queryClient.invalidateQueries({queryKey: [TRANSFER_KEYS.SUMMARY]});
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, 'Failed to create transfer'));
+      toast.success(res?.message || 'Decision saved');
+      invalidate();
     },
   });
 };
-
