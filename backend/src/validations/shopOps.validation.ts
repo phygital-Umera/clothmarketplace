@@ -6,15 +6,15 @@ import {PAYMENT_MODES} from './bill.validation';
 // Shop counter operations: sales returns (credit notes), the cash counter
 // session and shop expenses.
 
-const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
-const text = (label: string, max: number) => field({label, kind: 'text', max, required: false});
-const money = (label: string) =>
+export const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+export const text = (label: string, max: number) => field({label, kind: 'text', max, required: false});
+export const money = (label: string) =>
     z.coerce
         .number({invalid_type_error: `Enter a valid ${label}`})
         .min(0, `${label} cannot be negative`)
         .max(10_000_000, `${label} is too large`)
         .transform((v) => Math.round(v * 100) / 100);
-const positive = (label: string) =>
+export const positive = (label: string) =>
     money(label).refine((v) => v > 0, `${label} must be more than 0`);
 
 export const REFUND_MODES = [...PAYMENT_MODES, 'STORE_CREDIT', 'ADJUST_DUE', 'EXCHANGE'] as const;

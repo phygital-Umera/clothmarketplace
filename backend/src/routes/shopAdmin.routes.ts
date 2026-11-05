@@ -7,6 +7,7 @@ import {
     supplierController,
     barcodeLabelController,
     stockController,
+    stockAdjustmentController,
     ecommerceController as e,
     masterController as m,
     orgController as c,
@@ -17,6 +18,7 @@ import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
 import {mountBills} from './bill.routes';
 import {mountShopOps} from './shopOps.routes';
+import {mountStaffCash} from './staffCash.routes';
 
 const router = Router();
 
@@ -104,6 +106,12 @@ router.get('/stock/summary', stockController.getStockSummary);
 router.post('/stock/adjust', stockController.adjustStock);
 router.post('/stock/physical-count', stockController.recordPhysicalStockCount);
 
+// ---- Stock Adjustments (Dedicated Page) ----
+router.get('/stock-adjustments/next-number', stockAdjustmentController.getNextAdjustmentNumber);
+router.get('/stock-adjustments/variants', stockAdjustmentController.getAdjustmentVariants);
+router.get('/stock-adjustments', stockAdjustmentController.getAdjustmentHistory);
+router.post('/stock-adjustments', stockAdjustmentController.createAdjustment);
+
 // ---- Barcode Labels ----
 router.get('/barcode-labels/purchase-bills', barcodeLabelController.getPurchaseBills);
 router.get('/barcode-labels/bills/:billId/items', barcodeLabelController.getBillItems);
@@ -121,6 +129,9 @@ router.get('/purchase-returns/:id', purchaseReturnController.getPurchaseReturn);
 
 // ---- Shop dashboard, credit notes, cash counter, expenses ----
 mountShopOps(router);
+
+// ---- Staff & rights, cash book & day close, stock transfer ----
+mountStaffCash(router);
 
 // ---- 9. Order Management & Returns ----
 router.get('/orders/dashboard', e.orderDashboard);

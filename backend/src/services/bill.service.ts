@@ -642,8 +642,30 @@ class BillService {
         return bill;
     };
 
+    /**
+     * Day close locks the day's bills: once today's counter has been closed
+     * (and not reopened) no new sales bill can be saved. Shops that do not
+     * use the counter are not affected.
+     */
+    private assertDayOpen = async (shopId: string) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const latest = await prisma.counterSession.findFirst({
+            where: {shopId, openedAt: {gte: today}},
+            orderBy: {openedAt: 'desc'},
+            select: {closedAt: true},
+        });
+        if (latest?.closedAt) {
+            throw new ApiError(
+                httpStatus.CONFLICT,
+                "Today's cash book is closed. Open the counter again to make a new bill.",
+            );
+        }
+    };
+
     public createSales = async (scope: ShopScope, actorId: string, data: CreateSales) => {
         const shop = await this.shopContext(scope);
+        await this.assertDayOpen(shop.id);
         const {items, status, paidAmount, payments, ...header} = data as any;
         void items;
         void paidAmount;

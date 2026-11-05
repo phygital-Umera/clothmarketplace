@@ -2,6 +2,8 @@ import {api} from '@/utils/axios';
 
 export type DayCloseShop = {
   id: string;
+  sessionId: string | null;
+  shopId: string;
   shopName: string;
   closedBy: string;
   opening: number;
@@ -11,10 +13,12 @@ export type DayCloseShop = {
   expected: number;
   counted: number;
   diff: number;
-  status: 'ACCEPTED' | 'NEEDS_REVIEW';
-  reason?: string;
-  action?: string;
-  note?: string;
+  depositAmount: number;
+  keptFloat: number;
+  status: 'ACCEPTED' | 'NEEDS_REVIEW' | 'OPEN' | 'NOT_OPENED';
+  reason?: string | null;
+  action?: string | null;
+  note?: string | null;
 };
 
 export type DayCloseData = {
@@ -22,11 +26,13 @@ export type DayCloseData = {
   summary: {
     cashSales: number;
     countersCount: number;
+    shopsCount: number;
     counted: number;
     openingFloats: number;
     difference: number;
     differenceShop: string;
     toBank: number;
+    deposited: number;
     depositStatus: string;
   };
   shops: DayCloseShop[];
@@ -39,29 +45,22 @@ export type DayCloseData = {
     counted: number;
     diff: number;
   };
+  deposits: Array<{id: string; amount: number; bank: string; reference: string | null; createdAt: string}>;
   reviewItem: DayCloseShop | null;
 };
 
 type Res<T> = {statusCode: number; data: T; message: string};
 
-export const getDayCloseData = (date = '2026-11-02') =>
-  api
-    .get<Res<DayCloseData>>('/branch-admin/day-close', {params: {date}})
-    .then((res: any) => res);
+export const getDayCloseData = (date: string) =>
+  api.get('/branch-admin/day-close', {params: {date}}).then((res: any) => res as Res<DayCloseData>);
 
 export const resolveDayCloseDifference = (data: {
-  shopName: string;
-  date: string;
+  sessionId: string;
   reason: string;
   action: string;
-  note: string;
+  note?: string;
 }) =>
-  api
-    .post<Res<{success: boolean; message: string}>>(
-      '/branch-admin/day-close/resolve-difference',
-      data,
-    )
-    .then((res: any) => res);
+  api.post('/branch-admin/day-close/resolve-difference', data).then((res: any) => res as Res<{success: boolean; message: string}>);
 
 export const recordBankDeposit = (data: {
   amount: number;
@@ -70,10 +69,4 @@ export const recordBankDeposit = (data: {
   slipUrl?: string;
   date: string;
 }) =>
-  api
-    .post<Res<{success: boolean; message: string}>>(
-      '/branch-admin/day-close/bank-deposit',
-      data,
-    )
-    .then((res: any) => res);
-
+  api.post('/branch-admin/day-close/bank-deposit', data).then((res: any) => res as Res<{success: boolean; message: string}>);

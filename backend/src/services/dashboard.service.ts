@@ -2,6 +2,7 @@ import {AccountStatus, BillStatus, Prisma, Role} from '@prisma/client';
 import prisma from '../client';
 import billService from './bill.service';
 import counterService from './counter.service';
+import cashBookService from './cashBook.service';
 import inventoryService from './inventory.service';
 import {ShopScope} from './shopProduct.service';
 
@@ -246,38 +247,15 @@ class DashboardService {
             supplierPayments: number;
         };
         if (session) {
-            const since = session.openedAt;
-            const [cashIn, refunds, expenses, supplierCash] = await Promise.all([
-                prisma.salesBillPayment.aggregate({
-                    where: {mode: 'CASH', paidAt: {gte: since}, bill: confirmedSales},
-                    _sum: {amount: true},
-                }),
-                prisma.salesReturn.aggregate({
-                    where: {shopId: shop.id, refundMode: 'CASH', createdAt: {gte: since}},
-                    _sum: {totalAmount: true},
-                }),
-                prisma.expense.aggregate({
-                    where: {shopId: shop.id, mode: 'CASH', createdAt: {gte: since}},
-                    _sum: {amount: true},
-                }),
-                prisma.purchaseBillPayment.aggregate({
-                    where: {mode: 'CASH', paidAt: {gte: since}, bill: confirmedPurchase},
-                    _sum: {amount: true},
-                }),
-            ]);
-            const cashSales = cashIn._sum.amount ?? 0;
-            const cashRefunds = refunds._sum.totalAmount ?? 0;
-            const cashExpenses = expenses._sum.amount ?? 0;
-            const supplierPayments = supplierCash._sum.amount ?? 0;
+            // Same figures as the Cash Book page
+            const d = await cashBookService.drawer(session);
             cash = {
-                openingCash: session.openingCash,
-                cashSales: round2(cashSales),
-                cashRefunds: round2(cashRefunds),
-                cashExpenses: round2(cashExpenses),
-                supplierPayments: round2(supplierPayments),
-                inDrawer: round2(
-                    session.openingCash + cashSales - cashRefunds - cashExpenses - supplierPayments,
-                ),
+                openingCash: d.openingCash,
+                cashSales: round2(d.cashSales + d.duesCollected),
+                cashRefunds: d.cashRefunds,
+                cashExpenses: d.cashExpenses,
+                supplierPayments: d.supplierPayments,
+                inDrawer: d.expected,
             };
         }
 

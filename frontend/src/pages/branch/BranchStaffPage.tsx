@@ -1,547 +1,344 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import {Field, PageHeader} from '@/components/ui';
+import FormDialog from '@/components/ui/FormDialog';
+import useCurrentUser from '@/hooks/useCurrentUser';
 import {
   useBranchStaffOverview,
   useInviteBranchStaff,
 } from '@/lib/react-query/queriesAndMutations/branchExtras';
-import toast from 'react-hot-toast';
+import {useDecideStaffRequest} from '@/lib/react-query/queriesAndMutations/staff';
+import {SHIFT_LABEL, Shift, STAFF_ROLES} from '@/types/staff';
+import {getErrorMessage} from '@/utils/axios';
 
-export default function BranchStaffPage() {
-  const [activeTab, setActiveTab] = useState<string>('ALL');
-  const [selectedShop, setSelectedShop] = useState<string>('All shops');
-  const [search, setSearch] = useState<string>('');
+const RIGHTS = [
+  {key: 'pos.bill', label: 'POS billing'},
+  {key: 'sales.discount', label: 'Give discount'},
+  {key: 'sales.credit', label: 'Credit (udhaar) sales'},
+  {key: 'purchase.create', label: 'Purchase bills'},
+  {key: 'inventory.adjust', label: 'Stock adjustment'},
+  {key: 'stock.transfer', label: 'Stock transfer'},
+  {key: 'cash.manage', label: 'Cash book'},
+];
 
-  const {data} = useBranchStaffOverview({
-    tab: activeTab === 'ALL' ? undefined : activeTab,
-    shop: selectedShop === 'All shops' ? undefined : selectedShop,
-    search: search.trim() || undefined,
-  });
+const STATUS_CLS: Record<string, string> = {
+  ACTIVE: 'bg-[#E3EEDD] text-[#3F6B3A]',
+  INVITED: 'bg-[#F6E6C8] text-[#8A5A12]',
+  INACTIVE: 'bg-[#EFE6DC] text-[#7A6A5C]',
+};
 
-  const inviteMutation = useInviteBranchStaff();
+type Row = {
+  id: string;
+  requestId: string | null;
+  name: string;
+  empCode: string;
+  phone: string;
+  initials: string;
+  shopName: string;
+  role: string;
+  todayAttendance: string;
+  status: 'ACTIVE' | 'INVITED' | 'INACTIVE';
+};
 
-  // Invite Form state
-  const [fullName, setFullName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [email, setEmail] = useState('');
-  const [shop, setShop] = useState("Men's Wear");
-  const [role, setRole] = useState('Sales associate');
-  const [joiningDate, setJoiningDate] = useState('2026-11-10');
-  const [shift, setShift] = useState('Morning');
-  const [permPos, setPermPos] = useState(true);
-  const [permCredit, setPermCredit] = useState(true);
-  const [permReceive, setPermReceive] = useState(false);
-  const [permStock, setPermStock] = useState(false);
-  const [permReturn, setPermReturn] = useState(true);
+function DecideDialog({
+  row,
+  mode,
+  onClose,
+}: {
+  row: Row;
+  mode: 'APPROVE' | 'REJECT';
+  onClose: () => void;
+}) {
+  const decide = useDecideStaffRequest();
+  const [password, setPassword] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
 
-  const summary = data?.summary || {
-    totalStaff: 14,
-    totalStaffSub: '+1 unassigned',
-    onShiftNow: 11,
-    onShiftNowSub: '3 on leave',
-    invitesPending: 1,
-    invitesPendingSub: 'Akash Lohar',
-  };
-
-  const staff = data?.items || [
-    {
-      id: '1',
-      name: 'Rahul Mane',
-      empCode: 'EMP-0012',
-      phone: '+91 98901 22311',
-      initials: 'RM',
-      shopName: "Men's Wear",
-      role: 'Shop manager',
-      todayAttendance: 'In · 9:52 AM',
-      status: 'ACTIVE',
-    },
-    {
-      id: '2',
-      name: 'Sagar Jadhav',
-      empCode: 'EMP-0016',
-      phone: '+91 97300 11290',
-      initials: 'SJ',
-      shopName: "Men's Wear",
-      role: 'Cashier',
-      todayAttendance: 'In · 9:58 AM',
-      status: 'ACTIVE',
-    },
-    {
-      id: '3',
-      name: 'Priya Shinde',
-      empCode: 'EMP-0015',
-      phone: '+91 85030 77412',
-      initials: 'PS',
-      shopName: "Women's Wear",
-      role: 'Shop manager',
-      todayAttendance: 'In · 9:45 AM',
-      status: 'ACTIVE',
-    },
-    {
-      id: '4',
-      name: 'Pallavi Kale',
-      empCode: 'EMP-0017',
-      phone: '+91 96000 42119',
-      initials: 'PK',
-      shopName: "Women's Wear",
-      role: 'Sales associate',
-      todayAttendance: 'On leave',
-      status: 'ACTIVE',
-    },
-    {
-      id: '5',
-      name: 'Rutuja Pawar',
-      empCode: 'EMP-0018',
-      phone: '+91 93700 55621',
-      initials: 'RP',
-      shopName: "Women's Wear",
-      role: 'Cashier',
-      todayAttendance: 'In · 10:02 AM',
-      status: 'ACTIVE',
-    },
-    {
-      id: '6',
-      name: 'Kiran More',
-      empCode: 'EMP-0019',
-      phone: '+91 77090 31122',
-      initials: 'KM',
-      shopName: 'Kids Wear',
-      role: 'Cashier',
-      todayAttendance: 'In · 10:05 AM',
-      status: 'ACTIVE',
-    },
-    {
-      id: '7',
-      name: 'Akash Lohar',
-      empCode: 'EMP-0024',
-      phone: '+91 89990 12090',
-      initials: 'AL',
-      shopName: 'Unassigned',
-      role: 'New joiner',
-      todayAttendance: '—',
-      status: 'INVITED',
-    },
-    {
-      id: '8',
-      name: 'Nilesh Gurav',
-      empCode: 'EMP-0009',
-      phone: '+91 910490 66012',
-      initials: 'NG',
-      shopName: "Men's Wear",
-      role: 'Stock keeper',
-      todayAttendance: '—',
-      status: 'INACTIVE',
-    },
-  ];
-
-  const handleSendInvite = async () => {
-    if (!fullName.trim() || !mobile.trim()) {
-      toast.error('Please enter full name and mobile number');
-      return;
-    }
-    await inviteMutation.mutateAsync({
-      fullName,
-      mobile,
-      email: email || `${fullName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      shopName: shop,
-      role,
-      joiningDate,
-      shift,
-    });
-    setFullName('');
-    setMobile('');
-    setEmail('');
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#ecfdf5] text-[#065f46] border border-[#a7f3d0]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
-            ACTIVE
-          </span>
-        );
-      case 'INVITED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d97706]" />
-            INVITED
-          </span>
-        );
-      case 'INACTIVE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#f3f4f6] text-[#4b5563] border border-[#e5e7eb]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#9ca3af]" />
-            INACTIVE
-          </span>
-        );
-      default:
-        return null;
-    }
+  const submit = () => {
+    setError('');
+    if (mode === 'APPROVE' && password.length < 8)
+      return setError('Set a temporary password of at least 8 characters.');
+    if (mode === 'REJECT' && note.trim().length < 3) return setError('Give a reason.');
+    decide.mutate(
+      {
+        id: row.requestId!,
+        data: {decision: mode, password: mode === 'APPROVE' ? password : undefined, note: note.trim() || undefined},
+      },
+      {onSuccess: onClose, onError: (err) => setError(getErrorMessage(err, 'Could not save'))},
+    );
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto text-[#2b2b2b]">
-      {/* Header */}
-      <div>
-        <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66] mb-1">
-          SETUP / STAFF
-        </div>
-        <h1
-          className="text-3xl font-serif text-[#2a2220] tracking-tight"
-          style={{fontFamily: "'Playfair Display', Georgia, serif"}}
+    <FormDialog
+      open
+      title={mode === 'APPROVE' ? `Approve ${row.name}` : `Reject ${row.name}`}
+      onClose={onClose}
+      onSubmit={submit}
+      saving={decide.isPending}
+      error={error}
+      saveLabel={mode === 'APPROVE' ? 'Create login' : 'Reject request'}
+    >
+      <p className="text-body-sm text-on-surface-variant">
+        {row.role} · {row.shopName} · {row.phone}
+      </p>
+      {mode === 'APPROVE' && (
+        <Field
+          label="Temporary password"
+          htmlFor="sr-pass"
+          required
+          hint="They sign in with their mobile number and must change it on first login."
         >
-          Staff
-        </h1>
-        <p className="text-sm text-[#736862] mt-1">
-          Staff working in Sangli Branch shops.
-        </p>
+          <input
+            id="sr-pass"
+            type="text"
+            autoComplete="new-password"
+            className="field-input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+      )}
+      <Field label={mode === 'APPROVE' ? 'Note' : 'Reason'} htmlFor="sr-note" required={mode === 'REJECT'}>
+        <textarea id="sr-note" rows={2} maxLength={300} className="field-input" value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+    </FormDialog>
+  );
+}
+
+const EMPTY = {
+  fullname: '',
+  phoneNumber: '',
+  email: '',
+  shopId: '',
+  employeeRole: 'Sales associate',
+  shift: 'FULL_DAY' as Shift,
+  permissions: ['pos.bill'] as string[],
+};
+
+export default function BranchStaffPage() {
+  const {data: me} = useCurrentUser();
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [selectedShop, setSelectedShop] = useState('ALL');
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [deciding, setDeciding] = useState<{row: Row; mode: 'APPROVE' | 'REJECT'} | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const {data, isLoading, isError, error} = useBranchStaffOverview({
+    tab: activeTab === 'ALL' ? undefined : activeTab,
+    shop: selectedShop === 'ALL' ? undefined : selectedShop,
+    search: debounced || undefined,
+  });
+  const invite = useInviteBranchStaff();
+  const [form, setForm] = useState(EMPTY);
+  const [formError, setFormError] = useState('');
+  const shops: Array<{id: string; name: string}> = data?.shops ?? [];
+  const staff: Row[] = data?.items ?? [];
+  const summary = data?.summary;
+
+  useEffect(() => {
+    if (!form.shopId && shops[0]) setForm((f) => ({...f, shopId: shops[0].id}));
+  }, [shops, form.shopId]);
+
+  const set = <K extends keyof typeof EMPTY>(k: K, v: (typeof EMPTY)[K]) => setForm((f) => ({...f, [k]: v}));
+
+  const handleSendInvite = () => {
+    setFormError('');
+    if (form.fullname.trim().length < 2) return setFormError('Enter the full name.');
+    if (!/^[6-9]\d{9}$/.test(form.phoneNumber)) return setFormError('Enter a valid 10-digit mobile number.');
+    if (!form.shopId) return setFormError('Select a shop.');
+    invite.mutate(
+      {...form, fullname: form.fullname.trim(), email: form.email.trim() || undefined},
+      {
+        onSuccess: () => setForm({...EMPTY, shopId: form.shopId}),
+        onError: (err) => setFormError(getErrorMessage(err, 'Could not add the staff member')),
+      },
+    );
+  };
+
+  const tabs = ['ALL', 'ACTIVE', 'INVITED', 'INACTIVE'];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={[{label: 'Setup'}, {label: 'Staff'}]}
+        title="Staff"
+        subtitle={`Staff working in ${me?.branch?.name ?? 'your branch'} shops. Shops request new staff here; approve to create the login.`}
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[
+          {label: 'Total staff', value: summary?.totalStaff, note: summary?.totalStaffSub},
+          {label: 'On shift now', value: summary?.onShiftNow, note: summary?.onShiftNowSub},
+          {label: 'Pending requests', value: summary?.invitesPending, note: summary?.invitesPendingSub},
+        ].map((k) => (
+          <div key={k.label} className="panel p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{k.label}</p>
+            <p className="mt-2 font-serif text-[26px] leading-none text-espresso">{k.value ?? '—'}</p>
+            <p className="mt-1.5 text-[11px] text-outline">{k.note ?? ''}</p>
+          </div>
+        ))}
       </div>
 
-      {/* 3 Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-4 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
-            TOTAL STAFF
-          </div>
-          <div
-            className="text-2xl font-serif font-semibold text-[#2a2220] mt-1"
-            style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-          >
-            {summary.totalStaff}
-          </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
-            {summary.totalStaffSub}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-4 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
-            ON SHIFT NOW
-          </div>
-          <div
-            className="text-2xl font-serif font-semibold text-[#2a2220] mt-1"
-            style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-          >
-            {summary.onShiftNow}
-          </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
-            {summary.onShiftNowSub}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-4 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
-            INVITES PENDING
-          </div>
-          <div
-            className="text-2xl font-serif font-semibold text-[#2a2220] mt-1"
-            style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-          >
-            {summary.invitesPending}
-          </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
-            {summary.invitesPendingSub}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Left Staff Table & Right Invite Employee */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Table */}
-        <div className="lg:col-span-8 bg-white border border-[#efe9e3] rounded-lg shadow-sm overflow-hidden space-y-4 p-4">
-          {/* Tabs and Filters */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs font-semibold tracking-wider uppercase border-b border-[#f2ede7] pb-2 sm:pb-0 sm:border-0">
-              <button
-                onClick={() => setActiveTab('ALL')}
-                className={`flex items-center gap-1.5 pb-1 transition ${
-                  activeTab === 'ALL'
-                    ? 'text-[#832729] border-b-2 border-[#832729] font-bold'
-                    : 'text-[#736862]'
-                }`}
-              >
-                <span>ALL</span>
-                <span className="bg-[#832729] text-white text-[10px] px-1.5 rounded-full">
-                  15
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('ACTIVE')}
-                className={`pb-1 transition ${
-                  activeTab === 'ACTIVE'
-                    ? 'text-[#832729] border-b-2 border-[#832729] font-bold'
-                    : 'text-[#736862]'
-                }`}
-              >
-                ACTIVE
-              </button>
-              <button
-                onClick={() => setActiveTab('INVITED')}
-                className={`pb-1 transition ${
-                  activeTab === 'INVITED'
-                    ? 'text-[#832729] border-b-2 border-[#832729] font-bold'
-                    : 'text-[#736862]'
-                }`}
-              >
-                INVITED
-              </button>
-              <button
-                onClick={() => setActiveTab('INACTIVE')}
-                className={`pb-1 transition ${
-                  activeTab === 'INACTIVE'
-                    ? 'text-[#832729] border-b-2 border-[#832729] font-bold'
-                    : 'text-[#736862]'
-                }`}
-              >
-                INACTIVE
-              </button>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        <section className="panel min-w-0 lg:col-span-8">
+          <div className="flex flex-col justify-between gap-3 border-b border-ivory-300 px-4 pt-2 sm:flex-row sm:items-end">
+            <div role="tablist" aria-label="Staff status" className="flex overflow-x-auto">
+              {tabs.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === t}
+                  onClick={() => setActiveTab(t)}
+                  className={`-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-label-caps uppercase ${
+                    activeTab === t ? 'border-burgundy text-burgundy' : 'border-transparent text-on-surface-variant hover:text-burgundy'
+                  }`}
+                >
+                  {t === 'INVITED' ? 'Pending' : t}
+                  {t === 'ALL' && data && (
+                    <span className="rounded-sm bg-ivory-200 px-1.5 text-[10px] font-bold text-espresso">{data.totalCount}</span>
+                  )}
+                </button>
+              ))}
             </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedShop}
-                onChange={(e) => setSelectedShop(e.target.value)}
-                className="border border-[#ded5ce] rounded px-2.5 py-1 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-              >
-                <option value="All shops">All shops</option>
-                <option value="Men's Wear">Men's Wear</option>
-                <option value="Women's Wear">Women's Wear</option>
-                <option value="Kids Wear">Kids Wear</option>
-                <option value="Unassigned">Unassigned</option>
+            <div className="flex gap-2 pb-2">
+              <label htmlFor="staff-shop" className="sr-only">Shop</label>
+              <select id="staff-shop" className="field-input w-auto py-2" value={selectedShop} onChange={(e) => setSelectedShop(e.target.value)}>
+                <option value="ALL">All shops</option>
+                {shops.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
               </select>
-
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name or phone"
-                className="border border-[#ded5ce] rounded px-2.5 py-1 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729] w-36"
-              />
+              <input aria-label="Search staff" className="field-input w-40 py-2" placeholder="Name or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
 
-          <div className="overflow-x-auto border-t border-[#f2ede7]">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-left text-body-sm">
               <thead>
-                <tr className="border-b border-[#f0eae3] bg-[#faf7f4] text-[#8b6f66] uppercase text-[10px] font-semibold tracking-wider">
-                  <th className="py-3 px-3">EMPLOYEE</th>
-                  <th className="py-3 px-3">SHOP</th>
-                  <th className="py-3 px-3">ROLE</th>
-                  <th className="py-3 px-3">TODAY</th>
-                  <th className="py-3 px-3 text-right">STATUS</th>
+                <tr className="border-b border-ivory-300 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  <th scope="col" className="px-4 py-3">Employee</th>
+                  <th scope="col" className="px-3 py-3">Shop</th>
+                  <th scope="col" className="px-3 py-3">Role</th>
+                  <th scope="col" className="px-3 py-3">Today</th>
+                  <th scope="col" className="px-4 py-3 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f7f2ed]">
+              <tbody className="divide-y divide-ivory-200 text-espresso">
+                {isLoading && (
+                  <tr><td colSpan={5} className="py-10 text-center text-outline">Loading staff…</td></tr>
+                )}
+                {isError && (
+                  <tr><td colSpan={5} className="py-10 text-center text-error">{getErrorMessage(error, 'Could not load staff')}</td></tr>
+                )}
+                {data && !staff.length && (
+                  <tr><td colSpan={5} className="py-10 text-center text-outline">No staff found.</td></tr>
+                )}
                 {staff.map((s) => (
-                  <tr key={s.id} className="hover:bg-[#fdfbfa] transition">
-                    <td className="py-3 px-3">
+                  <tr key={s.id} className="hover:bg-ivory-50">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[#f3eae4] text-[#832729] font-bold flex items-center justify-center text-xs shrink-0">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blush/50 text-[11px] font-semibold text-burgundy">
                           {s.initials}
-                        </div>
+                        </span>
                         <div>
-                          <div className="font-semibold text-[#2a2220]">
-                            {s.name}
-                          </div>
-                          <div className="text-[11px] text-[#736862]">
-                            {s.empCode} · {s.phone}
-                          </div>
+                          <p className="font-medium">{s.name}</p>
+                          <p className="text-[11px] text-outline">{s.empCode} · {s.phone}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-[#332c28]">{s.shopName}</td>
-                    <td className="py-3 px-3 text-[#554e48]">{s.role}</td>
-                    <td className="py-3 px-3 text-[#554e48] font-mono text-[11px]">
-                      {s.todayAttendance}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      {getStatusBadge(s.status)}
+                    <td className="px-3 py-3">{s.shopName}</td>
+                    <td className="px-3 py-3 text-on-surface-variant">{s.role}</td>
+                    <td className="px-3 py-3 text-[12px] text-on-surface-variant">{s.todayAttendance}</td>
+                    <td className="px-4 py-3 text-right">
+                      {s.status === 'INVITED' && s.requestId ? (
+                        <div className="flex justify-end gap-2">
+                          <button type="button" className="btn-ghost px-3 py-1.5" onClick={() => setDeciding({row: s, mode: 'REJECT'})}>
+                            Reject
+                          </button>
+                          <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setDeciding({row: s, mode: 'APPROVE'})}>
+                            Approve
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLS[s.status]}`}>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {s.status}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </section>
 
-          <div className="flex items-center justify-between text-xs text-[#736862] pt-2">
-            <span>1–8 of 15</span>
-            <span>Page 1 of 2</span>
-          </div>
-        </div>
-
-        {/* Right: Invite Employee Form */}
-        <div className="lg:col-span-4 bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-          <h3
-            className="text-base font-serif font-semibold text-[#2a2220]"
-            style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-          >
-            Invite employee
-          </h3>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              FULL NAME *
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              MOBILE *
-            </label>
-            <input
-              type="text"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              placeholder="+91"
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              EMAIL (LOGIN) *
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              SHOP *
-            </label>
-            <select
-              value={shop}
-              onChange={(e) => setShop(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            >
-              <option value="Men's Wear">Men's Wear</option>
-              <option value="Women's Wear">Women's Wear</option>
-              <option value="Kids Wear">Kids Wear</option>
-              <option value="Unassigned">Unassigned</option>
+        <section className="panel space-y-3 p-4 lg:col-span-4" aria-labelledby="add-staff">
+          <h2 id="add-staff" className="font-serif text-headline-sm text-burgundy">Add staff</h2>
+          <Field label="Full name" htmlFor="inv-name" required>
+            <input id="inv-name" className="field-input" value={form.fullname} onChange={(e) => set('fullname', e.target.value)} />
+          </Field>
+          <Field label="Mobile (login)" htmlFor="inv-phone" required>
+            <input id="inv-phone" inputMode="numeric" maxLength={10} className="field-input" value={form.phoneNumber} onChange={(e) => set('phoneNumber', e.target.value.replace(/\D/g, ''))} />
+          </Field>
+          <Field label="Email" htmlFor="inv-email">
+            <input id="inv-email" type="email" className="field-input" value={form.email} onChange={(e) => set('email', e.target.value)} />
+          </Field>
+          <Field label="Shop" htmlFor="inv-shop" required hint="Only shops in your branch">
+            <select id="inv-shop" className="field-input" value={form.shopId} onChange={(e) => set('shopId', e.target.value)}>
+              {shops.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
             </select>
-            <span className="text-[10px] text-[#8b6f66] mt-0.5 block">
-              Only shops in your branch
-            </span>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Role" htmlFor="inv-role" required>
+              <select id="inv-role" className="field-input" value={form.employeeRole} onChange={(e) => set('employeeRole', e.target.value)}>
+                {STAFF_ROLES.map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Shift" htmlFor="inv-shift" required>
+              <select id="inv-shift" className="field-input" value={form.shift} onChange={(e) => set('shift', e.target.value as Shift)}>
+                {(Object.keys(SHIFT_LABEL) as Shift[]).map((s) => (
+                  <option key={s} value={s}>{SHIFT_LABEL[s]}</option>
+                ))}
+              </select>
+            </Field>
           </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              ROLE *
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            >
-              <option value="Sales associate">Sales associate</option>
-              <option value="Cashier">Cashier</option>
-              <option value="Shop manager">Shop manager</option>
-              <option value="Stock keeper">Stock keeper</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              JOINING DATE *
-            </label>
-            <input
-              type="date"
-              value={joiningDate}
-              onChange={(e) => setJoiningDate(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-              SHIFT
-            </label>
-            <select
-              value={shift}
-              onChange={(e) => setShift(e.target.value)}
-              className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-            >
-              <option value="Morning">Morning</option>
-              <option value="Evening">Evening</option>
-              <option value="Full day">Full day</option>
-            </select>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-bold text-[#736862] tracking-wider uppercase mb-1.5">
-              PERMISSIONS (FROM ROLE)
+          <fieldset>
+            <legend className="field-label">Rights</legend>
+            <div className="space-y-1.5 text-body-sm">
+              {RIGHTS.map((r) => (
+                <label key={r.key} className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="accent-[#6B1E2E]"
+                    checked={form.permissions.includes(r.key)}
+                    onChange={(e) =>
+                      set('permissions', e.target.checked ? [...form.permissions, r.key] : form.permissions.filter((p) => p !== r.key))
+                    }
+                  />
+                  {r.label}
+                </label>
+              ))}
             </div>
-            <div className="space-y-1.5 text-xs text-[#2a2220]">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={permPos}
-                  onChange={(e) => setPermPos(e.target.checked)}
-                  className="accent-[#832729] rounded"
-                />
-                <span>POS billing</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={permCredit}
-                  onChange={(e) => setPermCredit(e.target.checked)}
-                  className="accent-[#832729] rounded"
-                />
-                <span>Credit (udhaar) sales</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={permReceive}
-                  onChange={(e) => setPermReceive(e.target.checked)}
-                  className="accent-[#832729] rounded"
-                />
-                <span>Receive stock</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={permStock}
-                  onChange={(e) => setPermStock(e.target.checked)}
-                  className="accent-[#832729] rounded"
-                />
-                <span>Stock adjustment</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={permReturn}
-                  onChange={(e) => setPermReturn(e.target.checked)}
-                  className="accent-[#832729] rounded"
-                />
-                <span>Create returns</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <button
-              onClick={handleSendInvite}
-              disabled={inviteMutation.isPending}
-              className="w-full bg-[#7a2222] hover:bg-[#681c1c] text-white text-xs font-semibold py-2.5 rounded tracking-wider uppercase transition shadow-sm disabled:opacity-50"
-            >
-              {inviteMutation.isPending ? 'SENDING...' : 'SEND INVITATION'}
-            </button>
-          </div>
-        </div>
+          </fieldset>
+          {formError && <p role="alert" className="field-error">{formError}</p>}
+          <button type="button" className="btn-primary w-full" disabled={invite.isPending} onClick={handleSendInvite}>
+            {invite.isPending ? 'Saving…' : 'Add to pending staff'}
+          </button>
+          <p className="text-[11px] text-outline">Then approve it in the list to create the login.</p>
+        </section>
       </div>
+
+      {deciding && <DecideDialog row={deciding.row} mode={deciding.mode} onClose={() => setDeciding(null)} />}
     </div>
   );
 }
-

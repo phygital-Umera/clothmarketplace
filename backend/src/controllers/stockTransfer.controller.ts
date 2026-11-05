@@ -1,59 +1,109 @@
-import {Request} from 'express';
-import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import stockTransferService from '../services/stockTransfer.service';
+import {auditService, stockTransferService as s} from '@services/index';
+import {catchAsync} from '@utils/index';
+import {stockTransferValidation as v} from '@validations/index';
+import {branchOf, ok, shopOf} from './scope';
 
-const branchOf = (req: Request) => {
-    const {companyId, branchId} = req.user;
-    if (!companyId || !branchId) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'No branch is linked to this account');
-    }
-    return {companyId, branchId};
+/* Stock transfer between the shops of a branch */
+
+const shop = {
+    shops: catchAsync(async (req, res) =>
+        ok(res, await s.shops(shopOf(req)), 'Shops fetched successfully'),
+    ),
+
+    variants: catchAsync(async (req, res) => {
+        const {search} = v.variantSearchSchema.parse(req.query);
+        return ok(res, await s.variants(shopOf(req), search), 'Items fetched successfully');
+    }),
+
+    list: catchAsync(async (req, res) => {
+        const query = v.shopListSchema.parse(req.query);
+        return ok(res, await s.listShop(shopOf(req), query), 'Transfers fetched successfully');
+    }),
+
+    get: catchAsync(async (req, res) => {
+        const {id} = v.idSchema.parse(req.params);
+        return ok(res, await s.getShop(shopOf(req), id), 'Transfer fetched successfully');
+    }),
+
+    create: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const data = v.createTransferSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'transfer.request', module: 'inventory'},
+            async () => ({after: await s.create(scope, req.user.id, data)}),
+        );
+        return ok(res, after, `Request ${after.transferNumber} sent to the Branch Admin`, httpStatus.CREATED);
+    }),
+
+    dispatch: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const {after} = await auditService.track(
+            req,
+            {action: 'transfer.dispatch', module: 'inventory', targetId: id},
+            async () => ({after: await s.dispatch(scope, req.user.id, id)}),
+        );
+        return ok(res, after, `${after.transferNumber} dispatched`);
+    }),
+
+    receive: catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.receiveSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: 'transfer.receive', module: 'inventory', targetId: id},
+            async () => ({after: await s.receive(scope, req.user.id, id, data)}),
+        );
+        return ok(
+            res,
+            after,
+            after.status === 'SHORT'
+                ? `${after.transferNumber} received short by ${after.shortUnits}. Branch Admin will review.`
+                : `${after.transferNumber} received and added to stock`,
+        );
+    }),
 };
 
-const ok = (
-    res: Parameters<Parameters<typeof catchAsync>[0]>[1],
-    data: unknown,
-    message: string,
-    status = 200,
-) => res.status(status).json(new ApiResponse(status, data, message));
+const branch = {
+    list: catchAsync(async (req, res) => {
+        const query = v.branchListSchema.parse(req.query);
+        return ok(res, await s.listBranch(branchOf(req), query), 'Stock transfers fetched successfully');
+    }),
 
-const list = catchAsync(async (req, res) => {
-    const query = {
-        search: typeof req.query.search === 'string' ? req.query.search : undefined,
-        tab: typeof req.query.tab === 'string' ? (req.query.tab as any) : undefined,
-    };
-    const data = await stockTransferService.list(branchOf(req), query);
-    return ok(res, data, 'Stock transfers fetched successfully');
-});
+    summary: catchAsync(async (req, res) =>
+        ok(res, await s.summary(branchOf(req)), 'Stock transfer summary fetched successfully'),
+    ),
 
-const summary = catchAsync(async (req, res) => {
-    const data = await stockTransferService.summary(branchOf(req));
-    return ok(res, data, 'Stock transfer summary fetched successfully');
-});
+    get: catchAsync(async (req, res) => {
+        const {id} = v.idSchema.parse(req.params);
+        return ok(res, await s.getBranch(branchOf(req), id), 'Transfer details fetched successfully');
+    }),
 
-const get = catchAsync(async (req, res) => {
-    const {id} = req.params;
-    const data = await stockTransferService.get(branchOf(req), id);
-    return ok(res, data, 'Transfer details fetched successfully');
-});
+    sources: catchAsync(async (req, res) => {
+        const {id} = v.idSchema.parse(req.params);
+        return ok(res, await s.sourceOptions(branchOf(req), id), 'Source shops fetched successfully');
+    }),
 
-const confirmReceipt = catchAsync(async (req, res) => {
-    const {id} = req.params;
-    const data = await stockTransferService.confirmReceipt(branchOf(req), id, req.body);
-    return ok(res, data, data.message);
-});
-
-const create = catchAsync(async (req, res) => {
-    const data = await stockTransferService.create(branchOf(req), req.user.id, req.body);
-    return ok(res, data, 'Stock transfer created successfully', httpStatus.CREATED);
-});
-
-export default {
-    list,
-    summary,
-    get,
-    confirmReceipt,
-    create,
+    decide: catchAsync(async (req, res) => {
+        const scope = branchOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.decideSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {action: `transfer.${data.decision.toLowerCase()}`, module: 'inventory', targetId: id},
+            async () => ({after: await s.decide(scope, req.user.id, id, data)}),
+        );
+        return ok(
+            res,
+            after,
+            data.decision === 'APPROVE'
+                ? `${after.transferNumber} approved. ${after.fromShop?.name ?? 'The source shop'} will dispatch.`
+                : `${after.transferNumber} rejected`,
+        );
+    }),
 };
 
+export default {shop, branch};

@@ -1,7 +1,6 @@
-import BranchStockTransfersPage from '@/pages/branch/BranchStockTransfersPage';
+import StockTransferPage from '@/pages/shop/stock/StockTransferPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/shop-admin/stock-transfer')({
-  component: BranchStockTransfersPage,
+  component: () => <StockTransferPage panel="shop-admin" />,
 });
-

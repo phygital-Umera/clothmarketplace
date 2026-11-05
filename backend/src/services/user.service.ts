@@ -8,6 +8,7 @@ import {ApiError, encryptPassword, isPasswordMatch} from '@utils/index';
 import {userValidation} from '@validations/index';
 import tokenService from './token.service';
 import emailService from './email.service';
+import staffService from './staff.service';
 
 type LoginUser = z.infer<typeof userValidation.loginUserSchema>;
 type RegisterUser = z.infer<typeof userValidation.registerUserSchema>;
@@ -162,6 +163,8 @@ class UserService {
             data: {lastLoginAt: new Date()},
             select: SAFE_USER,
         });
+        // First sign-in of the day marks shop staff in
+        await staffService.autoClockIn(user);
 
         return {...tokens, user: profile};
     }
@@ -180,6 +183,7 @@ class UserService {
         }
 
         await this.assertCanSignIn(user);
+        await staffService.autoClockIn(user);
 
         return tokenService.generateAccessAndRefreshToken({
             id: user.id,

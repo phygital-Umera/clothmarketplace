@@ -31,3 +31,6 @@ export {default as purchaseReturnController} from './purchaseReturn.controller';
 export * as supplierController from './supplier.controller';
 export * as barcodeLabelController from './barcodeLabel.controller';
 export * as stockController from './stock.controller';
+export * as stockAdjustmentController from './stockAdjustment.controller';
+export {default as staffController} from './staff.controller';
+export {default as cashBookController} from './cashBook.controller';

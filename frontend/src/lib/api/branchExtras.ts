@@ -166,14 +166,14 @@ export const getBranchStaffOverview = (params?: {tab?: string; shop?: string; se
   api.get<Res<StaffOverviewData>>('/branch-admin/staff-overview', {params}).then((r: any) => r);
 
 export const inviteBranchStaff = (data: {
-  fullName: string;
-  mobile: string;
-  email: string;
-  shopName: string;
-  role: string;
-  joiningDate: string;
+  fullname: string;
+  phoneNumber: string;
+  email?: string;
+  shopId: string;
+  employeeRole: string;
   shift: string;
-  permissions?: string[];
+  permissions: string[];
+  note?: string;
 }) =>
   api.post<Res<{success: boolean; message: string}>>('/branch-admin/staff-overview/invite', data).then((r: any) => r);
 

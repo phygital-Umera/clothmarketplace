@@ -43,6 +43,8 @@ model User {
   jobTitle               String?
   joiningDate            DateTime?
   permissions            String[]      @default([])
+  /// Shop staff shift: FULL_DAY, MORNING, EVENING
+  shift                  String?
   sessionsRevokedAt      DateTime?
   admin                  Admin?
   branch                 Branch?       @relation(fields: [branchId], references: [id])
@@ -65,6 +67,7 @@ model User {
   decidedCreditNotes     CreditNote[]        @relation("CreditNoteDecidedBy")
 salesReturns           SalesReturn[]          @relation("SalesReturnCreatedBy")
   expenses               Expense[]              @relation("ExpenseCreatedBy")
+  attendances            Attendance[]           @relation("AttendanceUser")
 
 }
 
@@ -247,6 +250,11 @@ model Shop {
   creditNotes   CreditNote[]
 salesReturns  SalesReturn[]
   counterSessions CounterSession[]
+  cashEntries   CashEntry[]
+  attendances   Attendance[]
+  staffRequests StaffRequest[]
+  transfersOut  StockTransfer[] @relation("TransferFromShop")
+  transfersIn   StockTransfer[] @relation("TransferToShop")
   expenses      Expense[]
   customers     ShopCustomer[]
   creditPayments CustomerCreditPayment[]
@@ -615,6 +623,7 @@ enum StockSourceType {
   ORDER
   RETURN
   ADJUSTMENT
+  TRANSFER
 }
 
 model StockMovement {
@@ -888,8 +897,162 @@ model CounterSession {
   closedAt    DateTime?
   closingCash Float?
   closedById  String?
+  /// Notes counted at day close, e.g. {"500": 6, "200": 6}
+  denominations    Json?
+  expectedCash     Float?
+  difference       Float?
+  differenceReason String?
+  /// Branch admin review of a difference: ACCEPTED (null = not reviewed)
+  reviewStatus     String?
+  reviewAction     String?
+  reviewNote       String?
+  depositAmount    Float?
+  keptFloat        Float?
+  cashEntries      CashEntry[]
 
   @@index([shopId, closedAt])
+  @@index([shopId, openedAt])
+}
+
+/// Manual cash movement at the counter: cash in / out, or a bank deposit
+model CashEntry {
+  id          String          @id @default(uuid())
+  shopId      String
+  shop        Shop            @relation(fields: [shopId], references: [id])
+  sessionId   String?
+  session     CounterSession? @relation(fields: [sessionId], references: [id])
+  type        String // IN, OUT, BANK_DEPOSIT
+  amount      Float
+  particulars String
+  reference   String?
+  bankName    String?
+  createdById String
+  createdAt   DateTime        @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([sessionId])
+}
+
+/// Branch admin's bank deposit of the day's cash handed over by the shops
+model BankDeposit {
+  id          String   @id @default(uuid())
+  companyId   String
+  branchId    String
+  depositDate DateTime @db.Date
+  amount      Float
+  bank        String
+  reference   String?
+  slipUrl     String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([branchId, depositDate])
+}
+
+/// A staff member's day at the shop
+model Attendance {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation("AttendanceUser", fields: [userId], references: [id])
+  shopId     String
+  shop       Shop      @relation(fields: [shopId], references: [id])
+  /// Calendar day (IST), stored as a date
+  date       DateTime  @db.Date
+  status     String // IN, OUT, LEAVE, ABSENT
+  inAt       DateTime?
+  outAt      DateTime?
+  markedById String?
+  note       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([shopId, date])
+}
+
+/// A shop asks the branch admin for a new staff member
+model StaffRequest {
+  id            String    @id @default(uuid())
+  requestNumber String    @unique
+  companyId     String
+  branchId      String
+  shopId        String
+  shop          Shop      @relation(fields: [shopId], references: [id])
+  fullname      String
+  phoneNumber   String
+  email         String?
+  employeeRole  String
+  shift         String
+  permissions   String[]  @default([])
+  note          String?
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdUserId String?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([branchId, status])
+  @@index([shopId])
+}
+
+/// Stock moved between two shops of a branch:
+/// REQUESTED -> APPROVED (branch admin) -> DISPATCHED (source shop) -> RECEIVED / SHORT (requesting shop)
+model StockTransfer {
+  id             String    @id @default(uuid())
+  transferNumber String
+  companyId      String
+  branchId       String
+  /// null while the request is for "any shop in the branch"; set on approval
+  fromShopId     String?
+  fromShop       Shop?     @relation("TransferFromShop", fields: [fromShopId], references: [id])
+  toShopId       String
+  toShop         Shop      @relation("TransferToShop", fields: [toShopId], references: [id])
+  status         String    @default("REQUESTED")
+  reason         String
+  note           String?
+  neededBy       DateTime?
+  requestedById  String
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectReason   String?
+  dispatchedById String?
+  dispatchedAt   DateTime?
+  receivedById   String?
+  receivedAt     DateTime?
+  receiveNote    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  items StockTransferItem[]
+
+  @@unique([branchId, transferNumber])
+  @@index([branchId, status])
+  @@index([fromShopId])
+  @@index([toShopId])
+}
+
+model StockTransferItem {
+  id              String        @id @default(uuid())
+  transferId      String
+  transfer        StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  /// The requesting shop's variant (stock comes in here); null until a product the
+  /// shop does not carry yet is copied into it on receipt
+  destVariantId   String?
+  /// The source shop's matching variant (stock goes out from here), set on approval
+  sourceVariantId String?
+  productName     String
+  variantSku      String
+  size            String
+  color           String
+  requestedQty    Int
+  approvedQty     Int?
+  dispatchedQty   Int?
+  receivedQty     Int?
+
+  @@index([transferId])
 }
 
 /// Shop running expense; cash expenses reduce the drawer
@@ -912,16 +1075,32 @@ model Expense {
 }
 
 model StockAdjustment {
-  id          String   @id @default(uuid())
-  branchId    String
-  variantId   String
-  type        String   // INCREASE, DECREASE, CORRECTION
-  quantity    Int
-  reason      String
-  notes       String?
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id               String    @id @default(uuid())
+  adjustmentNumber String?
+  reference        String?
+  photoUrl         String?
+  branchId         String
+  shopId           String?
+  companyId        String?
+  variantId        String
+  type             String    // INCREASE, DECREASE, MARK_DAMAGED, WRITE_OFF
+  quantity         Int
+  availableBefore  Int       @default(0)
+  availableAfter   Int       @default(0)
+  damagedBefore    Int       @default(0)
+  damagedAfter     Int       @default(0)
+  reason           String
+  notes            String?
+  approvalStatus   String    @default("AUTO") // AUTO, APPROVED, PENDING, REJECTED
+  approvedById     String?
+  approvedAt       DateTime?
+  createdById      String
+  createdBy        User      @relation(fields: [createdById], references: [id])
+  createdAt        DateTime  @default(now())
+
+  @@index([branchId, createdAt])
+  @@index([variantId])
+  @@index([adjustmentNumber])
 }
 
 // -------------------------------------------------------------

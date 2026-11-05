@@ -14,9 +14,14 @@ type ModalProps = {panel: string; onClose: () => void};
 const amountOf = (v: number | '') => (v === '' ? NaN : Number(v));
 
 /** Start the counter day with the cash already in the drawer */
-export function OpenCounterModal({panel, onClose}: ModalProps) {
+export function OpenCounterModal({
+  panel,
+  onClose,
+  defaultCash,
+}: ModalProps & {defaultCash?: number | null}) {
   const open = useOpenCounter(panel);
-  const [cash, setCash] = useState<number | ''>('');
+  // Prefilled with the float kept at the last day close, when known
+  const [cash, setCash] = useState<number | ''>(defaultCash ?? '');
   const [error, setError] = useState('');
 
   const submit = async () => {

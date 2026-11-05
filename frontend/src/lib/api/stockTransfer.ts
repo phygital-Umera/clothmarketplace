@@ -1,77 +1,53 @@
 import {api} from '@/utils/axios';
-
-export type StockTransfer = {
-  id: string;
-  transferNo: string;
-  transferType: string;
-  fromLocation: string;
-  toLocation: string;
-  requestedBy: string;
-  dispatchDate: string;
-  priority: string;
-  units: number;
-  status: string;
-  reason: string;
-  metadata?: {
-    variants?: Array<{name: string; sent: number; received: number}>;
-    discrepancyNote?: string;
-    damagedOnArrival?: number;
-    receivingNote?: string;
-  };
-  createdAt: string;
-};
-
-export type StockTransferSummary = {
-  toApprove: number;
-  toDispatch: number;
-  incoming: number;
-  discrepancies: number;
-};
+import {
+  CreateTransferPayload,
+  ShopRef,
+  ShopTransferList,
+  SourceOption,
+  StockTransfer,
+  TransferDecision,
+  TransferSummary,
+  TransferVariant,
+} from '@/types/stockTransfer';
 
 type Res<T> = {statusCode: number; data: T; message: string};
 
+// ---- Shop: request, dispatch, receive ----
+
+export const getTransferShops = (panel: string) =>
+  api.get(`/${panel}/transfers/shops`).then((res: any) => res as Res<ShopRef[]>);
+
+export const getTransferVariants = (panel: string, search?: string) =>
+  api.get(`/${panel}/transfers/variants`, {
+      params: search ? {search} : {},
+    }).then((res: any) => res as Res<TransferVariant[]>);
+
+export const getShopTransfers = (panel: string, tab: 'MINE' | 'DISPATCH' | 'HISTORY', search?: string) =>
+  api.get(`/${panel}/transfers`, {params: {tab, ...(search ? {search} : {})}}).then((res: any) => res as Res<ShopTransferList>);
+
+export const createTransferRequest = (panel: string, data: CreateTransferPayload) =>
+  api.post(`/${panel}/transfers`, data).then((res: any) => res as Res<StockTransfer>);
+
+export const dispatchTransfer = (panel: string, id: string) =>
+  api.post(`/${panel}/transfers/${id}/dispatch`).then((res: any) => res as Res<StockTransfer>);
+
+export const receiveTransfer = (
+  panel: string,
+  id: string,
+  data: {items: Array<{itemId: string; receivedQty: number}>; note?: string},
+) =>
+  api.post(`/${panel}/transfers/${id}/receive`, data).then((res: any) => res as Res<StockTransfer>);
+
+// ---- Branch admin: approve / reject, overview ----
+
 export const getStockTransfers = (params?: {search?: string; tab?: string}) =>
-  api
-    .get<Res<{items: StockTransfer[]}>>('/branch-admin/transfers', {params})
-    .then((res: any) => res);
+  api.get('/branch-admin/transfers', {params}).then((res: any) => res as Res<{items: StockTransfer[]}>);
 
 export const getStockTransferSummary = () =>
-  api
-    .get<Res<StockTransferSummary>>('/branch-admin/transfers/summary')
-    .then((res: any) => res);
+  api.get('/branch-admin/transfers/summary').then((res: any) => res as Res<TransferSummary>);
 
-export const confirmTransferReceipt = (
-  id: string,
-  data: {
-    damagedOnArrival?: number;
-    receivingNote?: string;
-    itemsReceived: Record<string, number>;
-  },
-) =>
-  api
-    .post<Res<{success: boolean; status: string; message: string}>>(
-      `/branch-admin/transfers/${id}/receive`,
-      data,
-    )
-    .then((res: any) => res);
+export const getTransferSources = (id: string) =>
+  api.get(`/branch-admin/transfers/${id}/sources`).then((res: any) => res as Res<SourceOption[]>);
 
-export const createStockTransfer = (data: {
-  transferType: string;
-  fromSource: string;
-  toDestination: string;
-  dispatchDate: string;
-  priority: string;
-  items: Array<{
-    productVariant: string;
-    sku: string;
-    availableAtSource: number;
-    qtyToSend: number;
-  }>;
-  reason: string;
-  noteForReceiver?: string;
-  status?: string;
-}) =>
-  api
-    .post<Res<StockTransfer>>('/branch-admin/transfers', data)
-    .then((res: any) => res);
-
+export const decideTransfer = (id: string, data: TransferDecision) =>
+  api.post(`/branch-admin/transfers/${id}/decision`, data).then((res: any) => res as Res<StockTransfer>);

@@ -9,3 +9,7 @@ export {default as shopProductValidation} from './shopProduct.validation';
 export {default as billValidation} from './bill.validation';
 export {default as creditNoteValidation} from './creditNote.validation';
 export {default as shopOpsValidation} from './shopOps.validation';
+export {default as cashBookValidation} from './cashBook.validation';
+export {default as staffValidation} from './staff.validation';
+export {default as stockTransferValidation} from './stockTransfer.validation';
+export {default as dayCloseValidation} from './dayClose.validation';
