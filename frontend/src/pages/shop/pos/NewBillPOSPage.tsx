@@ -216,11 +216,11 @@ export default function NewBillPOSPage() {
     // Fallback default quick tiles matching the reference design
     return [
       {
-        variantId: 'mock-1',
-        productId: 'prod-1',
+        variantId: '8f3d7805-e476-4aeb-8c70-3ce20df2d81c',
+        productId: '34c6cfcd-50d5-40b0-a1eb-404e563f4db4',
         product: {name: 'Cotton Kurta', hsnCode: '6204', taxRate: 5},
         variant: {
-          id: 'mock-1',
+          id: '8f3d7805-e476-4aeb-8c70-3ce20df2d81c',
           sku: '8901234011012',
           size: 'M',
           color: 'Indigo',
@@ -231,11 +231,11 @@ export default function NewBillPOSPage() {
         availableStock: 44,
       },
       {
-        variantId: 'mock-2',
-        productId: 'prod-2',
+        variantId: 'bc77b679-d737-483b-be30-df7dc6008ac9',
+        productId: '8671a44a-f894-4431-ac11-2f37a99fd1b7',
         product: {name: 'Cotton Dupatta', hsnCode: '6214', taxRate: 5},
         variant: {
-          id: 'mock-2',
+          id: 'bc77b679-d737-483b-be30-df7dc6008ac9',
           sku: '8901234015010',
           size: 'Free',
           color: 'Mustard',
@@ -246,11 +246,11 @@ export default function NewBillPOSPage() {
         availableStock: 52,
       },
       {
-        variantId: 'mock-3',
-        productId: 'prod-3',
+        variantId: '0ee471e4-6c8f-4b19-9008-fdb010f89005',
+        productId: 'e3db1f98-b118-46c4-b2e2-d44cefa540a3',
         product: {name: 'Linen Top', hsnCode: '6206', taxRate: 5},
         variant: {
-          id: 'mock-3',
+          id: '0ee471e4-6c8f-4b19-9008-fdb010f89005',
           sku: '8901234020101',
           size: 'L',
           color: 'Beige',
@@ -261,11 +261,11 @@ export default function NewBillPOSPage() {
         availableStock: 31,
       },
       {
-        variantId: 'mock-4',
-        productId: 'prod-4',
+        variantId: '0c2dfd1a-06df-4108-a3ac-d2db2b26122b',
+        productId: '9c6c5758-1c2f-4025-a93a-5a83caf6522b',
         product: {name: 'Palazzo Pants', hsnCode: '6204', taxRate: 5},
         variant: {
-          id: 'mock-4',
+          id: '0c2dfd1a-06df-4108-a3ac-d2db2b26122b',
           sku: '8901234024519',
           size: 'XL',
           color: 'White',
@@ -276,11 +276,11 @@ export default function NewBillPOSPage() {
         availableStock: 40,
       },
       {
-        variantId: 'mock-5',
-        productId: 'prod-5',
+        variantId: '96ebfcc4-1576-4688-868c-5f05254cc0e1',
+        productId: 'e61cccc8-f09f-481b-9aed-609c1bcf1ea0',
         product: {name: 'Printed Anarkali', hsnCode: '6204', taxRate: 12},
         variant: {
-          id: 'mock-5',
+          id: '96ebfcc4-1576-4688-868c-5f05254cc0e1',
           sku: '8901234029812',
           size: 'M',
           color: 'Floral Red',
@@ -291,11 +291,11 @@ export default function NewBillPOSPage() {
         availableStock: 18,
       },
       {
-        variantId: 'mock-6',
-        productId: 'prod-6',
+        variantId: 'c34fdabc-e6d2-4e39-a766-e05807bbda30',
+        productId: 'ef012bb7-caf4-4da3-952d-51832262692d',
         product: {name: 'Carry bag', hsnCode: '4202', taxRate: 0},
         variant: {
-          id: 'mock-6',
+          id: 'c34fdabc-e6d2-4e39-a766-e05807bbda30',
           sku: '8901234000001',
           size: 'Std',
           color: 'Brown',
@@ -542,6 +542,11 @@ export default function NewBillPOSPage() {
   const handleCompleteBill = async (status: 'DRAFT' | 'CONFIRMED' = 'CONFIRMED') => {
     if (lines.length === 0) {
       toast.error('Cannot create an empty bill');
+      return;
+    }
+
+    if (lines.some((l) => !l.variantId || l.variantId.startsWith('mock-'))) {
+      toast.error('One or more items in the bill are placeholders. Please remove them and pick items from stock.');
       return;
     }
 
