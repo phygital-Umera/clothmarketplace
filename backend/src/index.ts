@@ -1,4 +1,6 @@
-import 'module-alias/register';
+if (__filename.endsWith('.js')) {
+    require('module-alias/register');
+}
 import {Server} from 'http';
 import app from './app';
 import prisma from './client';

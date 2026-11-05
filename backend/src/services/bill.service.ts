@@ -187,14 +187,11 @@ class BillService {
 
     /** Paid now vs owed; CREDIT with no amount means nothing was paid */
     private payment(totalAmount: number, data: {paymentMethod: string; paidAmount?: number}) {
-        const paid = data.paidAmount ?? (data.paymentMethod === 'CREDIT' ? 0 : totalAmount);
+        let paid = data.paidAmount ?? (data.paymentMethod === 'CREDIT' ? 0 : totalAmount);
         if (paid > totalAmount) {
-            throw new ApiError(
-                httpStatus.BAD_REQUEST,
-                'Amount paid cannot be more than the bill total',
-            );
+            paid = totalAmount;
         }
-        return {paidAmount: round2(paid), creditAmount: round2(totalAmount - paid)};
+        return {paidAmount: round2(paid), creditAmount: Math.max(0, round2(totalAmount - paid))};
     }
 
     /**
@@ -208,16 +205,16 @@ class BillService {
         collected: number,
         party: {name?: string | null; phone?: string | null},
     ) {
-        const amountPaid = round2(paidNow.reduce((sum, p) => sum + p.amount, 0) + collected);
-        if (amountPaid > totalAmount) {
+        let amountPaid = round2(paidNow.reduce((sum, p) => sum + p.amount, 0) + collected);
+        if (kind === 'SALES' && amountPaid > totalAmount) {
+            amountPaid = totalAmount;
+        } else if (kind === 'PURCHASE' && amountPaid > totalAmount) {
             throw new ApiError(
                 httpStatus.BAD_REQUEST,
-                kind === 'SALES'
-                    ? 'Payment received is more than the bill amount'
-                    : 'Amount paid is more than the bill amount',
+                'Amount paid is more than the bill amount',
             );
         }
-        const balanceDue = round2(totalAmount - amountPaid);
+        const balanceDue = Math.max(0, round2(totalAmount - amountPaid));
         if (kind === 'SALES' && balanceDue > 0 && (!party.name || !party.phone)) {
             throw new ApiError(
                 httpStatus.BAD_REQUEST,
@@ -256,7 +253,16 @@ class BillService {
     }
 
     private salesPaidNow(data: CreateSales | UpdateSales, totalAmount: number): Payment[] {
-        if (data.payments) return data.payments;
+        if (data.payments && data.payments.length > 0) {
+            let remaining = totalAmount;
+            return data.payments
+                .map((p) => {
+                    const applied = Math.min(p.amount, remaining);
+                    remaining = Math.max(0, round2(remaining - applied));
+                    return {...p, amount: round2(applied)};
+                })
+                .filter((p) => p.amount > 0);
+        }
         return [{mode: data.paymentMethod, amount: totalAmount}];
     }
 

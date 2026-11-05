@@ -565,7 +565,11 @@ export default function NewBillPOSPage() {
     }
 
     const payments: {mode: PaymentMethod; amount: number}[] = [];
-    if (cashAmount > 0) payments.push({mode: 'CASH', amount: cashAmount});
+    let netCash = cashAmount;
+    if (changeToReturn > 0) {
+      netCash = Math.max(0, round2(cashAmount - changeToReturn));
+    }
+    if (netCash > 0) payments.push({mode: 'CASH', amount: netCash});
     if (upiAmount > 0) payments.push({mode: 'UPI', amount: upiAmount});
     if (cardAmount > 0) payments.push({mode: 'CARD', amount: cardAmount});
 
@@ -597,7 +601,11 @@ export default function NewBillPOSPage() {
         unitPrice: l.rate,
         discount: l.discount,
       })),
-      notes: customerGSTIN ? `GSTIN: ${customerGSTIN} | Salesman: ${salesman}` : `Salesman: ${salesman}`,
+      notes: [
+        customerGSTIN ? `GSTIN: ${customerGSTIN}` : '',
+        salesman ? `Salesman: ${salesman}` : '',
+        changeToReturn > 0 ? `Tendered: ${inr(cashAmount)} | Change: ${inr(changeToReturn)}` : '',
+      ].filter(Boolean).join(' | '),
     };
 
     try {
