@@ -41,6 +41,7 @@ const changePasswordSchema = z
         currentPassword: z.string().min(1, 'Current Password is required'),
         newPassword: field({label: 'New Password', kind: 'password'}),
         confirmPassword: z.string({required_error: 'Confirm Password is required'}),
+        signOutOthers: z.boolean().optional(),
     })
     .refine((v) => v.newPassword === v.confirmPassword, {
         message: 'Passwords do not match',
@@ -70,10 +71,13 @@ const resetPasswordSchema = z
         path: ['confirmPassword'],
     });
 
-// Only harmless profile fields; role, status, company etc. are not editable here
+// Profile fields: name, address, phone, posPin, photoUrl
 const updateUserSchema = z.object({
     fullname: field({label: 'Full Name', kind: 'name', required: false}),
     address: field({label: 'Address', kind: 'text', max: 500, required: false}),
+    phoneNumber: z.string().trim().optional(),
+    posPin: z.string().trim().max(10).optional().nullable(),
+    photoUrl: z.string().trim().optional().nullable(),
 });
 
 export default {

@@ -19,11 +19,14 @@ export const positive = (label: string) =>
 
 export const REFUND_MODES = [...PAYMENT_MODES, 'STORE_CREDIT', 'ADJUST_DUE', 'EXCHANGE'] as const;
 export const EXPENSE_CATEGORIES = [
-    'Tea / Snacks',
-    'Transport',
-    'Salary Advance',
-    'Utilities',
-    'Repairs',
+    'Tea & refreshment',
+    'Porter / Transport',
+    'Packing material',
+    'Rent',
+    'Salary',
+    'Electricity',
+    'Repairs & maintenance',
+    'Stationery',
     'Other',
 ] as const;
 
@@ -71,18 +74,22 @@ const openCounterSchema = z.object({openingCash: money('Opening Cash')});
 const closeCounterSchema = z.object({closingCash: money('Closing Cash')});
 
 const createExpenseSchema = z.object({
-    category: z.enum(EXPENSE_CATEGORIES, {errorMap: () => ({message: 'Select a category'})}),
+    category: z.string().optional(),
+    head: z.string().optional(),
+    description: z.string().optional(),
+    notes: text('Notes', 500).optional(),
     amount: positive('Amount'),
-    mode: z
-        .enum(PAYMENT_MODES, {errorMap: () => ({message: 'Select Cash, UPI or Card'})})
-        .default('CASH'),
+    mode: z.string().optional().default('CASH'),
+    paidBy: z.string().optional().default('Cash from counter'),
+    date: z.string().optional(),
     expenseDate: z
         .preprocess(
             emptyToUndefined,
             z.coerce.date({invalid_type_error: 'Enter a valid Date'}).optional(),
         )
-        .refine((d) => !d || d.getTime() <= Date.now() + 60_000, 'Date cannot be in the future'),
-    notes: text('Notes', 300),
+        .optional(),
+    gstAmount: z.coerce.number().optional().default(0),
+    photoUrl: z.string().optional().nullable(),
 });
 
 const expenseListSchema = listQuerySchema(
@@ -91,6 +98,8 @@ const expenseListSchema = listQuerySchema(
 ).extend({
     from: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
     to: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
+    month: z.string().optional(),
+    head: z.string().optional(),
 });
 
 const idSchema = z.object({id: z.string().uuid('Invalid ID parameter')});

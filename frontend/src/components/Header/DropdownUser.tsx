@@ -3,8 +3,9 @@ import ClickOutside from '../ClickOutside';
 import {useAuthContext} from '@/context/AuthContext';
 import {roleConfig} from '@/lib/roles';
 import {logoutUser} from '@/lib/api/Auth/auth';
-import {ChevronDown, LogOut} from 'lucide-react';
+import {ChevronDown, LogOut, User} from 'lucide-react';
 import {useQueryClient} from '@tanstack/react-query';
+import {Link} from '@tanstack/react-router';
 
 const DropdownUser = () => {
   const {user, logout} = useAuthContext();
@@ -24,6 +25,11 @@ const DropdownUser = () => {
     .map((w) => w[0])
     .join('')
     .toUpperCase();
+
+  const profilePath =
+    user?.role === 'SHOP_ADMIN'
+      ? '/shop-admin/my-profile'
+      : '/branch-admin/my-profile';
 
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
@@ -48,7 +54,7 @@ const DropdownUser = () => {
       </button>
 
       {dropdownOpen && (
-        <div className="absolute right-0 mt-3 w-56 border border-ivory-300 bg-white">
+        <div className="absolute right-0 mt-3 w-56 border border-ivory-300 bg-white shadow-md z-50">
           <div className="border-b border-ivory-300 px-4 py-3">
             <p className="truncate text-body-sm font-medium text-espresso">
               {user?.fullname}
@@ -57,6 +63,15 @@ const DropdownUser = () => {
               {user?.email}
             </p>
           </div>
+
+          <Link
+            to={profilePath}
+            onClick={() => setDropdownOpen(false)}
+            className="flex w-full items-center gap-3 px-4 py-3 text-body-sm text-espresso transition-colors hover:bg-ivory-100 hover:text-burgundy border-b border-ivory-300"
+          >
+            <User size={16} /> My profile
+          </Link>
+
           <button
             onClick={handleSignOut}
             className="flex w-full items-center gap-3 px-4 py-3 text-body-sm text-espresso transition-colors hover:bg-ivory-100 hover:text-burgundy"

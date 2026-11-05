@@ -103,6 +103,11 @@ const expenses = {
         );
     }),
 
+    nextNumber: catchAsync(async (req, res) => {
+        const nextExpenseNumber = await expenseService.getNextExpenseNumber(shopOf(req));
+        return ok(res, {nextExpenseNumber}, 'Next expense number fetched');
+    }),
+
     create: catchAsync(async (req, res) => {
         const scope = shopOf(req);
         const data = v.createExpenseSchema.parse(req.body);
