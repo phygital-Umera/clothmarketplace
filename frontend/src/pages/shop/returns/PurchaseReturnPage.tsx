@@ -32,10 +32,6 @@ const REASON_OPTIONS = [
 ];
 
 export default function PurchaseReturnPage() {
-  console.log('[Shop Panel] Rendering PurchaseReturnPage');
-  useEffect(() => {
-    console.log('[Shop Panel] PurchaseReturnPage mounted');
-  }, []);
 
   // Form State
   const [selectedSupplier, setSelectedSupplier] = useState<string>('Tiruppur Knits - 33');

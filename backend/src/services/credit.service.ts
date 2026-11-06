@@ -157,17 +157,24 @@ class CreditService {
     scope: ShopScope,
     search?: string,
   ): Promise<CreditCustomerSummary[]> => {
-    let whereClause = `WHERE "shopId" = '${scope.shopId}' AND "balanceDue" > 0 AND "isActive" = true`;
-    if (search && search.trim()) {
-      const q = search.trim().replace(/'/g, "''");
-      whereClause += ` AND ("name" ILIKE '%${q}%' OR "mobile" ILIKE '%${q}%' OR "businessName" ILIKE '%${q}%')`;
-    }
-
-    const customers = await prisma.$queryRawUnsafe<any[]>(`
-      SELECT * FROM "ShopCustomer"
-      ${whereClause}
-      ORDER BY "balanceDue" DESC
-    `);
+    const q = search?.trim();
+    const customers = await prisma.shopCustomer.findMany({
+      where: {
+        shopId: scope.shopId,
+        balanceDue: { gt: 0 },
+        isActive: true,
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { mobile: { contains: q } },
+                { businessName: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { balanceDue: 'desc' },
+    });
 
     const now = new Date();
     const result: CreditCustomerSummary[] = [];
@@ -389,7 +396,7 @@ class CreditService {
           receiptNumber,
           shopId: scope.shopId,
           companyId: scope.companyId,
-          branchId: customer.branchId || scope.shopId,
+          branchId: customer.branchId,
           customerId: customer.id,
           amount: data.amount,
           mode: data.mode,

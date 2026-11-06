@@ -17,6 +17,15 @@ type SizeInput = z.infer<typeof masterValidation.createSizeSchema>;
 type SizeUpdate = z.infer<typeof masterValidation.updateSizeSchema>;
 type MasterList = z.infer<typeof masterValidation.masterListSchema>;
 
+/*
+ * Shop masters: categories, subcategories, colors and sizes.
+ *
+ * Each company keeps its own masters, shared by all of its branches and shops.
+ * Rows with companyId = null are platform-wide (made by the super admin): every
+ * company can pick them, but only the super admin can change them. A company
+ * can never see or change another company's masters.
+ */
+
 const codeFrom = (name: string) =>
     name
         .toUpperCase()
@@ -30,15 +39,42 @@ const uniqueCode = async (base: string, taken: (prefix: string) => Promise<strin
     for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
 };
 
+/** What a company can see: its own rows and the platform-wide ones */
+const visible = (companyId: string) => ({OR: [{companyId}, {companyId: null}]});
+
+const conflict = (message: string, field = 'name') =>
+    new ApiError(httpStatus.CONFLICT, message, [{field, message}]);
+
+const notFound = (what: string) => new ApiError(httpStatus.NOT_FOUND, `${what} not found`);
+
+const readOnly = (what: string) =>
+    new ApiError(
+        httpStatus.FORBIDDEN,
+        `This ${what} is shared across the platform and can only be changed by the super admin`,
+    );
+
+const withFlag = <T extends {companyId: string | null}>(row: T) => ({...row, isGlobal: !row.companyId});
+
 class MasterService {
+    /** A row the company may change: its own, never a platform-wide one */
+    private async owned<T extends {companyId: string | null} | null>(
+        row: T,
+        companyId: string,
+        what: string,
+    ): Promise<NonNullable<T>> {
+        if (!row || (row.companyId && row.companyId !== companyId)) throw notFound(what);
+        if (!row.companyId) throw readOnly(what.toLowerCase());
+        return row as NonNullable<T>;
+    }
+
     // ==========================================
-    // 1. CATEGORY MANAGEMENT
+    // 1. CATEGORIES
     // ==========================================
 
-    public async listCategories(query: MasterList) {
+    public async listCategories(companyId: string, query: MasterList) {
         const where: Prisma.CategoryWhereInput = {
+            AND: [visible(companyId), {OR: searchWhere(query.search, ['name', 'code'] as const)}],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
-            OR: searchWhere(query.search, ['name', 'code'] as const),
         };
         const [items, total] = await prisma.$transaction([
             prisma.category.findMany({
@@ -46,8 +82,8 @@ class MasterService {
                 include: {
                     _count: {
                         select: {
-                            products: {where: {deletedAt: null}},
-                            subcategories: true,
+                            products: {where: {deletedAt: null, companyId}},
+                            subcategories: {where: visible(companyId)},
                         },
                     },
                 },
@@ -57,7 +93,7 @@ class MasterService {
         ]);
         return toListResult(
             items.map(({_count, ...c}) => ({
-                ...c,
+                ...withFlag(c),
                 productCount: _count.products,
                 subcategoryCount: _count.subcategories,
             })),
@@ -66,45 +102,54 @@ class MasterService {
         );
     }
 
-    public async getCategory(id: string) {
-        const category = await prisma.category.findUnique({
-            where: {id},
+    public async getCategory(companyId: string, id: string) {
+        const category = await prisma.category.findFirst({
+            where: {id, ...visible(companyId)},
             include: {
                 subcategories: {
+                    where: visible(companyId),
                     select: {id: true, name: true, code: true, isActive: true},
                     orderBy: {name: 'asc'},
                 },
                 _count: {
-                    select: {products: {where: {deletedAt: null}}, subcategories: true},
+                    select: {
+                        products: {where: {deletedAt: null, companyId}},
+                        subcategories: {where: visible(companyId)},
+                    },
                 },
             },
         });
-        if (!category) throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
+        if (!category) throw notFound('Category');
+        const {_count, ...rest} = category;
         return {
-            ...category,
-            productCount: category._count.products,
-            subcategoryCount: category._count.subcategories,
+            ...withFlag(rest),
+            productCount: _count.products,
+            subcategoryCount: _count.subcategories,
         };
     }
 
-    public async categoryOptions() {
+    public async categoryOptions(companyId: string) {
         return prisma.category.findMany({
-            where: {isActive: true},
+            where: {isActive: true, ...visible(companyId)},
             select: {id: true, name: true, code: true},
             orderBy: [{displayOrder: 'asc'}, {name: 'asc'}],
         });
     }
 
-    public async createCategory(data: CategoryInput) {
-        const existing = await prisma.category.findFirst({
-            where: {name: {equals: data.name, mode: 'insensitive'}},
+    private async assertCategoryNameFree(companyId: string, name: string, exceptId?: string) {
+        const clash = await prisma.category.findFirst({
+            where: {
+                name: {equals: name, mode: 'insensitive'},
+                ...visible(companyId),
+                ...(exceptId ? {NOT: {id: exceptId}} : {}),
+            },
+            select: {id: true},
         });
-        if (existing) {
-            throw new ApiError(httpStatus.CONFLICT, 'A category with this name already exists', [
-                {field: 'name', message: 'A category with this name already exists'},
-            ]);
-        }
+        if (clash) throw conflict('A category with this name already exists');
+    }
 
+    public async createCategory(companyId: string, data: CategoryInput) {
+        await this.assertCategoryNameFree(companyId, data.name);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -116,6 +161,7 @@ class MasterService {
             );
             return prisma.category.create({
                 data: {
+                    companyId,
                     name: data.name,
                     code,
                     description: data.description,
@@ -126,48 +172,32 @@ class MasterService {
         }, 'code');
     }
 
-    public async updateCategory(id: string, data: CategoryUpdate) {
-        const before = await prisma.category.findUnique({where: {id}});
-        if (!before) throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
-
+    public async updateCategory(companyId: string, id: string, data: CategoryUpdate) {
+        const before = await this.owned(
+            await prisma.category.findUnique({where: {id}}),
+            companyId,
+            'Category',
+        );
         if (data.name && data.name.toLowerCase() !== before.name.toLowerCase()) {
-            const clash = await prisma.category.findFirst({
-                where: {
-                    name: {equals: data.name, mode: 'insensitive'},
-                    NOT: {id},
-                },
-            });
-            if (clash) {
-                throw new ApiError(httpStatus.CONFLICT, 'A category with this name already exists', [
-                    {field: 'name', message: 'A category with this name already exists'},
-                ]);
-            }
+            await this.assertCategoryNameFree(companyId, data.name, id);
         }
-
-        const after = await prisma.category.update({
-            where: {id},
-            data,
-        });
+        const after = await prisma.category.update({where: {id}, data});
         return {before, after};
     }
 
-    public async deleteCategory(id: string) {
-        const category = await prisma.category.findUnique({
-            where: {id},
-            include: {
-                _count: {
-                    select: {
-                        products: true,
-                        subcategories: true,
-                    },
-                },
-            },
-        });
-        if (!category) throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
+    public async deleteCategory(companyId: string, id: string) {
+        const category = await this.owned(
+            await prisma.category.findUnique({
+                where: {id},
+                include: {_count: {select: {products: true, subcategories: true}}},
+            }),
+            companyId,
+            'Category',
+        );
         if (category._count.products > 0 || category._count.subcategories > 0) {
             throw new ApiError(
                 httpStatus.CONFLICT,
-                `Cannot delete: Category has ${category._count.subcategories} subcategories and ${category._count.products} products. Delete or reassign them first, or deactivate the category.`,
+                `Cannot delete: this category has ${category._count.subcategories} subcategories and ${category._count.products} products. Move them first, or deactivate the category.`,
             );
         }
         await prisma.category.delete({where: {id}});
@@ -175,65 +205,69 @@ class MasterService {
     }
 
     // ==========================================
-    // 2. SUBCATEGORY MANAGEMENT
+    // 2. SUBCATEGORIES
     // ==========================================
 
-    public async listSubcategories(query: MasterList) {
+    public async listSubcategories(companyId: string, query: MasterList) {
         const where: Prisma.SubcategoryWhereInput = {
+            AND: [visible(companyId), {OR: searchWhere(query.search, ['name', 'code'] as const)}],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
             ...(query.categoryId ? {categoryId: query.categoryId} : {}),
-            OR: searchWhere(query.search, ['name', 'code'] as const),
         };
         const [items, total] = await prisma.$transaction([
             prisma.subcategory.findMany({
                 where,
-                include: {
-                    category: {select: {id: true, name: true, code: true}},
-                },
+                include: {category: {select: {id: true, name: true, code: true}}},
                 ...listArgs(query),
             }),
             prisma.subcategory.count({where}),
         ]);
-        return toListResult(items, total, query);
+        return toListResult(items.map(withFlag), total, query);
     }
 
-    public async getSubcategory(id: string) {
-        const sub = await prisma.subcategory.findUnique({
-            where: {id},
-            include: {
-                category: {select: {id: true, name: true, code: true}},
-            },
+    public async getSubcategory(companyId: string, id: string) {
+        const sub = await prisma.subcategory.findFirst({
+            where: {id, ...visible(companyId)},
+            include: {category: {select: {id: true, name: true, code: true}}},
         });
-        if (!sub) throw new ApiError(httpStatus.NOT_FOUND, 'Subcategory not found');
-        return sub;
+        if (!sub) throw notFound('Subcategory');
+        return withFlag(sub);
     }
 
-    public async createSubcategory(data: SubcategoryInput) {
-        // 1. Verify parent category exists in DB
-        const parentCategory = await prisma.category.findUnique({
-            where: {id: data.categoryId},
+    /** The parent must be one of the company's categories or a platform-wide one */
+    private async assertParent(companyId: string, categoryId: string) {
+        const parent = await prisma.category.findFirst({
+            where: {id: categoryId, ...visible(companyId)},
+            select: {id: true},
         });
-        if (!parentCategory) {
+        if (!parent) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Selected parent category does not exist', [
                 {field: 'categoryId', message: 'Selected parent category does not exist'},
             ]);
         }
+    }
 
-        // 2. Check duplicate name under same category
-        const existing = await prisma.subcategory.findFirst({
+    private async assertSubcategoryNameFree(
+        companyId: string,
+        categoryId: string,
+        name: string,
+        exceptId?: string,
+    ) {
+        const clash = await prisma.subcategory.findFirst({
             where: {
-                categoryId: data.categoryId,
-                name: {equals: data.name, mode: 'insensitive'},
+                categoryId,
+                name: {equals: name, mode: 'insensitive'},
+                ...visible(companyId),
+                ...(exceptId ? {NOT: {id: exceptId}} : {}),
             },
+            select: {id: true},
         });
-        if (existing) {
-            throw new ApiError(
-                httpStatus.CONFLICT,
-                'A subcategory with this name already exists in this category',
-                [{field: 'name', message: 'Subcategory name already exists in this category'}],
-            );
-        }
+        if (clash) throw conflict('A subcategory with this name already exists in this category');
+    }
 
+    public async createSubcategory(companyId: string, data: SubcategoryInput) {
+        await this.assertParent(companyId, data.categoryId);
+        await this.assertSubcategoryNameFree(companyId, data.categoryId, data.name);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -245,6 +279,7 @@ class MasterService {
             );
             return prisma.subcategory.create({
                 data: {
+                    companyId,
                     categoryId: data.categoryId,
                     name: data.name,
                     code,
@@ -252,59 +287,38 @@ class MasterService {
                     displayOrder: data.displayOrder ?? 0,
                     isActive: data.isActive ?? true,
                 },
-                include: {
-                    category: {select: {id: true, name: true, code: true}},
-                },
+                include: {category: {select: {id: true, name: true, code: true}}},
             });
         }, 'code');
     }
 
-    public async updateSubcategory(id: string, data: SubcategoryUpdate) {
-        const before = await prisma.subcategory.findUnique({where: {id}});
-        if (!before) throw new ApiError(httpStatus.NOT_FOUND, 'Subcategory not found');
-
-        const targetCategoryId = data.categoryId ?? before.categoryId;
-
-        // Verify parent category if updated
+    public async updateSubcategory(companyId: string, id: string, data: SubcategoryUpdate) {
+        const before = await this.owned(
+            await prisma.subcategory.findUnique({where: {id}}),
+            companyId,
+            'Subcategory',
+        );
+        const categoryId = data.categoryId ?? before.categoryId;
         if (data.categoryId && data.categoryId !== before.categoryId) {
-            const parent = await prisma.category.findUnique({where: {id: data.categoryId}});
-            if (!parent) {
-                throw new ApiError(httpStatus.BAD_REQUEST, 'Selected parent category does not exist', [
-                    {field: 'categoryId', message: 'Selected parent category does not exist'},
-                ]);
-            }
+            await this.assertParent(companyId, data.categoryId);
         }
-
-        if (data.name && (data.name.toLowerCase() !== before.name.toLowerCase() || (data.categoryId && data.categoryId !== before.categoryId))) {
-            const clash = await prisma.subcategory.findFirst({
-                where: {
-                    categoryId: targetCategoryId,
-                    name: {equals: data.name, mode: 'insensitive'},
-                    NOT: {id},
-                },
-            });
-            if (clash) {
-                throw new ApiError(
-                    httpStatus.CONFLICT,
-                    'A subcategory with this name already exists in this category',
-                    [{field: 'name', message: 'Subcategory name already exists in this category'}],
-                );
-            }
+        if (data.name || data.categoryId) {
+            await this.assertSubcategoryNameFree(companyId, categoryId, data.name ?? before.name, id);
         }
-
         const after = await prisma.subcategory.update({
             where: {id},
             data,
-            include: {
-                category: {select: {id: true, name: true, code: true}},
-            },
+            include: {category: {select: {id: true, name: true, code: true}}},
         });
         return {before, after};
     }
 
-    public async deleteSubcategory(id: string) {
-        const sub = await prisma.subcategory.findUnique({where: {id}});
-        if (!sub) throw new ApiError(httpStatus.NOT_FOUND, 'Subcategory not found');
+    public async deleteSubcategory(companyId: string, id: string) {
+        const sub = await this.owned(
+            await prisma.subcategory.findUnique({where: {id}}),
+            companyId,
+            'Subcategory',
+        );
         const used = await prisma.product.count({where: {subcategoryId: id, deletedAt: null}});
         if (used) {
             throw new ApiError(
@@ -317,46 +331,63 @@ class MasterService {
     }
 
     // ==========================================
-    // 3. COLOR MANAGEMENT
+    // 3. COLORS
     // ==========================================
 
-    public async listColors(query: MasterList) {
+    public async listColors(companyId: string, query: MasterList) {
         const where: Prisma.ColorWhereInput = {
+            AND: [
+                visible(companyId),
+                {OR: searchWhere(query.search, ['name', 'code', 'hexCode'] as const)},
+            ],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
-            OR: searchWhere(query.search, ['name', 'code', 'hexCode'] as const),
         };
         const [items, total] = await prisma.$transaction([
-            prisma.color.findMany({
-                where,
-                ...listArgs(query),
-            }),
+            prisma.color.findMany({where, ...listArgs(query)}),
             prisma.color.count({where}),
         ]);
-        return toListResult(items, total, query);
+        return toListResult(items.map(withFlag), total, query);
     }
 
-    public async getColor(id: string) {
-        const color = await prisma.color.findUnique({where: {id}});
-        if (!color) throw new ApiError(httpStatus.NOT_FOUND, 'Color not found');
-        return color;
+    public async getColor(companyId: string, id: string) {
+        const color = await prisma.color.findFirst({where: {id, ...visible(companyId)}});
+        if (!color) throw notFound('Color');
+        return withFlag(color);
     }
 
-    public async createColor(data: ColorInput) {
-        const existing = await prisma.color.findFirst({
+    private async assertColorFree(
+        companyId: string,
+        data: {name?: string; hexCode?: string},
+        exceptId?: string,
+    ) {
+        if (!data.name && !data.hexCode) return;
+        const clash = await prisma.color.findFirst({
             where: {
-                OR: [
-                    {name: {equals: data.name, mode: 'insensitive'}},
-                    {hexCode: {equals: data.hexCode, mode: 'insensitive'}},
+                AND: [
+                    visible(companyId),
+                    {
+                        OR: [
+                            ...(data.name ? [{name: {equals: data.name, mode: 'insensitive' as const}}] : []),
+                            ...(data.hexCode
+                                ? [{hexCode: {equals: data.hexCode, mode: 'insensitive' as const}}]
+                                : []),
+                        ],
+                    },
                 ],
+                ...(exceptId ? {NOT: {id: exceptId}} : {}),
             },
         });
-        if (existing) {
-            const field = existing.name.toLowerCase() === data.name.toLowerCase() ? 'name' : 'hexCode';
-            throw new ApiError(httpStatus.CONFLICT, `Color with this ${field === 'name' ? 'name' : 'hex code'} already exists`, [
-                {field, message: `Color with this ${field === 'name' ? 'name' : 'hex code'} already exists`},
-            ]);
+        if (clash) {
+            const byName = !!data.name && clash.name.toLowerCase() === data.name.toLowerCase();
+            throw conflict(
+                `A color with this ${byName ? 'name' : 'hex code'} already exists`,
+                byName ? 'name' : 'hexCode',
+            );
         }
+    }
 
+    public async createColor(companyId: string, data: ColorInput) {
+        await this.assertColorFree(companyId, data);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -368,6 +399,7 @@ class MasterService {
             );
             return prisma.color.create({
                 data: {
+                    companyId,
                     name: data.name,
                     code,
                     hexCode: data.hexCode.toUpperCase(),
@@ -377,43 +409,28 @@ class MasterService {
         }, 'code');
     }
 
-    public async updateColor(id: string, data: ColorUpdate) {
-        const before = await prisma.color.findUnique({where: {id}});
-        if (!before) throw new ApiError(httpStatus.NOT_FOUND, 'Color not found');
-
-        if (data.name || data.hexCode) {
-            const clash = await prisma.color.findFirst({
-                where: {
-                    OR: [
-                        data.name ? {name: {equals: data.name, mode: 'insensitive'}} : {},
-                        data.hexCode ? {hexCode: {equals: data.hexCode, mode: 'insensitive'}} : {},
-                    ],
-                    NOT: {id},
-                },
-            });
-            if (clash) {
-                const clashField = data.name && clash.name.toLowerCase() === data.name.toLowerCase() ? 'name' : 'hexCode';
-                throw new ApiError(
-                    httpStatus.CONFLICT,
-                    `Color with this ${clashField === 'name' ? 'name' : 'hex code'} already exists`,
-                    [{field: clashField, message: `Color with this ${clashField === 'name' ? 'name' : 'hex code'} already exists`}],
-                );
-            }
-        }
-
+    public async updateColor(companyId: string, id: string, data: ColorUpdate) {
+        const before = await this.owned(await prisma.color.findUnique({where: {id}}), companyId, 'Color');
+        await this.assertColorFree(
+            companyId,
+            {
+                name: data.name && data.name.toLowerCase() !== before.name.toLowerCase() ? data.name : undefined,
+                hexCode:
+                    data.hexCode && data.hexCode.toUpperCase() !== before.hexCode.toUpperCase()
+                        ? data.hexCode
+                        : undefined,
+            },
+            id,
+        );
         const after = await prisma.color.update({
             where: {id},
-            data: {
-                ...data,
-                ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {}),
-            },
+            data: {...data, ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {})},
         });
         return {before, after};
     }
 
-    public async deleteColor(id: string) {
-        const color = await prisma.color.findUnique({where: {id}});
-        if (!color) throw new ApiError(httpStatus.NOT_FOUND, 'Color not found');
+    public async deleteColor(companyId: string, id: string) {
+        const color = await this.owned(await prisma.color.findUnique({where: {id}}), companyId, 'Color');
         const used = await prisma.productColor.count({where: {colorId: id}});
         if (used) {
             throw new ApiError(
@@ -426,40 +443,41 @@ class MasterService {
     }
 
     // ==========================================
-    // 4. SIZE MANAGEMENT
+    // 4. SIZES
     // ==========================================
 
-    public async listSizes(query: MasterList) {
+    public async listSizes(companyId: string, query: MasterList) {
         const where: Prisma.SizeWhereInput = {
+            AND: [visible(companyId), {OR: searchWhere(query.search, ['name', 'code'] as const)}],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
-            OR: searchWhere(query.search, ['name', 'code'] as const),
         };
         const [items, total] = await prisma.$transaction([
-            prisma.size.findMany({
-                where,
-                ...listArgs(query),
-            }),
+            prisma.size.findMany({where, ...listArgs(query)}),
             prisma.size.count({where}),
         ]);
-        return toListResult(items, total, query);
+        return toListResult(items.map(withFlag), total, query);
     }
 
-    public async getSize(id: string) {
-        const size = await prisma.size.findUnique({where: {id}});
-        if (!size) throw new ApiError(httpStatus.NOT_FOUND, 'Size not found');
-        return size;
+    public async getSize(companyId: string, id: string) {
+        const size = await prisma.size.findFirst({where: {id, ...visible(companyId)}});
+        if (!size) throw notFound('Size');
+        return withFlag(size);
     }
 
-    public async createSize(data: SizeInput) {
-        const existing = await prisma.size.findFirst({
-            where: {name: {equals: data.name, mode: 'insensitive'}},
+    private async assertSizeNameFree(companyId: string, name: string, exceptId?: string) {
+        const clash = await prisma.size.findFirst({
+            where: {
+                name: {equals: name, mode: 'insensitive'},
+                ...visible(companyId),
+                ...(exceptId ? {NOT: {id: exceptId}} : {}),
+            },
+            select: {id: true},
         });
-        if (existing) {
-            throw new ApiError(httpStatus.CONFLICT, 'A size with this name already exists', [
-                {field: 'name', message: 'A size with this name already exists'},
-            ]);
-        }
+        if (clash) throw conflict('A size with this name already exists');
+    }
 
+    public async createSize(companyId: string, data: SizeInput) {
+        await this.assertSizeNameFree(companyId, data.name);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -471,6 +489,7 @@ class MasterService {
             );
             return prisma.size.create({
                 data: {
+                    companyId,
                     name: data.name,
                     code,
                     description: data.description,
@@ -481,34 +500,17 @@ class MasterService {
         }, 'code');
     }
 
-    public async updateSize(id: string, data: SizeUpdate) {
-        const before = await prisma.size.findUnique({where: {id}});
-        if (!before) throw new ApiError(httpStatus.NOT_FOUND, 'Size not found');
-
+    public async updateSize(companyId: string, id: string, data: SizeUpdate) {
+        const before = await this.owned(await prisma.size.findUnique({where: {id}}), companyId, 'Size');
         if (data.name && data.name.toLowerCase() !== before.name.toLowerCase()) {
-            const clash = await prisma.size.findFirst({
-                where: {
-                    name: {equals: data.name, mode: 'insensitive'},
-                    NOT: {id},
-                },
-            });
-            if (clash) {
-                throw new ApiError(httpStatus.CONFLICT, 'A size with this name already exists', [
-                    {field: 'name', message: 'A size with this name already exists'},
-                ]);
-            }
+            await this.assertSizeNameFree(companyId, data.name, id);
         }
-
-        const after = await prisma.size.update({
-            where: {id},
-            data,
-        });
+        const after = await prisma.size.update({where: {id}, data});
         return {before, after};
     }
 
-    public async deleteSize(id: string) {
-        const size = await prisma.size.findUnique({where: {id}});
-        if (!size) throw new ApiError(httpStatus.NOT_FOUND, 'Size not found');
+    public async deleteSize(companyId: string, id: string) {
+        const size = await this.owned(await prisma.size.findUnique({where: {id}}), companyId, 'Size');
         const used = await prisma.productSize.count({where: {sizeId: id}});
         if (used) {
             throw new ApiError(
@@ -522,4 +524,3 @@ class MasterService {
 }
 
 export default new MasterService();
-

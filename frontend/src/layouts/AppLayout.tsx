@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar';
 import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {canOpen, homeFor, roleConfig} from '@/lib/roles';
+import {levelOf, moduleOfPath} from '@/lib/shopModules';
 import {getErrorMessage} from '@/utils/axios';
 import {Link, Navigate, Outlet, useRouterState} from '@tanstack/react-router';
 import {Loader2, ShieldAlert} from 'lucide-react';
@@ -71,7 +72,10 @@ const AppLayout = () => {
 
   if (pathname === '/') return <Navigate to={homeFor(me.role)} />;
 
-  const allowed = canOpen(me.role, pathname);
+  const allowed = canOpen(me.role, pathname, me.permissions);
+  // Employees with view access only: say so, since saving will be refused
+  const shopModule = me.role === 'EMPLOYEE' ? moduleOfPath(pathname) : null;
+  const viewOnly = !!shopModule && levelOf(me.permissions, shopModule) === 'view';
 
   return (
     <div className="flex h-screen overflow-hidden bg-ivory">
@@ -81,7 +85,14 @@ const AppLayout = () => {
         <main className="flex-1">
           <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             {allowed ? (
-              <Outlet />
+              <>
+                {viewOnly && (
+                  <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                    You can view this page. Ask your shop admin if you need to make changes.
+                  </p>
+                )}
+                <Outlet />
+              </>
             ) : (
               <div className="panel mx-auto mt-8 max-w-md p-8 text-center">
                 <ShieldAlert

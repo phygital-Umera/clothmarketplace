@@ -5,53 +5,47 @@ export type ProductPriceItem = {
   name: string;
   code: string;
   category: string;
-  hsnGst: string;
-  avgCost: number;
+  categoryId: string | null;
+  shop: {id: string; name: string} | null;
+  taxRate: number;
+  /** Weighted average purchase cost; null when never purchased */
+  avgCost: number | null;
   mrp: number;
   branchPrice: number;
-  margin: number;
-  mensStock: number;
-  womensStock: number;
-  kidsStock: number;
+  margin: number | null;
+  stock: number;
   priceChangedAt: string | null;
 };
 
 export type ProductPricingResult = {
   items: ProductPriceItem[];
-  counts: {
-    all: number;
-    changedThisWeek: number;
-    belowMinMargin: number;
-  };
+  counts: {all: number; changedThisWeek: number; belowMinMargin: number};
+  categories: {id: string; name: string}[];
+  minMargin: number;
 };
+
+export type PriceTab = 'ALL' | 'CHANGED_THIS_WEEK' | 'BELOW_MIN_MARGIN';
 
 type Res<T> = {statusCode: number; data: T; message: string};
 
 export const getBranchProductPrices = (params?: {
   search?: string;
-  category?: string;
-  tab?: string;
+  categoryId?: string;
+  tab?: PriceTab;
 }) =>
-  api
-    .get<Res<ProductPricingResult>>('/branch-admin/products-pricing', {params})
-    .then((res: any) => res);
+  (api.get('/branch-admin/products-pricing', {params}) as unknown as Promise<Res<ProductPricingResult>>);
 
 export const saveBranchPrices = (prices: Record<string, number>) =>
-  api
-    .post<Res<{success: boolean; message: string}>>('/branch-admin/products-pricing/save', {
+  (api.post('/branch-admin/products-pricing/save', {
       prices,
-    })
-    .then((res: any) => res);
+    }) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
-export const scheduleBulkPrice = (data: {
-  applyTo: string;
-  changeType: string;
+export type BulkPriceInput = {
+  /** Empty = every product of the branch */
+  categoryId?: string;
+  changeType: 'PERCENT_OFF_MRP' | 'FLAT_OFF_MRP';
   value: number;
-  fromDate: string;
-  toDate: string;
-  name: string;
-}) =>
-  api
-    .post<Res<{success: boolean; message: string}>>('/branch-admin/products-pricing/bulk', data)
-    .then((res: any) => res);
+};
 
+export const applyBulkPrice = (data: BulkPriceInput) =>
+  (api.post('/branch-admin/products-pricing/bulk', data) as unknown as Promise<Res<{success: boolean; message: string}>>);

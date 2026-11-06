@@ -61,10 +61,6 @@ function getAvatarColor(name: string): string {
 }
 
 export default function CustomerPage() {
-  console.log('[Shop Panel] Rendering CustomerPage');
-  useEffect(() => {
-    console.log('[Shop Panel] CustomerPage mounted');
-  }, []);
   const {user} = useAuthContext();
   const navigate = useNavigate();
 

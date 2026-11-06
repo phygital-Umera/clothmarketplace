@@ -65,10 +65,6 @@ const STATUS_TABS = [
 ];
 
 const CategoryMaster = () => {
-  console.log('[Shop Panel] Rendering CategoryMaster');
-  useEffect(() => {
-    console.log('[Shop Panel] CategoryMaster mounted');
-  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} =
     useMasterCategories({
@@ -135,7 +131,7 @@ const CategoryMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (c) => (
-        <span className="text-espresso-muted line-clamp-1">
+        <span className="text-on-surface-variant line-clamp-1">
           {c.description || '–'}
         </span>
       ),

@@ -15,6 +15,8 @@ import {listArgs, toListResult} from '../utils/list';
 import creditNoteValidation from '../validations/creditNote.validation';
 import accountService from './account.service';
 import inventoryService from './inventory.service';
+import billService, {paymentStatusOf} from './bill.service';
+import {syncCustomerFromBill} from './customerLedger';
 
 type Tx = Prisma.TransactionClient;
 type CreateNote = z.infer<typeof creditNoteValidation.createCreditNoteSchema>;
@@ -67,12 +69,17 @@ class CreditNoteService {
                     where: {creditNote: {status: {not: CreditNoteStatus.REJECTED}}},
                     select: {quantity: true},
                 },
+                // Returns made before credit notes were the only return system
+                returnItems: {select: {quantity: true}},
             },
         });
         return items.map((item) => {
-            const returned = item.creditNoteItems.reduce((t, c) => t + c.quantity, 0);
-            const {creditNoteItems, ...rest} = item;
+            const returned =
+                item.creditNoteItems.reduce((t, c) => t + c.quantity, 0) +
+                item.returnItems.reduce((t, c) => t + c.quantity, 0);
+            const {creditNoteItems, returnItems, ...rest} = item;
             void creditNoteItems;
+            void returnItems;
             return {...rest, returned, returnable: Math.max(item.quantity - returned, 0)};
         });
     }
@@ -149,10 +156,14 @@ class CreditNoteService {
         const created = await accountService.withRetry(
             () =>
                 prisma.$transaction(async (tx) => {
-                    const bill = await tx.salesBill.findFirst({
+                    // Lock the bill (bumps its version) so two returns or an edit
+                    // running at the same time cannot both pass the quantity check
+                    const {count} = await tx.salesBill.updateMany({
                         where: {id: data.salesBillId, ...scopeWhere(scope), deletedAt: null},
+                        data: {version: {increment: 1}},
                     });
-                    if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Sales bill not found');
+                    if (!count) throw new ApiError(httpStatus.NOT_FOUND, 'Sales bill not found');
+                    const bill = await tx.salesBill.findUniqueOrThrow({where: {id: data.salesBillId}});
                     if (bill.status !== BillStatus.CONFIRMED) {
                         throw new ApiError(
                             httpStatus.BAD_REQUEST,
@@ -210,10 +221,46 @@ class CreditNoteService {
                     const needsApproval =
                         isRefund &&
                         (data.refundMode === 'CASH' || totalAmount > REFUND_APPROVAL_LIMIT);
+                    const noteNumber = await this.nextNumber(tx, bill.shopId);
+
+                    // Take the return off what the customer still owes on this bill
+                    if (data.settlement === ReturnSettlement.ADJUST_DUE) {
+                        if (totalAmount > bill.balanceDue) {
+                            throw new ApiError(
+                                httpStatus.BAD_REQUEST,
+                                bill.balanceDue > 0
+                                    ? `Return value ₹${totalAmount} is more than the balance due ₹${bill.balanceDue}; choose another settlement`
+                                    : 'Nothing is due on this bill; choose another settlement',
+                            );
+                        }
+                        const balanceDue = round2(bill.balanceDue - totalAmount);
+                        const after = await tx.salesBill.update({
+                            where: {id: bill.id},
+                            data: {balanceDue, paymentStatus: paymentStatusOf(bill.amountPaid, balanceDue)},
+                        });
+                        await syncCustomerFromBill(tx, bill, after);
+                    }
+
+                    let exchangeBill: {id: string; billNumber: string} | null = null;
+                    if (data.settlement === ReturnSettlement.EXCHANGE && data.exchangeItems?.length) {
+                        exchangeBill = await billService.createExchangeBill(
+                            tx,
+                            {companyId: bill.companyId, shopId: bill.shopId},
+                            actorId,
+                            {
+                                customerName: bill.customerName,
+                                customerPhone: bill.customerPhone,
+                                noteNumber,
+                                creditValue: totalAmount,
+                                topUpMode: data.topUpMode,
+                                items: data.exchangeItems,
+                            },
+                        );
+                    }
 
                     const note = await tx.creditNote.create({
                         data: {
-                            noteNumber: await this.nextNumber(tx, bill.shopId),
+                            noteNumber,
                             companyId: bill.companyId,
                             branchId: bill.branchId,
                             shopId: bill.shopId,
@@ -223,7 +270,10 @@ class CreditNoteService {
                             settlement: data.settlement,
                             refundMode: isRefund ? data.refundMode : null,
                             reason: data.reason,
-                            reasonNote: data.reasonNote || null,
+                            reasonNote:
+                                [data.reasonNote, exchangeBill && `Exchanged for ${exchangeBill.billNumber}`]
+                                    .filter(Boolean)
+                                    .join(' · ') || null,
                             taxableAmount: round2(totalAmount - taxAmount),
                             taxAmount,
                             totalAmount,

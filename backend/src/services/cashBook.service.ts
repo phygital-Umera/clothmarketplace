@@ -1,5 +1,6 @@
 import httpStatus from 'http-status';
 import {BillStatus, CounterSession, Prisma} from '@prisma/client';
+import {CreditNoteStatus, ReturnSettlement} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
@@ -102,16 +103,33 @@ class CashBookService {
                     bill: {select: {billNumber: true, customerName: true, totalAmount: true}},
                 },
             }),
-            prisma.salesReturn.findMany({
-                where: {shopId, refundMode: 'CASH', createdAt: window},
-                select: {
-                    id: true,
-                    returnNumber: true,
-                    customerName: true,
-                    totalAmount: true,
-                    createdAt: true,
-                },
-            }),
+            // Cash refunds leave the drawer when the credit note is approved
+            prisma.creditNote
+                .findMany({
+                    where: {
+                        shopId,
+                        settlement: ReturnSettlement.REFUND,
+                        refundMode: 'CASH',
+                        status: CreditNoteStatus.APPROVED,
+                        decidedAt: window,
+                    },
+                    select: {
+                        id: true,
+                        noteNumber: true,
+                        customerName: true,
+                        totalAmount: true,
+                        decidedAt: true,
+                    },
+                })
+                .then((rows) =>
+                    rows.map((r) => ({
+                        id: r.id,
+                        returnNumber: r.noteNumber,
+                        customerName: r.customerName,
+                        totalAmount: r.totalAmount,
+                        createdAt: r.decidedAt!,
+                    })),
+                ),
             prisma.expense.findMany({
                 where: {shopId, mode: 'CASH', createdAt: window},
                 select: {
@@ -136,9 +154,11 @@ class CashBookService {
                     bill: {select: {billNumber: true, supplierName: true}},
                 },
             }),
+            // Payments against a bill are already counted as bill payments above
             prisma.supplierPayment.findMany({
                 where: {
                     shopId,
+                    billId: null,
                     paymentDate: window,
                     OR: [
                         {paymentMode: {contains: 'cash', mode: 'insensitive'}},

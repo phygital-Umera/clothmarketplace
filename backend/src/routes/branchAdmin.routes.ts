@@ -6,7 +6,6 @@ import {
     creditNoteController,
     customerDueController,
     branchPurchaseController,
-    supplierPaymentController,
     supplierController,
     barcodeLabelController,
     stockController,
@@ -17,7 +16,6 @@ import {
     branchApprovalController,
     branchExpenseController,
     branchReportsController,
-    branchShopController,
     branchStaffController,
     staffController,
     branchShopAssignmentController,
@@ -94,13 +92,14 @@ router.patch('/customer-dues/:id/limit', customerDueController.updateLimit);
 // Purchase Bills of the branch and its shops
 router.get('/purchase-bills', branchPurchaseController.list);
 router.get('/purchase-bills/summary', branchPurchaseController.summary);
-router.post('/purchase-bills', branchPurchaseController.create);
 router.get('/purchase-bills/:id', branchPurchaseController.get);
 
 // Suppliers & Payments
-router.get('/suppliers', supplierPaymentController.list);
-router.get('/suppliers/summary', supplierPaymentController.summary);
-router.post('/suppliers/payment', supplierPaymentController.recordPayment);
+router.get('/suppliers', supplierController.listSuppliers);
+router.post('/suppliers', supplierController.createSupplier);
+router.get('/suppliers/next-receipt', supplierController.getNextReceipt);
+router.get('/suppliers/:id/ledger', supplierController.getSupplierLedger);
+router.post('/suppliers/payment', supplierController.recordPayment);
 
 
 // ---- Live Stock Summary & Audit ----
@@ -138,8 +137,6 @@ router.post('/approvals/:id/decision', branchApprovalController.decide);
 router.get('/reports/pnl', branchReportsController.getPnl);
 
 // Setup: Shops Overview
-router.get('/shops-overview', branchShopController.list);
-router.post('/shops-overview', branchShopController.add);
 
 // Setup: Staff Overview
 router.get('/staff-overview', branchStaffController.list);

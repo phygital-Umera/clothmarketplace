@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { Role } from '@prisma/client';
 import stockService, { Scope } from '../services/stock.service';
+import {adjustStockSchema, physicalCountSchema} from '../validations/stockAdjustment.validation';
 import { catchAsync, ApiError, ApiResponse } from '../utils';
 
 const scopeOf = (req: Request): Scope => {
@@ -20,13 +21,13 @@ export const getStockSummary = catchAsync(async (req: Request, res: Response) =>
 export const adjustStock = catchAsync(async (req: Request, res: Response) => {
   const scope = scopeOf(req);
   const actorId = req.user?.id || 'system';
-  const result = await stockService.adjustStock(scope, actorId, req.body);
+  const result = await stockService.adjustStock(scope, actorId, adjustStockSchema.parse(req.body));
   return res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, result, result.message));
 });
 
 export const recordPhysicalStockCount = catchAsync(async (req: Request, res: Response) => {
   const scope = scopeOf(req);
   const actorId = req.user?.id || 'system';
-  const result = await stockService.recordPhysicalStockCount(scope, actorId, req.body);
+  const result = await stockService.recordPhysicalStockCount(scope, actorId, physicalCountSchema.parse(req.body));
   return res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, result, result.message));
 });

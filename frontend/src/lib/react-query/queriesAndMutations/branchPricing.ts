@@ -1,7 +1,9 @@
 import {
   getBranchProductPrices,
   saveBranchPrices,
-  scheduleBulkPrice,
+  applyBulkPrice,
+  type BulkPriceInput,
+  type PriceTab,
 } from '@/lib/api/branchPricing';
 import {getErrorMessage} from '@/utils/axios';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
@@ -14,8 +16,8 @@ export const PRICING_KEYS = {
 
 export const useBranchProductPrices = (params?: {
   search?: string;
-  category?: string;
-  tab?: string;
+  categoryId?: string;
+  tab?: PriceTab;
 }) =>
   useQuery({
     queryKey: [PRICING_KEYS.LIST, params],
@@ -41,16 +43,9 @@ export const useSaveBranchPrices = () => {
 export const useScheduleBulkPrice = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: {
-      applyTo: string;
-      changeType: string;
-      value: number;
-      fromDate: string;
-      toDate: string;
-      name: string;
-    }) => scheduleBulkPrice(data),
+    mutationFn: (data: BulkPriceInput) => applyBulkPrice(data),
     onSuccess: (res: any) => {
-      toast.success(res?.message || 'Bulk price scheduled successfully');
+      toast.success(res?.message || 'New prices applied');
       queryClient.invalidateQueries({queryKey: [PRICING_KEYS.ALL]});
       queryClient.invalidateQueries({queryKey: [PRICING_KEYS.LIST]});
     },

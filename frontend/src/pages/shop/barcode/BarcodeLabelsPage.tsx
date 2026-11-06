@@ -88,10 +88,6 @@ const BarcodeSvg: React.FC<{
 export default function BarcodeLabelsPage({
   panel = 'shop-admin',
 }: BarcodeLabelsPageProps) {
-  console.log('[Shop Panel] Rendering BarcodeLabelsPage');
-  useEffect(() => {
-    console.log('[Shop Panel] BarcodeLabelsPage mounted');
-  }, []);
 
   // Tabs: FROM_PURCHASE_BILL | PICK_PRODUCTS | REPRINT
   const [activeTab, setActiveTab] = useState<'FROM_PURCHASE_BILL' | 'PICK_PRODUCTS' | 'REPRINT'>(
@@ -138,7 +134,7 @@ export default function BarcodeLabelsPage({
   // Label Setup state
   const [labelSetup, setLabelSetup] = useState<LabelSetupConfig>({
     labelSize: '50 × 30 mm · 1 across (thermal roll)',
-    printer: 'TSC TE244 (USB)',
+    printer: 'System Default Printer (PDF / Print Dialog)',
     showShopName: true,
     showItemNameSize: true,
     showMrp: true,
@@ -436,9 +432,9 @@ export default function BarcodeLabelsPage({
 
             <button
               type="button"
-              onClick={() => setActiveTab('PICK PRODUCTS')}
+              onClick={() => setActiveTab('PICK_PRODUCTS')}
               className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all relative ${
-                activeTab === 'PICK PRODUCTS'
+                activeTab === 'PICK_PRODUCTS'
                   ? 'text-[#7A2232] border-b-2 border-[#7A2232]'
                   : 'text-stone-400 hover:text-stone-700'
               }`}
@@ -485,7 +481,7 @@ export default function BarcodeLabelsPage({
               </div>
             )}
 
-            {activeTab === 'PICK PRODUCTS' && (
+            {activeTab === 'PICK_PRODUCTS' && (
               <div className="space-y-3">
                 <div className="relative max-w-md">
                   <Search

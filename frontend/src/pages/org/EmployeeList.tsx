@@ -13,6 +13,7 @@ import {
 } from '@/lib/react-query/queriesAndMutations/org';
 import {Account, Panel} from '@/types/org';
 import {getErrorMessage} from '@/utils/axios';
+import {SHOP_MODULES, levelOf} from '@/lib/shopModules';
 import {useSearch} from '@tanstack/react-router';
 import {Pencil, Plus, Users} from 'lucide-react';
 import {useEffect} from 'react';
@@ -30,10 +31,6 @@ const STATUS_TABS = [
  * admin: the whole company.
  */
 const EmployeeList = ({panel}: {panel: Panel}) => {
-  console.log(`[Shop Panel] Rendering EmployeeList (panel: ${panel})`);
-  useEffect(() => {
-    console.log(`[Shop Panel] EmployeeList mounted (panel: ${panel})`);
-  }, [panel]);
   const companyWide = panel === 'company-admin';
   const ownShop = panel === 'shop-admin';
   const editor = useInlineEditor();
@@ -102,7 +99,34 @@ const EmployeeList = ({panel}: {panel: Panel}) => {
               ),
           } as Column<Account>,
         ]),
-    {header: 'Job Title', key: 'jobTitle', hideBelow: 'lg'},
+    {header: 'Job Title', key: 'jobTitle', hideBelow: 'xl'},
+    {
+      header: 'Access',
+      hideBelow: 'md',
+      render: (e) => {
+        const given = SHOP_MODULES.map((m) => ({m, level: levelOf(e.permissions, m.key)})).filter(
+          (x) => x.level !== 'none',
+        );
+        return given.length ? (
+          <div className="flex max-w-xs flex-wrap gap-1">
+            {given.map(({m, level}) => (
+              <span
+                key={m.key}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                  level === 'edit' ? 'bg-burgundy-deep/10 text-burgundy-deep' : 'bg-ivory-200 text-on-surface-variant'
+                }`}
+                title={level === 'edit' ? 'View and edit' : 'View only'}
+              >
+                {m.label}
+                {level === 'view' ? ' · view' : ''}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-outline">No access yet</span>
+        );
+      },
+    },
     {
       header: 'Status',
       key: 'status',

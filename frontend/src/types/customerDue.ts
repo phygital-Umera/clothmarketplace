@@ -4,27 +4,18 @@ export type CustomerDue = {
   phone: string;
   customerType: 'B2B' | 'B2C';
   gstin: string | null;
-  shopId?: string;
+  shopId: string;
   shopName: string;
   creditLimit: number;
   creditDays: number;
+  /** Due on bills up to 30 days old */
   due0To30: number;
+  /** Due on older bills, plus any opening due */
   due30Plus: number;
   totalDue: number;
-  allowOverLimit: boolean;
-  askClearOldDue: boolean;
-  pendingRequest: {
-    type: string;
-    billAmount: number;
-    requestedCredit: number;
-    totalIfApproved: number;
-    overdueAgeDays?: number;
-    overduePart?: number;
-    note: string;
-    requestedAt?: string;
-  } | null;
-  createdAt?: string;
-  updatedAt?: string;
+  isOverdue: boolean;
+  isOverLimit: boolean;
+  createdAt: string;
 };
 
 export type CustomerDueSummary = {
@@ -46,10 +37,15 @@ export type CustomerDueListParams = {
 };
 
 export type UpdateCreditLimitPayload = {
-  creditLimit?: number;
-  creditDays?: number;
-  allowOverLimit?: boolean;
-  askClearOldDue?: boolean;
-  action?: 'APPROVE' | 'REJECT';
+  creditLimit: number;
+  creditDays: number;
 };
 
+export type DueReminder = {
+  id: string;
+  name: string;
+  phone: string;
+  amount: number;
+  /** wa.me link with the message filled in */
+  link: string;
+};

@@ -103,11 +103,11 @@ class BarcodeLabelService {
    * Search catalog products/variants for "PICK PRODUCTS" tab
    */
   public async searchProductsForLabels(scope: Scope, search?: string) {
-    let whereClause = `WHERE p."companyId" = '${scope.companyId}'`;
-    if (search && search.trim()) {
-      const q = search.trim().replace(/'/g, "''");
-      whereClause += ` AND (p."name" ILIKE '%${q}%' OR p."sku" ILIKE '%${q}%' OR v."variantSku" ILIKE '%${q}%')`;
-    }
+    // Values go in as query parameters ($1, $2), never into the SQL text
+    const q = search?.trim();
+    const whereClause = q
+      ? `WHERE p."companyId" = $1 AND p."deletedAt" IS NULL AND (p."name" ILIKE $2 OR p."sku" ILIKE $2 OR v."variantSku" ILIKE $2)`
+      : `WHERE p."companyId" = $1 AND p."deletedAt" IS NULL`;
 
     const rows: any[] = await prisma.$queryRawUnsafe(`
       SELECT p."id" as "productId", p."name" as "productName",
@@ -120,7 +120,7 @@ class BarcodeLabelService {
       ${whereClause}
       ORDER BY p."name" ASC, v."size" ASC
       LIMIT 50
-    `);
+    `, scope.companyId, ...(q ? [`%${q}%`] : []));
 
     return {
       items: rows.map((r) => ({

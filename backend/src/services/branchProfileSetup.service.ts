@@ -1,195 +1,105 @@
+import httpStatus from 'http-status';
+import {AccountStatus, Role} from '@prisma/client';
+import {z} from 'zod';
 import prisma from '../client';
+import ApiError from '@utils/ApiError';
+import {field} from '../validations/custom.validation';
+import {WEEK_DAYS} from '../validations/org.validation';
 import {BranchScope} from './customerDue.service';
 
-export type OperatingHourDay = {
-    day: string;
-    open: boolean;
-    from: string;
-    to: string;
-};
+/*
+ * The branch admin's own branch, from the Branch row. Name, code and status
+ * are the Company Admin's; the branch admin keeps contact details and opening
+ * hours up to date.
+ */
 
-export type BranchHoliday = {
-    id: string;
-    name: string;
-    dateDesc: string;
-};
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const time = (label: string) =>
+    z.preprocess(
+        (v) => (v === '' ? undefined : v),
+        z.string().regex(TIME, `Enter a valid ${label}`).optional(),
+    );
 
-export type BranchProfileData = {
-    identity: {
-        branchName: string;
-        branchCode: string;
-        company: string;
-        gstin: string;
-    };
-    contact: {
-        email: string;
-        phone: string;
-        alternatePhone?: string;
-        whatsapp?: string;
-        address: string;
-        city: string;
-        pincode: string;
-        mapsLink?: string;
-    };
-    operatingHours: OperatingHourDay[];
-    holidays: BranchHoliday[];
-    glance: {
-        shops: number;
-        employees: number;
-        branchOpened: string;
-        status: string;
-    };
-};
+export const updateProfileSchema = z
+    .object({
+        email: field({label: 'Branch Email', kind: 'email', required: false}),
+        phone: field({label: 'Contact Phone', kind: 'phone', required: false}),
+        alternatePhone: field({label: 'Alternate Phone', kind: 'alternatePhone', required: false}),
+        address: field({label: 'Address', kind: 'text', max: 500}),
+        city: field({label: 'City', kind: 'text', max: 60}),
+        district: field({label: 'District', kind: 'text', max: 60}),
+        state: field({label: 'State', kind: 'text', max: 60}),
+        postalCode: field({label: 'Pincode', kind: 'pincode'}),
+        openingTime: time('Opening Time'),
+        closingTime: time('Closing Time'),
+        weeklyHolidays: z.array(z.enum(WEEK_DAYS)).max(6, 'The branch must be open at least one day'),
+    })
+    .refine((v) => !v.openingTime || !v.closingTime || v.closingTime > v.openingTime, {
+        message: 'Closing Time must be after Opening Time',
+        path: ['closingTime'],
+    });
 
 class BranchProfileSetupService {
-    private tableEnsured = false;
+    public async getProfile(scope: BranchScope) {
+        const branch = await prisma.branch.findFirst({
+            where: {id: scope.branchId, companyId: scope.companyId, deletedAt: null},
+            include: {company: {select: {name: true}}},
+        });
+        if (!branch) throw new ApiError(httpStatus.NOT_FOUND, 'Branch not found');
 
-    private async ensureTable() {
-        if (this.tableEnsured) return;
-        try {
-            await prisma.$executeRawUnsafe(`
-                CREATE TABLE IF NOT EXISTS "BranchProfileSetup" (
-                    "id" TEXT PRIMARY KEY,
-                    "companyId" TEXT NOT NULL,
-                    "branchId" TEXT NOT NULL UNIQUE,
-                    "email" TEXT NOT NULL DEFAULT 'sangli@matoshri.in',
-                    "phone" TEXT NOT NULL DEFAULT '+91 233 262 0011',
-                    "alternatePhone" TEXT,
-                    "whatsapp" TEXT,
-                    "address" TEXT NOT NULL DEFAULT '[Shop no.] Station Road',
-                    "city" TEXT NOT NULL DEFAULT 'Sangli',
-                    "pincode" TEXT NOT NULL DEFAULT '416416',
-                    "mapsLink" TEXT,
-                    "operatingHours" JSONB,
-                    "holidays" JSONB,
-                    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            this.tableEnsured = true;
-        } catch (e) {
-            console.error('Error creating BranchProfileSetup table:', e);
-        }
-    }
-
-    private async ensureSeedData(scope: BranchScope) {
-        await this.ensureTable();
-        const countRes: any = await prisma.$queryRawUnsafe(
-            `SELECT count(*) as count FROM "BranchProfileSetup" WHERE "branchId" = $1`,
-            scope.branchId,
-        );
-        const count = parseInt(countRes[0]?.count ?? '0', 10);
-        if (count > 0) return;
-
-        const defaultHours: OperatingHourDay[] = [
-            {day: 'Monday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Tuesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Wednesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Thursday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Friday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Saturday', open: true, from: '10:00 AM', to: '10:00 PM'},
-            {day: 'Sunday', open: true, from: '10:00 AM', to: '10:00 PM'},
-        ];
-
-        const defaultHolidays: BranchHoliday[] = [
-            {id: '1', name: 'Diwali – Laxmi Pujan', dateDesc: 'Fri 20 Nov 2026 · closes 14:00'},
-            {id: '2', name: 'Annual stock count', dateDesc: 'Sun 29 Nov 2026 · closed'},
-        ];
-
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO "BranchProfileSetup" (
-                "id", "companyId", "branchId", "email", "phone", "address",
-                "city", "pincode", "operatingHours", "holidays"
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
-            ON CONFLICT ("branchId") DO NOTHING`,
-            `bps-${scope.branchId}`,
-            scope.companyId,
-            scope.branchId,
-            'sangli@matoshri.in',
-            '+91 233 262 0011',
-            '[Shop no.] Station Road',
-            'Sangli',
-            '416416',
-            JSON.stringify(defaultHours),
-            JSON.stringify(defaultHolidays),
-        );
-    }
-
-    public async getProfile(scope: BranchScope): Promise<BranchProfileData> {
-        await this.ensureSeedData(scope);
-
-        const rows: any[] = await prisma.$queryRawUnsafe(
-            `SELECT * FROM "BranchProfileSetup" WHERE "branchId" = $1`,
-            scope.branchId,
-        );
-
-        const r = rows[0] || {};
-        const hours = r.operatingHours || [
-            {day: 'Monday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Tuesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Wednesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Thursday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Friday', open: true, from: '10:00 AM', to: '09:00 PM'},
-            {day: 'Saturday', open: true, from: '10:00 AM', to: '10:00 PM'},
-            {day: 'Sunday', open: true, from: '10:00 AM', to: '10:00 PM'},
-        ];
-
-        const holidays = r.holidays || [
-            {id: '1', name: 'Diwali – Laxmi Pujan', dateDesc: 'Fri 20 Nov 2026 · closes 14:00'},
-            {id: '2', name: 'Annual stock count', dateDesc: 'Sun 29 Nov 2026 · closed'},
-        ];
+        const [shops, employees] = await Promise.all([
+            prisma.shop.count({where: {branchId: branch.id, deletedAt: null}}),
+            prisma.user.count({
+                where: {
+                    branchId: branch.id,
+                    role: Role.EMPLOYEE,
+                    deletedAt: null,
+                    status: {not: AccountStatus.INACTIVE},
+                },
+            }),
+        ]);
 
         return {
-            identity: {
-                branchName: 'Sangli Branch',
-                branchCode: 'MAT-B02',
-                company: 'Matoshri Fashions',
-                gstin: '27ABCDE1234F1Z5',
-            },
+            identity: {branchName: branch.name, branchCode: branch.code, company: branch.company.name},
             contact: {
-                email: r.email || 'sangli@matoshri.in',
-                phone: r.phone || '+91 233 262 0011',
-                alternatePhone: r.alternatePhone || '',
-                whatsapp: r.whatsapp || '',
-                address: r.address || '[Shop no.] Station Road',
-                city: r.city || 'Sangli',
-                pincode: r.pincode || '416416',
-                mapsLink: r.mapsLink || '',
+                email: branch.email ?? '',
+                phone: branch.phone ?? '',
+                alternatePhone: branch.alternatePhone ?? '',
+                address: branch.address,
+                city: branch.city,
+                district: branch.district,
+                state: branch.state,
+                postalCode: branch.postalCode,
             },
-            operatingHours: hours,
-            holidays,
+            hours: {
+                openingTime: branch.openingTime ?? '',
+                closingTime: branch.closingTime ?? '',
+                weeklyHolidays: branch.weeklyHolidays,
+            },
             glance: {
-                shops: 3,
-                employees: 14,
-                branchOpened: '01 Nov 2026',
-                status: 'ACTIVE',
+                shops,
+                employees,
+                branchOpened: branch.createdAt.toISOString(),
+                status: branch.status,
             },
         };
     }
 
-    public async updateProfile(scope: BranchScope, payload: any) {
-        await this.ensureTable();
-        await prisma.$executeRawUnsafe(
-            `UPDATE "BranchProfileSetup"
-             SET "email" = $1, "phone" = $2, "alternatePhone" = $3, "whatsapp" = $4,
-                 "address" = $5, "city" = $6, "pincode" = $7, "mapsLink" = $8,
-                 "operatingHours" = $9::jsonb, "holidays" = $10::jsonb, "updatedAt" = CURRENT_TIMESTAMP
-             WHERE "branchId" = $11`,
-            payload.contact?.email || 'sangli@matoshri.in',
-            payload.contact?.phone || '+91 233 262 0011',
-            payload.contact?.alternatePhone || null,
-            payload.contact?.whatsapp || null,
-            payload.contact?.address || '[Shop no.] Station Road',
-            payload.contact?.city || 'Sangli',
-            payload.contact?.pincode || '416416',
-            payload.contact?.mapsLink || null,
-            JSON.stringify(payload.operatingHours || []),
-            JSON.stringify(payload.holidays || []),
-            scope.branchId,
-        );
-
-        return {success: true, message: 'Branch profile updated successfully'};
+    public async updateProfile(scope: BranchScope, data: z.infer<typeof updateProfileSchema>) {
+        const {count} = await prisma.branch.updateMany({
+            where: {id: scope.branchId, companyId: scope.companyId, deletedAt: null},
+            data: {
+                ...data,
+                email: data.email ?? null,
+                phone: data.phone ?? null,
+                alternatePhone: data.alternatePhone ?? null,
+                openingTime: data.openingTime ?? null,
+                closingTime: data.closingTime ?? null,
+            },
+        });
+        if (!count) throw new ApiError(httpStatus.NOT_FOUND, 'Branch not found');
+        return {success: true, message: 'Branch profile saved'};
     }
 }
 
 export default new BranchProfileSetupService();
-

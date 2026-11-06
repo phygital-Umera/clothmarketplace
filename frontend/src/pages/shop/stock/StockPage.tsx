@@ -51,10 +51,6 @@ const ADJUST_REASONS = [
 ];
 
 export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
-  console.log(`[Shop Panel] Rendering StockPage (panel: ${panel})`);
-  useEffect(() => {
-    console.log(`[Shop Panel] StockPage mounted (panel: ${panel})`);
-  }, [panel]);
 
   const navigate = useNavigate();
 
@@ -208,7 +204,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
           </button>
 
           <button
-            onClick={() => navigate({to: '/shop-admin/new-purchase' as any})}
+            onClick={() => navigate({to: '/shop-admin/purchase-bills'})}
             className="flex items-center gap-2 rounded-md bg-[#7A2232] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-[#631B28] transition-colors"
           >
             <Plus size={15} />

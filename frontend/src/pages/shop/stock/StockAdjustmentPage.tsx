@@ -51,10 +51,6 @@ const TYPE_FILTER_OPTIONS = [
 export default function StockAdjustmentPage({
   panel = 'shop-admin',
 }: StockAdjustmentPageProps) {
-  console.log(`[Shop Panel] Rendering StockAdjustmentPage (panel: ${panel})`);
-  useEffect(() => {
-    console.log(`[Shop Panel] StockAdjustmentPage mounted (panel: ${panel})`);
-  }, [panel]);
 
   // Form State
   const [selectedVariantId, setSelectedVariantId] = useState<string>('');
@@ -145,11 +141,6 @@ export default function StockAdjustmentPage({
       return;
     }
 
-    // Photo check for damage and write off
-    if ((type === 'MARK_DAMAGED' || type === 'WRITE_OFF') && !photoUrl) {
-      // Allow proceeding with warning
-      console.log('Proceeding without photo upload for test convenience');
-    }
 
     const payload: CreateStockAdjustmentPayload = {
       variantId: selectedVariantId,

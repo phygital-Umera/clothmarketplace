@@ -1,4 +1,5 @@
 import {AccountStatus, BillStatus, Prisma, Role} from '@prisma/client';
+import {CreditNoteStatus} from '@prisma/client';
 import prisma from '../client';
 import billService from './bill.service';
 import counterService from './counter.service';
@@ -25,6 +26,8 @@ const MODE_LABEL: Record<string, string> = {
     CARD: 'Card',
     STORE_CREDIT: 'Store credit',
     ADJUST_DUE: 'Adjusted in due',
+    EXCHANGE: 'Exchange',
+    CREDIT_NOTE: 'Credit note',
 };
 
 /*
@@ -66,9 +69,14 @@ class DashboardService {
                 where: {...confirmedSales, billDate: {gte, ...(lt ? {lt} : {})}},
                 _sum: {totalAmount: true},
             });
+        // Approved credit notes are returns; pending and rejected ones are not (yet)
         const returnsBetween = (gte: Date, lt?: Date) =>
-            prisma.salesReturn.aggregate({
-                where: {shopId: shop.id, returnDate: {gte, ...(lt ? {lt} : {})}},
+            prisma.creditNote.aggregate({
+                where: {
+                    shopId: shop.id,
+                    status: CreditNoteStatus.APPROVED,
+                    createdAt: {gte, ...(lt ? {lt} : {})},
+                },
                 _sum: {totalAmount: true},
             });
 
@@ -111,27 +119,43 @@ class DashboardService {
                     items: {select: {variantId: true, quantity: true}},
                 },
             }),
-            prisma.salesReturn.findMany({
-                where: {shopId: shop.id, returnDate: {gte: today}},
-                orderBy: {createdAt: 'desc'},
-                select: {
-                    id: true,
-                    returnNumber: true,
-                    createdAt: true,
-                    customerName: true,
-                    totalAmount: true,
-                    refundMode: true,
-                    salesBillId: true,
-                    items: {
-                        select: {
-                            variantId: true,
-                            quantity: true,
-                            totalPrice: true,
-                            salesBillItem: {select: {taxRate: true}},
-                        },
+            prisma.creditNote
+                .findMany({
+                    where: {
+                        shopId: shop.id,
+                        status: CreditNoteStatus.APPROVED,
+                        createdAt: {gte: today},
                     },
-                },
-            }),
+                    orderBy: {createdAt: 'desc'},
+                    select: {
+                        id: true,
+                        noteNumber: true,
+                        createdAt: true,
+                        customerName: true,
+                        totalAmount: true,
+                        settlement: true,
+                        refundMode: true,
+                        salesBillId: true,
+                        items: {select: {variantId: true, quantity: true, totalAmount: true, taxRate: true}},
+                    },
+                })
+                .then((rows) =>
+                    rows.map((r) => ({
+                        id: r.id,
+                        returnNumber: r.noteNumber,
+                        createdAt: r.createdAt,
+                        customerName: r.customerName,
+                        totalAmount: r.totalAmount,
+                        refundMode: r.settlement === 'REFUND' ? (r.refundMode ?? 'CASH') : r.settlement,
+                        salesBillId: r.salesBillId,
+                        items: r.items.map((i) => ({
+                            variantId: i.variantId,
+                            quantity: i.quantity,
+                            totalPrice: i.totalAmount,
+                            salesBillItem: {taxRate: i.taxRate},
+                        })),
+                    })),
+                ),
             salesBetween(lastWeekDay, new Date(lastWeekDay.getTime() + DAY)),
             returnsBetween(lastWeekDay, new Date(lastWeekDay.getTime() + DAY)),
             salesBetween(monthStart),

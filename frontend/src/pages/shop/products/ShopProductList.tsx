@@ -42,10 +42,6 @@ export const StockBadge = ({qty}: {qty: number}) =>
   );
 
 const ShopProductList = () => {
-  console.log('[Shop Panel] Rendering ShopProductList');
-  useEffect(() => {
-    console.log('[Shop Panel] ShopProductList mounted');
-  }, []);
   const navigate = useNavigate();
   const list = useListState();
   const masters = useProductMasters(list.filters.categoryId);
@@ -129,7 +125,7 @@ const ShopProductList = () => {
       header: 'Sizes',
       hideBelow: 'lg',
       render: (p) => (
-        <span className="text-espresso-muted text-body-sm">
+        <span className="text-on-surface-variant text-body-sm">
           {p.sizes.map((s) => s.name).join(', ')}
         </span>
       ),

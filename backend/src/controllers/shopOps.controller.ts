@@ -5,7 +5,6 @@ import {
     counterService,
     dashboardService,
     expenseService,
-    salesReturnService,
 } from '@services/index';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {shopOpsValidation as v} from '@validations/index';
@@ -33,37 +32,6 @@ const ok = (
 const dashboard = catchAsync(async (req, res) =>
     ok(res, await dashboardService.getShopDashboard(shopOf(req)), 'Dashboard fetched successfully'),
 );
-
-const returns = {
-    list: catchAsync(async (req, res) => {
-        const query = v.returnListSchema.parse(req.query);
-        return ok(
-            res,
-            await salesReturnService.list(shopOf(req), query),
-            'Credit notes fetched successfully',
-        );
-    }),
-
-    get: catchAsync(async (req, res) => {
-        const {id} = v.idSchema.parse(req.params);
-        return ok(
-            res,
-            await salesReturnService.get(shopOf(req), id),
-            'Credit note fetched successfully',
-        );
-    }),
-
-    create: catchAsync(async (req, res) => {
-        const scope = shopOf(req);
-        const data = v.createSalesReturnSchema.parse(req.body);
-        const {after} = await auditService.track(
-            req,
-            {action: 'salesReturn.create', module: 'billing', targetId: data.salesBillId},
-            async () => ({after: await salesReturnService.create(scope, req.user.id, data)}),
-        );
-        return ok(res, after, 'Return saved and stock restored', httpStatus.CREATED);
-    }),
-};
 
 const counter = {
     current: catchAsync(async (req, res) =>
@@ -115,4 +83,4 @@ const expenses = {
     }),
 };
 
-export default {dashboard, returns, counter, expenses};
+export default {dashboard, counter, expenses};

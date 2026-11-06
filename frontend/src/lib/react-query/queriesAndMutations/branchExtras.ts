@@ -5,14 +5,13 @@ import {
   getBranchApprovals,
   decideBranchApproval,
   getBranchPnlReport,
-  getBranchShopsOverview,
-  addBranchShopOverview,
   getBranchStaffOverview,
   inviteBranchStaff,
   getBranchShopAssignment,
   moveBranchEmployee,
   getBranchProfileSetup,
   updateBranchProfileSetup,
+  type ReportPanel,
 } from '@/lib/api/branchExtras';
 import toast from 'react-hot-toast';
 
@@ -21,8 +20,7 @@ export const useBranchExpenses = () =>
   useQuery({
     queryKey: ['branch-expenses'],
     queryFn: async () => {
-      const res = await getBranchExpenses();
-      return res?.data?.data || res?.data;
+      return (await getBranchExpenses()).data;
     },
   });
 
@@ -45,8 +43,7 @@ export const useBranchApprovals = (tab?: string) =>
   useQuery({
     queryKey: ['branch-approvals', tab],
     queryFn: async () => {
-      const res = await getBranchApprovals(tab);
-      return res?.data?.data || res?.data;
+      return (await getBranchApprovals(tab)).data;
     },
   });
 
@@ -66,46 +63,21 @@ export const useDecideBranchApproval = () => {
 };
 
 // Reports
-export const useBranchPnlReport = (from = '2026-11-01', to = '2026-11-03') =>
+export const useBranchPnlReport = (panel: ReportPanel, from?: string, to?: string) =>
   useQuery({
-    queryKey: ['branch-pnl-report', from, to],
+    queryKey: ['branch-pnl-report', panel, from, to],
     queryFn: async () => {
-      const res = await getBranchPnlReport(from, to);
-      return res?.data?.data || res?.data;
+      return (await getBranchPnlReport(panel, from, to)).data;
     },
+    enabled: !!from && !!to,
   });
-
-// Shops
-export const useBranchShopsOverview = () =>
-  useQuery({
-    queryKey: ['branch-shops-overview'],
-    queryFn: async () => {
-      const res = await getBranchShopsOverview();
-      return res?.data?.data || res?.data;
-    },
-  });
-
-export const useAddBranchShop = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: addBranchShopOverview,
-    onSuccess: (res: any) => {
-      toast.success(res?.message || 'Shop submitted successfully');
-      qc.invalidateQueries({queryKey: ['branch-shops-overview']});
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Failed to add shop');
-    },
-  });
-};
 
 // Staff
 export const useBranchStaffOverview = (params?: {tab?: string; shop?: string; search?: string}) =>
   useQuery({
     queryKey: ['branch-staff-overview', params],
     queryFn: async () => {
-      const res = await getBranchStaffOverview(params);
-      return res?.data?.data || res?.data;
+      return (await getBranchStaffOverview(params)).data;
     },
   });
 
@@ -128,8 +100,7 @@ export const useBranchShopAssignment = () =>
   useQuery({
     queryKey: ['branch-shop-assignment'],
     queryFn: async () => {
-      const res = await getBranchShopAssignment();
-      return res?.data?.data || res?.data;
+      return (await getBranchShopAssignment()).data;
     },
   });
 
@@ -152,8 +123,7 @@ export const useBranchProfileSetup = () =>
   useQuery({
     queryKey: ['branch-profile-setup'],
     queryFn: async () => {
-      const res = await getBranchProfileSetup();
-      return res?.data?.data || res?.data;
+      return (await getBranchProfileSetup()).data;
     },
   });
 

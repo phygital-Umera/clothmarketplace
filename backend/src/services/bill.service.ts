@@ -1,5 +1,12 @@
 import httpStatus from 'http-status';
-import {BillPaymentStatus, BillStatus, MovementType, Prisma, StockSourceType} from '@prisma/client';
+import {
+    BillPaymentStatus,
+    BillStatus,
+    CreditNoteStatus,
+    MovementType,
+    Prisma,
+    StockSourceType,
+} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
@@ -8,6 +15,7 @@ import {billValidation} from '@validations/index';
 import accountService from './account.service';
 import inventoryService, {StockChange} from './inventory.service';
 import {ShopScope} from './shopProduct.service';
+import {syncCustomerFromBill} from './customerLedger';
 
 type Tx = Prisma.TransactionClient;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
@@ -244,7 +252,13 @@ class BillService {
 
     /** Credit notes point at bill lines, so a bill with returns is frozen */
     private async assertNoReturns(tx: Tx, id: string) {
-        if (await tx.salesReturn.count({where: {salesBillId: id}})) {
+        const [notes, legacy] = await Promise.all([
+            tx.creditNote.count({
+                where: {salesBillId: id, status: {not: CreditNoteStatus.REJECTED}},
+            }),
+            tx.salesReturn.count({where: {salesBillId: id}}),
+        ]);
+        if (notes + legacy) {
             throw new ApiError(
                 httpStatus.BAD_REQUEST,
                 'This bill has returns (credit notes) and can no longer be changed',
@@ -262,6 +276,11 @@ class BillService {
                     return {...p, amount: round2(applied)};
                 })
                 .filter((p) => p.amount > 0);
+        }
+        // CREDIT: only what was paid now (paidAmount, in cash) is a payment; the rest is due
+        if (data.paymentMethod === 'CREDIT') {
+            const paid = Math.min(round2(data.paidAmount ?? 0), totalAmount);
+            return paid > 0 ? [{mode: 'CASH', amount: paid}] : [];
         }
         return [{mode: data.paymentMethod, amount: totalAmount}];
     }
@@ -697,11 +716,80 @@ class BillService {
                     if (status === BillStatus.CONFIRMED) {
                         await this.post(tx, 'SALES', bill, [], lines, 'confirmed', actorId);
                     }
+                    await syncCustomerFromBill(tx, null, bill);
                     return bill;
                 }),
             'billNumber',
         );
         return this.getSales(scope, created.id);
+    };
+
+    /**
+     * The replacement bill for an exchange, inside the credit note's
+     * transaction. Items are checked and priced like any sale; the credit
+     * note's value is recorded as a CREDIT_NOTE payment (not cash) and the
+     * customer pays any difference by `topUpMode`.
+     */
+    public createExchangeBill = async (
+        tx: Tx,
+        scope: ShopScope,
+        actorId: string,
+        data: {
+            customerName: string | null;
+            customerPhone: string | null;
+            noteNumber: string;
+            creditValue: number;
+            topUpMode: 'CASH' | 'UPI' | 'CARD';
+            items: {variantId: string; quantity: number; unitPrice: number; taxRate: number}[];
+        },
+    ) => {
+        const shop = await this.shopContext(scope);
+        const {lines, totals} = await this.salesLines(tx, scope, {
+            items: data.items.map((i) => ({...i, discount: 0})),
+            discount: 0,
+        } as CreateSales);
+        if (totals.totalAmount < data.creditValue) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `Exchange items (₹${totals.totalAmount}) are worth less than the return (₹${data.creditValue}). Add items, or settle as a refund or store credit.`,
+            );
+        }
+        const topUp = round2(totals.totalAmount - data.creditValue);
+        const bill = await tx.salesBill.create({
+            data: {
+                ...totals,
+                customerName: data.customerName,
+                customerPhone: data.customerPhone,
+                paymentMethod: topUp > 0 ? data.topUpMode : 'CASH',
+                amountPaid: totals.totalAmount,
+                balanceDue: 0,
+                paymentStatus: BillPaymentStatus.PAID,
+                notes: `Exchange against credit note ${data.noteNumber}`,
+                billNumber: await this.nextBillNumber(tx, 'SALES', shop),
+                status: BillStatus.CONFIRMED,
+                companyId: shop.companyId,
+                branchId: shop.branchId,
+                shopId: shop.id,
+                createdById: actorId,
+                items: {create: lines},
+                payments: {
+                    create: [
+                        {
+                            mode: 'CREDIT_NOTE',
+                            amount: data.creditValue,
+                            note: `Credit note ${data.noteNumber}`,
+                            receivedById: actorId,
+                        },
+                        ...(topUp > 0
+                            ? [{mode: data.topUpMode, amount: topUp, receivedById: actorId}]
+                            : []),
+                    ],
+                },
+            },
+        });
+        await this.post(tx, 'SALES', bill, [], lines, 'exchange', actorId);
+        await syncCustomerFromBill(tx, null, bill);
+        return bill;
     };
 
     public updateSales = async (
@@ -735,7 +823,7 @@ class BillService {
 
             await tx.salesBillItem.deleteMany({where: {billId: id}});
             await tx.salesBillPayment.deleteMany({where: {billId: id, atBilling: true}});
-            await tx.salesBill.update({
+            const after = await tx.salesBill.update({
                 where: {id},
                 data: {
                     ...header,
@@ -755,6 +843,7 @@ class BillService {
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(tx, 'SALES', before, before.items, lines, 'edited', actorId);
             }
+            await syncCustomerFromBill(tx, before, after);
         });
         return this.getSales(scope, id);
     };
@@ -768,6 +857,7 @@ class BillService {
                 include: {items: true},
             });
             await this.post(tx, 'SALES', bill, [], bill.items, 'confirmed', actorId);
+            await syncCustomerFromBill(tx, null, bill);
         });
         return this.getSales(scope, id);
     };
@@ -780,10 +870,11 @@ class BillService {
                 where: {id},
                 include: {items: true},
             });
-            await tx.salesBill.update({
+            const after = await tx.salesBill.update({
                 where: {id},
                 data: {status: BillStatus.CANCELLED, cancelledAt: new Date(), cancelReason: reason},
             });
+            await syncCustomerFromBill(tx, before, after);
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(
                     tx,
@@ -815,6 +906,7 @@ class BillService {
                 await this.post(tx, 'SALES', before, before.items, [], 'deleted', actorId);
             }
             await tx.salesBill.update({where: {id}, data: {deletedAt: new Date()}});
+            await syncCustomerFromBill(tx, before, null);
         });
     };
 
@@ -857,10 +949,11 @@ class BillService {
                 atBilling: false,
             };
             if (kind === 'SALES') {
-                await tx.salesBill.update({
+                const after = await tx.salesBill.update({
                     where: {id},
                     data: {...fields, payments: {create: {...payment, receivedById: actorId}}},
                 });
+                await syncCustomerFromBill(tx, bill as typeof after, after);
             } else {
                 await tx.purchaseBill.update({
                     where: {id},

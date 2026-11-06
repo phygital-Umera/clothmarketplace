@@ -55,6 +55,12 @@ api.interceptors.request.use(async (req) => {
   }
 
   req.headers.Authorization = `Bearer ${token.accessToken}`;
+
+  // Employees use the same shop screens; their API is /employee (the shop API
+  // limited to the modules their shop admin gave them)
+  if (user.role === 'EMPLOYEE' && req.url?.startsWith('/shop-admin/')) {
+    req.url = `/employee/${req.url.slice('/shop-admin/'.length)}`;
+  }
   return req;
 });
 

@@ -48,10 +48,6 @@ type MainTab = 'offers' | 'coupons' | 'dashboard';
 type StatusFilter = 'all' | 'active' | 'scheduled' | 'expired' | 'inactive';
 
 export default function PromotionsPage({panel}: Props) {
-  console.log(`[Shop Panel] Rendering PromotionsPage (panel: ${panel})`);
-  useEffect(() => {
-    console.log(`[Shop Panel] PromotionsPage mounted (panel: ${panel})`);
-  }, [panel]);
   const [activeTab, setActiveTab] = useState<MainTab>('offers');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');

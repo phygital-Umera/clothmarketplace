@@ -51,6 +51,23 @@ class CompanyService {
         });
     }
 
+    /** 409 under Company Email when another live company already uses it */
+    private async ensureEmailIsFree(email?: string, exceptId?: string) {
+        if (!email) return;
+        const taken = await prisma.company.findFirst({
+            where: {
+                email: {equals: email, mode: 'insensitive'},
+                deletedAt: null,
+                ...(exceptId ? {NOT: {id: exceptId}} : {}),
+            },
+            select: {id: true},
+        });
+        if (taken) {
+            const message = 'Another company already uses this email';
+            throw new ApiError(httpStatus.CONFLICT, message, [{field: 'email', message}]);
+        }
+    }
+
     /** The company's admin login (one per company) */
     private adminUserOf(companyId: string) {
         return prisma.user.findFirst({
@@ -77,6 +94,7 @@ class CompanyService {
     public async createCompany(data: CreateCompany, logo?: string) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const {removeLogo, adminPassword, ...rest} = data;
+        await this.ensureEmailIsFree(rest.email);
         await this.ensureLoginIsFree(rest.adminPhone, rest.adminEmail);
         const password = await encryptPassword(adminPassword);
 
@@ -161,6 +179,7 @@ class CompanyService {
         await this.getCompanyById(id);
         const {removeLogo, adminPassword, ...rest} = data;
         const adminUser = await this.adminUserOf(id);
+        await this.ensureEmailIsFree(rest.email, id);
         await this.ensureLoginIsFree(rest.adminPhone, rest.adminEmail, adminUser?.id);
         const password = adminPassword ? await encryptPassword(adminPassword) : undefined;
 

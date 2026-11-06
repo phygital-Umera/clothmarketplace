@@ -7,40 +7,41 @@ export type ExpenseSummary = {
   thisMonth: number;
   thisMonthSub: string;
   salaries: number;
-  salariesSub: string;
   rent: number;
-  rentSub: string;
   other: number;
-  otherSub: string;
 };
 
 export type ExpenseRow = {
   head: string;
-  mens: number;
-  womens: number;
-  kids: number;
+  /** Amount per shop id */
+  byShop: Record<string, number>;
   branch: number;
   total: number;
 };
 
 export type ExpensesData = {
+  month: string;
+  shops: {id: string; name: string}[];
   summary: ExpenseSummary;
   rows: ExpenseRow[];
   totalRow: ExpenseRow;
 };
 
 export const getBranchExpenses = () =>
-  api.get<Res<ExpensesData>>('/branch-admin/expenses').then((r: any) => r);
+  (api.get('/branch-admin/expenses') as unknown as Promise<Res<ExpensesData>>);
+
+export type ExpensePaidFrom = 'BANK' | 'PETTY_CASH' | 'OWNER';
 
 export const addBranchExpense = (data: {
   date: string;
   amount: number;
   head: string;
+  /** A shop id, 'SPLIT' (equally over active shops) or 'BRANCH' */
   chargeTo: string;
-  paidFrom: string;
-  billUrl?: string;
+  paidFrom: ExpensePaidFrom;
+  note?: string;
 }) =>
-  api.post<Res<{success: boolean; message: string}>>('/branch-admin/expenses', data).then((r: any) => r);
+  (api.post('/branch-admin/expenses', data) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
 // --- APPROVALS ---
 export type ApprovalItem = {
@@ -74,17 +75,15 @@ export type ApprovalsData = {
 };
 
 export const getBranchApprovals = (tab?: string) =>
-  api.get<Res<ApprovalsData>>('/branch-admin/approvals', {params: {tab}}).then((r: any) => r);
+  (api.get('/branch-admin/approvals', {params: {tab}}) as unknown as Promise<Res<ApprovalsData>>);
 
 export const decideBranchApproval = (id: string, data: {decision: 'APPROVE' | 'REJECT'; note?: string}) =>
-  api.post<Res<{success: boolean; message: string}>>(`/branch-admin/approvals/${id}/decision`, data).then((r: any) => r);
+  (api.post(`/branch-admin/approvals/${id}/decision`, data) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
 // --- REPORTS ---
 export type PnlRow = {
   line: string;
-  mens: number;
-  womens: number;
-  kids: number;
+  byShop: Record<string, number>;
   branch: number;
   total: number;
   isNegative?: boolean;
@@ -92,49 +91,17 @@ export type PnlRow = {
 
 export type PnlData = {
   period: string;
+  range: {from: string; to: string};
+  shops: {id: string; name: string}[];
   rows: PnlRow[];
-  margins: Array<{shop: string; margin: number}>;
-  note: string;
+  margins: Array<{shop: string; margin: number | null}>;
+  note: string | null;
 };
 
-export const getBranchPnlReport = (from?: string, to?: string) =>
-  api.get<Res<PnlData>>('/branch-admin/reports/pnl', {params: {from, to}}).then((r: any) => r);
+export type ReportPanel = 'branch-admin' | 'shop-admin';
 
-// --- SHOPS ---
-export type BranchShopCard = {
-  id: string;
-  name: string;
-  code: string;
-  locationDesc: string;
-  status: 'ACTIVE' | 'PENDING' | 'CLOSED';
-  manager: string;
-  staffCount: number;
-  stockUnits: number;
-  salesMtd: number;
-  nextBillNo: string;
-};
-
-export type ShopsOverviewData = {
-  branchName: string;
-  branchCode: string;
-  shopsCount: number;
-  shops: BranchShopCard[];
-};
-
-export const getBranchShopsOverview = () =>
-  api.get<Res<ShopsOverviewData>>('/branch-admin/shops-overview').then((r: any) => r);
-
-export const addBranchShopOverview = (data: {
-  name: string;
-  code: string;
-  shopType: string;
-  floorSection?: string;
-  phone?: string;
-  invoicePrefix: string;
-  posBillingEnabled?: boolean;
-  allowCreditSales?: boolean;
-}) =>
-  api.post<Res<{success: boolean; message: string}>>('/branch-admin/shops-overview', data).then((r: any) => r);
+export const getBranchPnlReport = (panel: ReportPanel, from?: string, to?: string) =>
+  (api.get(`/${panel}/reports/pnl`, {params: {from, to}}) as unknown as Promise<Res<PnlData>>);
 
 // --- STAFF ---
 export type BranchStaffMember = {
@@ -150,6 +117,7 @@ export type BranchStaffMember = {
 };
 
 export type StaffOverviewData = {
+  shops: {id: string; name: string}[];
   summary: {
     totalStaff: number;
     totalStaffSub: string;
@@ -163,7 +131,7 @@ export type StaffOverviewData = {
 };
 
 export const getBranchStaffOverview = (params?: {tab?: string; shop?: string; search?: string}) =>
-  api.get<Res<StaffOverviewData>>('/branch-admin/staff-overview', {params}).then((r: any) => r);
+  (api.get('/branch-admin/staff-overview', {params}) as unknown as Promise<Res<StaffOverviewData>>);
 
 export const inviteBranchStaff = (data: {
   fullname: string;
@@ -175,7 +143,7 @@ export const inviteBranchStaff = (data: {
   permissions: string[];
   note?: string;
 }) =>
-  api.post<Res<{success: boolean; message: string}>>('/branch-admin/staff-overview/invite', data).then((r: any) => r);
+  (api.post('/branch-admin/staff-overview/invite', data) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
 // --- SHOP ASSIGNMENT ---
 export type ShopStaffMember = {
@@ -187,15 +155,20 @@ export type ShopStaffMember = {
 };
 
 export type ShopAssignmentGroup = {
+  shopId: string;
   shopName: string;
   shopCode: string;
   staffCount: number;
+  /** Shop login(s) of the shop */
   manager: string;
   staff: ShopStaffMember[];
 };
 
 export type ShopAssignmentData = {
+  shops: {id: string; name: string}[];
   groups: ShopAssignmentGroup[];
+  /** Employees of the branch not in any shop */
+  unassigned: ShopStaffMember[];
   history: Array<{
     id: string;
     employee: string;
@@ -203,65 +176,59 @@ export type ShopAssignmentData = {
     role: string;
     date: string;
     by: string;
+    reason: string;
   }>;
 };
 
 export const getBranchShopAssignment = () =>
-  api.get<Res<ShopAssignmentData>>('/branch-admin/shop-assignment').then((r: any) => r);
+  (api.get('/branch-admin/shop-assignment') as unknown as Promise<Res<ShopAssignmentData>>);
 
 export const moveBranchEmployee = (data: {
-  employeeName: string;
-  targetShop: string;
-  roleInShop: string;
-  effectiveFrom: string;
+  employeeId: string;
+  targetShopId: string;
+  roleInShop?: string;
   reason?: string;
 }) =>
-  api.post<Res<{success: boolean; message: string}>>('/branch-admin/shop-assignment/move', data).then((r: any) => r);
+  (api.post('/branch-admin/shop-assignment/move', data) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
 // --- BRANCH PROFILE ---
-export type OperatingHourDay = {
-  day: string;
-  open: boolean;
-  from: string;
-  to: string;
+export const WEEK_DAYS = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const;
+export type WeekDay = (typeof WEEK_DAYS)[number];
+
+export type BranchProfileContact = {
+  email: string;
+  phone: string;
+  alternatePhone: string;
+  address: string;
+  city: string;
+  district: string;
+  state: string;
+  postalCode: string;
 };
 
-export type BranchHoliday = {
-  id: string;
-  name: string;
-  dateDesc: string;
+export type BranchProfileHours = {
+  openingTime: string;
+  closingTime: string;
+  weeklyHolidays: WeekDay[];
 };
 
 export type BranchProfileData = {
-  identity: {
-    branchName: string;
-    branchCode: string;
-    company: string;
-    gstin: string;
-  };
-  contact: {
-    email: string;
-    phone: string;
-    alternatePhone?: string;
-    whatsapp?: string;
-    address: string;
-    city: string;
-    pincode: string;
-    mapsLink?: string;
-  };
-  operatingHours: OperatingHourDay[];
-  holidays: BranchHoliday[];
-  glance: {
-    shops: number;
-    employees: number;
-    branchOpened: string;
-    status: string;
-  };
+  identity: {branchName: string; branchCode: string; company: string};
+  contact: BranchProfileContact;
+  hours: BranchProfileHours;
+  glance: {shops: number; employees: number; branchOpened: string; status: string};
 };
 
 export const getBranchProfileSetup = () =>
-  api.get<Res<BranchProfileData>>('/branch-admin/branch-profile').then((r: any) => r);
+  (api.get('/branch-admin/branch-profile') as unknown as Promise<Res<BranchProfileData>>);
 
-export const updateBranchProfileSetup = (data: Partial<BranchProfileData>) =>
-  api.patch<Res<{success: boolean; message: string}>>('/branch-admin/branch-profile', data).then((r: any) => r);
-
+export const updateBranchProfileSetup = (data: BranchProfileContact & BranchProfileHours) =>
+  (api.patch('/branch-admin/branch-profile', data) as unknown as Promise<Res<{success: boolean; message: string}>>);

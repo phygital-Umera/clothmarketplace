@@ -362,8 +362,9 @@ class StockService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    const variant = await prisma.productVariant.findUnique({
-      where: { id: payload.variantId },
+    // Only the company's own products can be adjusted
+    const variant = await prisma.productVariant.findFirst({
+      where: { id: payload.variantId, product: { companyId: scope.companyId, deletedAt: null } },
       include: { product: true },
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');

@@ -68,6 +68,14 @@ export const PATTERNS = {
 const emptyToUndefined = (value: unknown) =>
     typeof value === 'string' && value.trim() === '' ? undefined : value;
 
+/**
+ * "QA   Fashions" -> "QA Fashions": runs of spaces/tabs inside names and text
+ * become one space, so the same name can't be saved twice with different
+ * spacing. Line breaks (addresses, notes) are kept.
+ */
+export const collapseSpaces = (value: unknown) =>
+    typeof value === 'string' ? value.replace(/[ \t]{2,}/g, ' ') : value;
+
 const toNumber = (value: unknown) => {
     const v = emptyToUndefined(value);
     return typeof v === 'string' ? Number(v) : v;
@@ -154,7 +162,11 @@ export function field({label, kind, required = true, max = 120}: FieldRuleOption
     const rule: z.ZodTypeAny = isNumber
         ? numberRule(resolved, label)
         : stringRule(resolved, label, max);
-    const prepare = isNumber ? toNumber : emptyToUndefined;
+    const prepare = isNumber
+        ? toNumber
+        : resolved === 'name' || resolved === 'text'
+          ? (v: unknown) => emptyToUndefined(collapseSpaces(v))
+          : emptyToUndefined;
 
     return z.preprocess(prepare, required ? rule : rule.optional());
 }

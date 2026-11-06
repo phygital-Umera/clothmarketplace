@@ -1,7 +1,7 @@
 import {Request} from 'express';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import branchProfileSetupService from '../services/branchProfileSetup.service';
+import branchProfileSetupService, {updateProfileSchema} from '../services/branchProfileSetup.service';
 
 const branchOf = (req: Request) => {
     const {companyId, branchId} = req.user;
@@ -24,7 +24,7 @@ const get = catchAsync(async (req, res) => {
 });
 
 const update = catchAsync(async (req, res) => {
-    const data = await branchProfileSetupService.updateProfile(branchOf(req), req.body);
+    const data = await branchProfileSetupService.updateProfile(branchOf(req), updateProfileSchema.parse(req.body));
     return ok(res, data, data.message);
 });
 

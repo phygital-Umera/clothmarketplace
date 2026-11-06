@@ -1,7 +1,8 @@
 import {Request} from 'express';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import branchReportsService from '../services/branchReports.service';
+import branchReportsService, {pnlQuerySchema} from '../services/branchReports.service';
+import prisma from '../client';
 
 const branchOf = (req: Request) => {
     const {companyId, branchId} = req.user;
@@ -19,13 +20,31 @@ const ok = (
 ) => res.status(status).json(new ApiResponse(status, data, message));
 
 const getPnl = catchAsync(async (req, res) => {
-    const fromDate = typeof req.query.from === 'string' ? req.query.from : '2026-11-01';
-    const toDate = typeof req.query.to === 'string' ? req.query.to : '2026-11-03';
-    const data = await branchReportsService.getPnl(branchOf(req), fromDate, toDate);
+    const data = await branchReportsService.getPnl(branchOf(req), pnlQuerySchema.parse(req.query));
+    return ok(res, data, 'Report fetched successfully');
+});
+
+/** Shop login: the same report for its own shop */
+const getShopPnl = catchAsync(async (req, res) => {
+    const {companyId, shopId} = req.user;
+    const shop = shopId
+        ? await prisma.shop.findFirst({
+              where: {id: shopId, companyId: companyId ?? undefined},
+              select: {branchId: true},
+          })
+        : null;
+    if (!companyId || !shopId || !shop) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'No shop is linked to this account');
+    }
+    const data = await branchReportsService.getPnl(
+        {companyId, branchId: shop.branchId, shopId},
+        pnlQuerySchema.parse(req.query),
+    );
     return ok(res, data, 'Report fetched successfully');
 });
 
 export default {
     getPnl,
+    getShopPnl,
 };
 

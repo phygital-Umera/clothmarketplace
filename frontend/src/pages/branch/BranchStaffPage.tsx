@@ -9,16 +9,10 @@ import {
 import {useDecideStaffRequest} from '@/lib/react-query/queriesAndMutations/staff';
 import {SHIFT_LABEL, Shift, STAFF_ROLES} from '@/types/staff';
 import {getErrorMessage} from '@/utils/axios';
+import {SHOP_MODULES} from '@/lib/shopModules';
 
-const RIGHTS = [
-  {key: 'pos.bill', label: 'POS billing'},
-  {key: 'sales.discount', label: 'Give discount'},
-  {key: 'sales.credit', label: 'Credit (udhaar) sales'},
-  {key: 'purchase.create', label: 'Purchase bills'},
-  {key: 'inventory.adjust', label: 'Stock adjustment'},
-  {key: 'stock.transfer', label: 'Stock transfer'},
-  {key: 'cash.manage', label: 'Cash book'},
-];
+// Same module access as the Employees page; ticking a module gives view + edit
+const RIGHTS = SHOP_MODULES.map((m) => ({key: `${m.key}.edit`, label: m.label}));
 
 const STATUS_CLS: Record<string, string> = {
   ACTIVE: 'bg-[#E3EEDD] text-[#3F6B3A]',
@@ -111,7 +105,7 @@ const EMPTY = {
   shopId: '',
   employeeRole: 'Sales associate',
   shift: 'FULL_DAY' as Shift,
-  permissions: ['pos.bill'] as string[],
+  permissions: ['billing.edit'] as string[],
 };
 
 export default function BranchStaffPage() {

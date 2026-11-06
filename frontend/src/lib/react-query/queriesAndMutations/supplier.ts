@@ -52,10 +52,8 @@ export const useCreateSupplier = (panel: string = 'shop-admin') => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateSupplierPayload) => createSupplier(panel, payload),
-    onSuccess: (data: any) => {
-      toast.success(
-        `Supplier "${data?.name || payload?.name}" added successfully`
-      );
+    onSuccess: (_data, payload) => {
+      toast.success(`Supplier "${payload.name}" added`);
       queryClient.invalidateQueries({queryKey: supplierKeys.all});
     },
     onError: (err: any) => {

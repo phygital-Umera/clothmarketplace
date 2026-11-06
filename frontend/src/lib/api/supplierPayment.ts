@@ -35,17 +35,11 @@ export type RecordPaymentPayload = {
 type Res<T> = {statusCode: number; data: T; message: string};
 
 export const getSuppliers = (params?: {search?: string}) =>
-  api
-    .get<Res<{items: SupplierProfile[]}>>('/branch-admin/suppliers', {params})
-    .then((res: any) => res);
+  (api.get('/branch-admin/suppliers', {params}) as unknown as Promise<Res<{items: SupplierProfile[]}>>);
 
 export const getSupplierSummary = () =>
-  api
-    .get<Res<SupplierSummary>>('/branch-admin/suppliers/summary')
-    .then((res: any) => res);
+  (api.get('/branch-admin/suppliers/summary') as unknown as Promise<Res<SupplierSummary>>);
 
 export const recordSupplierPayment = (data: RecordPaymentPayload) =>
-  api
-    .post<Res<{receiptNo: string; message: string}>>('/branch-admin/suppliers/payment', data)
-    .then((res: any) => res);
+  (api.post('/branch-admin/suppliers/payment', data) as unknown as Promise<Res<{receiptNo: string; message: string}>>);
 

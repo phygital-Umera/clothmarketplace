@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { Role } from '@prisma/client';
 import stockAdjustmentService, { Scope } from '../services/stockAdjustment.service';
+import {createAdjustmentSchema, getAdjustmentsQuerySchema} from '../validations/stockAdjustment.validation';
 import { catchAsync, ApiError, ApiResponse } from '../utils';
 
 const scopeOf = (req: Request): Scope => {
@@ -26,15 +27,16 @@ export const getAdjustmentVariants = catchAsync(async (req: Request, res: Respon
 
 export const getAdjustmentHistory = catchAsync(async (req: Request, res: Response) => {
   const scope = scopeOf(req);
-  const result = await stockAdjustmentService.getAdjustmentHistory(scope, req.query as any);
+  const result = await stockAdjustmentService.getAdjustmentHistory(scope, getAdjustmentsQuerySchema.parse(req.query));
   return res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, result, 'Adjustment history fetched successfully'));
 });
 
 export const createAdjustment = catchAsync(async (req: Request, res: Response) => {
   const scope = scopeOf(req);
   const actorId = req.user?.id || 'system';
-  const actorName = req.user?.fullname || 'Priya Shinde';
-  const result = await stockAdjustmentService.createAdjustment(scope, actorId, actorName, req.body);
+  const actorName = req.user?.fullname || '';
+  const data = createAdjustmentSchema.parse(req.body);
+  const result = await stockAdjustmentService.createAdjustment(scope, actorId, actorName, data);
   return res.status(httpStatus.CREATED).json(new ApiResponse(httpStatus.CREATED, result, result.message));
 });
 

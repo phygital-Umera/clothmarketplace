@@ -175,7 +175,7 @@ class StockAdjustmentService {
       }
 
       // Determine actor name from notes if available e.g. "Logged by Shital Mane"
-      let byName = r.userName || 'Priya Shinde';
+      let byName = r.userName || '—';
       if (r.notes && r.notes.includes('Logged by ')) {
         byName = r.notes.replace('Logged by ', '').trim();
       }
@@ -208,8 +208,9 @@ class StockAdjustmentService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    const variant = await prisma.productVariant.findUnique({
-      where: { id: input.variantId },
+    // Only the company's own products can be adjusted
+    const variant = await prisma.productVariant.findFirst({
+      where: { id: input.variantId, product: { companyId: scope.companyId, deletedAt: null } },
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
 
@@ -279,7 +280,7 @@ class StockAdjustmentService {
     `, id, adjustmentNumber, input.reference || null, input.photoUrl || null, branchId,
        scope.shopId || null, scope.companyId, input.variantId, input.type, qty,
        availableBefore, availableAfter, damagedBefore, damagedAfter, input.reason,
-       approvalStatus, `Logged by ${actorName || 'Priya Shinde'}`, actorId);
+       approvalStatus, actorName ? `Logged by ${actorName}` : null, actorId);
 
     // 3. Insert StockMovement
     await prisma.stockMovement.create({

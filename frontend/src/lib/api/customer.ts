@@ -15,23 +15,21 @@ interface Res<T> {
 }
 
 export const getCustomers = (panel: string, params?: CustomerListParams) =>
-  api
-    .get<Res<CustomerListResponse>>(`/${panel}/customers`, {params})
-    .then((res: any) => res);
+  (api.get(`/${panel}/customers`, {params}) as unknown as Promise<Res<CustomerListResponse>>);
 
 export const getCustomer = (panel: string, id: string) =>
-  api.get<Res<ShopCustomer>>(`/${panel}/customers/${id}`).then((res: any) => res);
+  (api.get(`/${panel}/customers/${id}`) as unknown as Promise<Res<ShopCustomer>>);
 
 export const createCustomer = (panel: string, data: CreateCustomerPayload) =>
-  api.post<Res<ShopCustomer>>(`/${panel}/customers`, data).then((res: any) => res);
+  (api.post(`/${panel}/customers`, data) as unknown as Promise<Res<ShopCustomer>>);
 
 export const updateCustomer = (
   panel: string,
   id: string,
   data: UpdateCustomerPayload,
 ) =>
-  api.patch<Res<ShopCustomer>>(`/${panel}/customers/${id}`, data).then((res: any) => res);
+  (api.patch(`/${panel}/customers/${id}`, data) as unknown as Promise<Res<ShopCustomer>>);
 
 export const importCustomers = (panel: string, rows: any[]) =>
-  api.post<Res<{imported: number; total: number}>>(`/${panel}/customers/import`, {rows}).then((res: any) => res);
+  (api.post(`/${panel}/customers/import`, {rows}) as unknown as Promise<Res<{imported: number; total: number}>>);
 

@@ -1,7 +1,7 @@
 import {Request} from 'express';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import branchExpenseService from '../services/branchExpense.service';
+import branchExpenseService, {addExpenseSchema} from '../services/branchExpense.service';
 
 const branchOf = (req: Request) => {
     const {companyId, branchId} = req.user;
@@ -24,7 +24,7 @@ const list = catchAsync(async (req, res) => {
 });
 
 const add = catchAsync(async (req, res) => {
-    const data = await branchExpenseService.addExpense(branchOf(req), req.body);
+    const data = await branchExpenseService.addExpense(branchOf(req), req.user.id, addExpenseSchema.parse(req.body));
     return ok(res, data, data.message, httpStatus.CREATED);
 });
 

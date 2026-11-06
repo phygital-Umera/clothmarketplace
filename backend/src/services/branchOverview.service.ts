@@ -159,10 +159,10 @@ class BranchOverviewService {
 
         const shopRows = shops.map((shop) => {
             const rows = todayByShopPay.filter((r) => r.shopId === shop.id);
-            const amount = (pay?: string) =>
+            const amount = (...pays: string[]) =>
                 sum(
                     rows
-                        .filter((r) => (pay ? r.paymentMethod === pay : r.paymentMethod !== 'CASH'))
+                        .filter((r) => pays.includes(r.paymentMethod))
                         .reduce((t, r) => t + (r._sum.totalAmount ?? 0), 0),
                 );
             return {
@@ -174,7 +174,8 @@ class BranchOverviewService {
                 bills: rows.reduce((t, r) => t + r._count._all, 0),
                 sales: sum(rows.reduce((t, r) => t + (r._sum.totalAmount ?? 0), 0)),
                 cash: amount('CASH'),
-                digital: amount(),
+                digital: amount('UPI', 'CARD'),
+                credit: amount('CREDIT'),
                 monthSales: sum(monthByShop.find((m) => m.shopId === shop.id)?._sum.totalAmount),
             };
         });

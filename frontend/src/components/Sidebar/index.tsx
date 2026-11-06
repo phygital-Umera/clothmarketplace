@@ -1,67 +1,58 @@
 import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
-import usePermissions from '@/hooks/usePermissions';
 import {SidebarProps} from '@/types';
 import {Link} from '@tanstack/react-router';
 import {roleConfig, Role, ROLES} from '@/lib/roles';
+import {employeeCanOpen} from '@/lib/shopModules';
 import {
   ArrowLeftRight,
   BarChart3,
   BookUser,
-  Building2,
-  CreditCard,
-  FilePlus2,
-  Percent,
-  PlusSquare,
-  SlidersHorizontal,
-  Tag,
-  Truck,
-  Undo2,
-  UserCheck,
-  UserCog,
-  Wallet,
   Boxes,
   Barcode,
-
+  Building2,
+  Briefcase,
+  CreditCard,
   FileInput,
   FileOutput,
+  KeyRound,
   Layers,
+  LayoutDashboard,
+  Megaphone,
+  Monitor,
+  Package,
   Palette,
   RotateCcw,
   Ruler,
-  Tags,
-  TicketPercent,
-  KeyRound,
-  LayoutDashboard,
-  Monitor,
-  Package,
-  ShieldCheck,
   ShoppingBag,
+  SlidersHorizontal,
   Store,
+  Tag,
+  Tags,
+  Truck,
+  Undo2,
   User,
+  UserCheck,
+  UserCog,
   Users,
+  Wallet,
   Warehouse,
   X,
 } from 'lucide-react';
 import {ReactNode, useEffect} from 'react';
 
-type NavItem = {label: string; to: string; icon: ReactNode; exact?: boolean};
-
+type NavItem = {label: string; to: string; icon: ReactNode};
 type NavGroup = {heading: string; items: NavItem[]};
 
-const icon = (Icon: typeof LayoutDashboard) => (
-  <Icon size={18} strokeWidth={1.5} />
-);
+const item = (label: string, to: string, Icon: typeof LayoutDashboard): NavItem => ({
+  label,
+  to,
+  icon: <Icon size={18} strokeWidth={1.5} />,
+});
 
 const dashboard = (to: string): NavGroup => ({
   heading: 'Overview',
-  items: [{label: 'Dashboard', to, icon: icon(LayoutDashboard)}],
-});
-
-const item = (label: string, to: string, Icon: typeof LayoutDashboard) => ({
-  label,
-  to,
-  icon: icon(Icon),
+  items: [item('Dashboard', to, LayoutDashboard)],
 });
 
 // What each role sees; the backend still checks every request
@@ -69,20 +60,48 @@ const NAV: Record<Role, NavGroup[]> = {
   SUPER_ADMIN: [
     dashboard(ROLES.SUPER_ADMIN.home),
     {
-      heading: 'Masters',
-      items: [item('Admins', '/super-admin/admins', ShieldCheck)],
+      heading: 'Businesses',
+      items: [
+        item('Companies', '/super-admin/companies', Briefcase),
+        item('Branches', '/super-admin/branches', Building2),
+        item('Shops', '/super-admin/shops', Store),
+        item('Users', '/super-admin/users', Users),
+      ],
     },
+    {
+      heading: 'Catalog',
+      items: [
+        item('Categories', '/super-admin/categories', Tags),
+        item('Brands', '/super-admin/brands', Tag),
+        item('Products', '/super-admin/products', Package),
+      ],
+    },
+    {heading: 'Sales', items: [item('Orders', '/super-admin/orders', ShoppingBag)]},
   ],
   ADMIN: [
     dashboard(ROLES.ADMIN.home),
     {
-      heading: 'Masters',
-      items: [item('Branches', '/company-admin/branches', Store)],
+      heading: 'Business',
+      items: [
+        item('Branches', '/company-admin/branches', Building2),
+        item('Shops', '/company-admin/shops', Store),
+        item('Employees', '/company-admin/employees', Users),
+        item('Company Profile', '/company-admin/profile', Briefcase),
+      ],
     },
     {
-      heading: 'Sales & Fulfillment',
+      heading: 'Catalog',
+      items: [
+        item('Products', '/company-admin/products', Package),
+        item('Brands', '/company-admin/brands', Tag),
+        item('Stock', '/company-admin/inventory', Boxes),
+      ],
+    },
+    {
+      heading: 'Sales',
       items: [
         item('Orders', '/company-admin/orders', ShoppingBag),
+        item('Promotions', '/company-admin/promotions', Megaphone),
       ],
     },
   ],
@@ -116,11 +135,7 @@ const NAV: Record<Role, NavGroup[]> = {
         item('Products & Prices', '/branch-admin/products', Tag),
         item('Stock by Shop', '/branch-admin/inventory', Boxes),
         item('Barcode Labels', '/branch-admin/barcode-labels', Barcode),
-        item(
-          'Stock Transfers',
-          '/branch-admin/stock-transfers',
-          ArrowLeftRight,
-        ),
+        item('Stock Transfers', '/branch-admin/stock-transfers', ArrowLeftRight),
       ],
     },
     {
@@ -128,13 +143,7 @@ const NAV: Record<Role, NavGroup[]> = {
       items: [
         item('Cash & Day Close', '/branch-admin/day-close', Wallet),
         item('Expenses', '/branch-admin/expenses', CreditCard),
-      ],
-    },
-    {
-      heading: 'Reports',
-      items: [
         item('Reports', '/branch-admin/reports', BarChart3),
-        item('GST Summary', '/branch-admin/gst', Percent),
       ],
     },
     {
@@ -155,13 +164,13 @@ const NAV: Record<Role, NavGroup[]> = {
       items: [
         item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
         item('Sales Bills', '/shop-admin/sales-bills', FileOutput),
-        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
+        item('Sales Returns', '/shop-admin/sales-returns', RotateCcw),
       ],
     },
     {
       heading: 'Customers',
       items: [
-        item('Customers', '/shop-admin/customers', Users),
+        item('Customers', '/shop-admin/customers', BookUser),
         item('Credit / Udhaar', '/shop-admin/credit', CreditCard),
       ],
     },
@@ -169,7 +178,6 @@ const NAV: Record<Role, NavGroup[]> = {
       heading: 'Purchase',
       items: [
         item('Purchase Bills', '/shop-admin/purchase-bills', FileInput),
-        item('New Purchase', '/shop-admin/new-purchase', PlusSquare),
         item('Purchase Return', '/shop-admin/purchase-return', RotateCcw),
         item('Suppliers', '/shop-admin/suppliers', Truck),
       ],
@@ -178,10 +186,10 @@ const NAV: Record<Role, NavGroup[]> = {
       heading: 'Stock',
       items: [
         item('Products', '/shop-admin/products', Package),
-        item('Barcode Labels', '/shop-admin/barcode-labels', Barcode),
         item('Stock', '/shop-admin/inventory', Boxes),
         item('Stock Adjustment', '/shop-admin/stock-adjustment', SlidersHorizontal),
         item('Stock Transfer', '/shop-admin/stock-transfer', ArrowLeftRight),
+        item('Barcode Labels', '/shop-admin/barcode-labels', Barcode),
       ],
     },
     {
@@ -189,17 +197,15 @@ const NAV: Record<Role, NavGroup[]> = {
       items: [
         item('Cash Book', '/shop-admin/cash-book', Wallet),
         item('Expenses', '/shop-admin/expenses', CreditCard),
-      ],
-    },
-    {
-      heading: 'Reports',
-      items: [
         item('Reports', '/shop-admin/reports', BarChart3),
       ],
     },
     {
       heading: 'Team',
-      items: [item('Staff & Rights', '/shop-admin/staff', UserCog)],
+      items: [
+        item('Employees', '/shop-admin/employees', Users),
+        item('Staff & Rights', '/shop-admin/staff', UserCog),
+      ],
     },
     {
       heading: 'Masters',
@@ -208,79 +214,49 @@ const NAV: Record<Role, NavGroup[]> = {
         item('Subcategories', '/shop-admin/subcategories', Layers),
         item('Colors', '/shop-admin/colors', Palette),
         item('Sizes', '/shop-admin/sizes', Ruler),
-        item('Employees', '/shop-admin/employees', Users),
       ],
     },
   ],
-  EMPLOYEE: [
-    dashboard(ROLES.EMPLOYEE.home),
-    {
-      heading: 'Billing',
-      items: [
-        item('New Bill (POS)', '/shop-admin/new-bill', Monitor),
-        item('Sales Return', '/shop-admin/sales-return', RotateCcw),
-      ],
-    },
-  ],
-  USER: [
-    {
-      heading: 'Account',
-      items: [item('My Account', ROLES.USER.home, User)],
-    },
-  ],
+  // Employees: built from the shop menu and their module access (see below)
+  EMPLOYEE: [],
+  USER: [{heading: 'Account', items: [item('My Account', ROLES.USER.home, User)]}],
 };
 
 const ACCOUNT_GROUP: NavGroup = {
   heading: 'Settings',
-  items: [
-    {label: 'Change Password', to: '/change-password', icon: icon(KeyRound)},
-  ],
+  items: [item('Change Password', '/change-password', KeyRound)],
 };
 
 const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
   const {role} = useAuthContext();
-  const {can} = usePermissions();
   const config = roleConfig(role);
   const {data: me} = useCurrentUser();
 
-  // Branch admins see "BRANCH ADMIN · SANGLI" (or their branch name)
-  const panelLabel =
+  // Under the brand: the role, and the branch / shop the account belongs to
+  const place =
     role === 'SUB_ADMIN'
       ? me?.branch?.name
-        ? `BRANCH ADMIN · ${me.branch.name.replace(/branch/i, '').trim().toUpperCase()}`
-        : 'BRANCH ADMIN'
-      : config?.label;
+      : role === 'SHOP_ADMIN' || role === 'EMPLOYEE'
+        ? me?.shop?.name
+        : null;
+  const panelLabel = [config?.label, place].filter(Boolean).join(' · ');
 
-  // Employees see the tools their permissions allow
-  const workItems =
+  // An employee sees the shop screens of the modules they were given
+  const employeeNav: NavGroup[] =
     role === 'EMPLOYEE'
       ? [
-          can('products.manage') &&
-            item('Products', '/employee/products', Package),
-          can('inventory.view') &&
-            item('Inventory', '/employee/inventory', Boxes),
-          can('orders.process') &&
-            item('Orders', '/employee/orders', ShoppingBag),
-        ].filter((i): i is NavItem => !!i)
+          {heading: 'Me', items: [item('My Work', ROLES.EMPLOYEE.home, User)]},
+          ...NAV.SHOP_ADMIN.map((g) => ({
+            ...g,
+            items: g.items.filter((i) => employeeCanOpen(i.to, me?.permissions)),
+          })).filter((g) => g.items.length),
+        ]
       : [];
-  const employeeTools: NavGroup[] = workItems.length
-    ? [{heading: 'Work', items: workItems}]
-    : [];
-  const nav = [...(NAV[role as Role] ?? []), ...employeeTools, ACCOUNT_GROUP];
-
-  useEffect(() => {
-    if (role === 'SHOP_ADMIN') {
-      console.log(
-        '[Shop Panel Sidebar] Mounted with nav items:',
-        nav.flatMap((g) => g.items.map((i) => ({ heading: g.heading, label: i.label, to: i.to })))
-      );
-    }
-  }, [role, nav]);
+  const nav = [...(role === 'EMPLOYEE' ? employeeNav : (NAV[role as Role] ?? [])), ACCOUNT_GROUP];
 
   useEffect(() => {
     if (!sidebarOpen) return;
-    const onKey = (e: KeyboardEvent) =>
-      e.key === 'Escape' && setSidebarOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSidebarOpen(false);
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [sidebarOpen, setSidebarOpen]);
@@ -302,16 +278,12 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
         }`}
       >
         <div className="flex items-center justify-between border-b border-[#5c1c2b] px-5 py-4">
-          <Link
-            to={config?.home ?? '/'}
-            className="block"
-            onClick={() => setSidebarOpen(false)}
-          >
+          <Link to={config?.home ?? '/'} className="block min-w-0" onClick={() => setSidebarOpen(false)}>
             <span className="block font-serif text-2xl font-bold tracking-tight text-[#FAF7F5]">
               Cloth Pro
             </span>
-            <span className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wider text-[#C99A9F]">
-              {role === 'SHOP_ADMIN' ? "SHOP · WOMEN'S WEAR" : panelLabel}
+            <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wider text-[#C99A9F]">
+              {panelLabel}
             </span>
           </Link>
           <button
@@ -334,16 +306,9 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
                   <li key={navItem.to}>
                     <Link
                       to={navItem.to}
-                      activeOptions={{exact: navItem.exact}}
-                      onClick={() => {
-                        console.log(`[Shop Panel Sidebar] Navigation clicked: "${navItem.label}" -> ${navItem.to}`);
-                        setSidebarOpen(false);
-                      }}
+                      onClick={() => setSidebarOpen(false)}
                       className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-[#E8DCD9] transition-all duration-150 hover:bg-[#5C1E2B] hover:text-white"
-                      activeProps={{
-                        className:
-                          '!bg-[#5C1E2B] !text-white shadow-sm font-semibold',
-                      }}
+                      activeProps={{className: '!bg-[#5C1E2B] !text-white shadow-sm font-semibold'}}
                     >
                       <span className="flex-shrink-0 text-[#D4B5B9] transition-transform duration-150 group-hover:scale-105 group-hover:text-white">
                         {navItem.icon}

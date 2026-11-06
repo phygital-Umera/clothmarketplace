@@ -3,7 +3,7 @@ import BillFormModal from '@/components/Bills/BillFormModal';
 import {ExpenseModal, OpenCounterModal} from '@/components/Bills/CounterModals';
 import PaymentStatusBadge from '@/components/Bills/PaymentStatusBadge';
 import RecordPaymentModal from '@/components/Bills/RecordPaymentModal';
-import SalesReturnModal from '@/components/Bills/SalesReturnModal';
+import NewReturnModal from '@/components/CreditNotes/NewReturnModal';
 import {StatCard} from '@/components/ui';
 import {useShopDashboard} from '@/lib/react-query/queriesAndMutations/shopOps';
 import {BillKind} from '@/types/bill';
@@ -82,10 +82,6 @@ const payableLine = (s: Payable) => {
  * expense or counter change.
  */
 export default function ShopDashboard() {
-  console.log('[Shop Panel] Rendering ShopDashboard');
-  useEffect(() => {
-    console.log('[Shop Panel] ShopDashboard mounted');
-  }, []);
   const navigate = useNavigate();
   const {data, isPending, isError, error} = useShopDashboard(PANEL);
   const [newBill, setNewBill] = useState<BillKind | null>(null);
@@ -161,12 +157,9 @@ export default function ShopDashboard() {
           >
             <Plus size={14} /> Purchase
           </button>
-          <Link
-            to="/shop-admin/sales-return"
-            className="btn-ghost"
-          >
+          <button type="button" className="btn-ghost" onClick={() => setReturning(true)}>
             Return
-          </Link>
+          </button>
           <button
             type="button"
             className="btn-primary"
@@ -583,9 +576,7 @@ export default function ShopDashboard() {
           onClose={() => setNewBill(null)}
         />
       )}
-      {returning && (
-        <SalesReturnModal panel={PANEL} onClose={() => setReturning(false)} />
-      )}
+      <NewReturnModal open={returning} onClose={() => setReturning(false)} />
       {openingCounter && (
         <OpenCounterModal
           panel={PANEL}

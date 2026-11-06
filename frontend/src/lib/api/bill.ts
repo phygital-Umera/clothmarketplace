@@ -25,24 +25,20 @@ export const getBills = (
   kind: BillKind,
   params: BillListParams,
 ) =>
-  api
-    .get<Res<{items: Bill[]; pagination: any}>>(base(panel, kind), {params})
-    .then((res: any) => res);
+  (api.get(base(panel, kind), {params}) as unknown as Promise<Res<{items: Bill[]; pagination: any}>>);
 
 export const getBill = (panel: string, kind: BillKind, id: string) =>
-  api.get<Res<Bill>>(`${base(panel, kind)}/${id}`).then((res: any) => res);
+  (api.get(`${base(panel, kind)}/${id}`) as unknown as Promise<Res<Bill>>);
 
 export const getBillByNumber = (
   panel: string,
   kind: BillKind,
   billNumber: string,
 ) =>
-  api
-    .get<Res<Bill>>(`${base(panel, kind)}/find`, {params: {billNumber}})
-    .then((res: any) => res);
+  (api.get(`${base(panel, kind)}/find`, {params: {billNumber}}) as unknown as Promise<Res<Bill>>);
 
 export const createBill = (panel: string, kind: BillKind, data: BillPayload) =>
-  api.post<Res<Bill>>(base(panel, kind), data).then((res: any) => res);
+  (api.post(base(panel, kind), data) as unknown as Promise<Res<Bill>>);
 
 export const updateBill = (
   panel: string,
@@ -50,14 +46,10 @@ export const updateBill = (
   id: string,
   data: BillPayload,
 ) =>
-  api
-    .patch<Res<Bill>>(`${base(panel, kind)}/${id}`, data)
-    .then((res: any) => res);
+  (api.patch(`${base(panel, kind)}/${id}`, data) as unknown as Promise<Res<Bill>>);
 
 export const confirmBill = (panel: string, kind: BillKind, id: string) =>
-  api
-    .post<Res<Bill>>(`${base(panel, kind)}/${id}/confirm`)
-    .then((res: any) => res);
+  (api.post(`${base(panel, kind)}/${id}/confirm`) as unknown as Promise<Res<Bill>>);
 
 export const cancelBill = (
   panel: string,
@@ -65,9 +57,7 @@ export const cancelBill = (
   id: string,
   reason: string,
 ) =>
-  api
-    .post<Res<Bill>>(`${base(panel, kind)}/${id}/cancel`, {reason})
-    .then((res: any) => res);
+  (api.post(`${base(panel, kind)}/${id}/cancel`, {reason}) as unknown as Promise<Res<Bill>>);
 
 export const deleteBill = (panel: string, kind: BillKind, id: string) =>
   api.delete(`${base(panel, kind)}/${id}`).then((res: any) => res);
@@ -79,9 +69,7 @@ export const recordBillPayment = (
   id: string,
   data: RecordPaymentPayload,
 ) =>
-  api
-    .post<Res<Bill>>(`${base(panel, kind)}/${id}/payments`, data)
-    .then((res: any) => res);
+  (api.post(`${base(panel, kind)}/${id}/payments`, data) as unknown as Promise<Res<Bill>>);
 
 export interface CustomerSuggestion {
   name: string;
@@ -91,9 +79,7 @@ export interface CustomerSuggestion {
 }
 
 export const searchCustomers = (panel: string, q: string) =>
-  api
-    .get<Res<CustomerSuggestion[]>>(`/${panel}/customers`, {params: {q}})
-    .then((res: any) => res);
+  (api.get(`/${panel}/customers`, {params: {q}}) as unknown as Promise<Res<CustomerSuggestion[]>>);
 
 // Branch admin: read-only view of every shop's sales bills
 // (the axios response interceptor already unwraps `res.data`)

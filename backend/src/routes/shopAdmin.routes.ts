@@ -13,6 +13,7 @@ import {
     orgController as c,
     shopProductController as p,
     creditNoteController,
+    branchReportsController,
 } from '@controllers/index';
 import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
@@ -20,10 +21,12 @@ import {mountBills} from './bill.routes';
 import {mountShopOps} from './shopOps.routes';
 import {mountStaffCash} from './staffCash.routes';
 
+/**
+ * Every shop route, without sign-in checks. Mounted twice:
+ *   /shop-admin  for the shop login (everything)
+ *   /employee    for employees, limited per module (see employeeModuleGuard)
+ */
 const router = Router();
-
-// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for testing / management)
-router.use(verifyJWT, checkRole([Role.SHOP_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.SUB_ADMIN]));
 
 // ---- Employees ----
 router.route('/employees').get(c.listEmployees).post(c.createEmployee);
@@ -130,6 +133,9 @@ router.get('/purchase-returns/:id', purchaseReturnController.getPurchaseReturn);
 // ---- Shop dashboard, credit notes, cash counter, expenses ----
 mountShopOps(router);
 
+// Profit & loss of this shop
+router.get('/reports/pnl', branchReportsController.getShopPnl);
+
 // ---- Staff & rights, cash book & day close, stock transfer ----
 mountStaffCash(router);
 
@@ -146,4 +152,14 @@ router.get('/orders/:id/invoice', e.getOrderInvoice);
 router.get('/returns', e.listReturns);
 router.patch('/returns/:id', e.updateReturnStatus);
 
-export default router;
+export const shopRoutes = router;
+
+// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management)
+const shopAdminRouter = Router();
+shopAdminRouter.use(
+    verifyJWT,
+    checkRole([Role.SHOP_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.SUB_ADMIN]),
+    shopRoutes,
+);
+
+export default shopAdminRouter;

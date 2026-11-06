@@ -5,13 +5,10 @@ import {ApiError, ApiResponse, PrismaError} from '@utils/index';
 import {Prisma} from '@prisma/client';
 import {logger} from '@config/index';
 
-const notFoundHandler = (req: Request, res: Response, next: NextFunction) => {
+// Hands the 404 to the error handler, which sends the one response
+const notFoundHandler = (req: Request, _res: Response, next: NextFunction) => {
     const message = `Cannot find the resource ${req.originalUrl} on the server at ${req.protocol}://${req.get('host')}`;
-    const error = new ApiError(httpStatus.NOT_FOUND, message);
-    res.status(httpStatus.NOT_FOUND).json(
-        new ApiResponse(httpStatus.NOT_FOUND, undefined, message),
-    );
-    next(error);
+    next(new ApiError(httpStatus.NOT_FOUND, message));
 };
 
 // No console.log(err) here: printing a ZodError crashes Node 24's inspector

@@ -39,10 +39,6 @@ function formatDateShort(dateStr?: string | null) {
 }
 
 export default function CreditUdhaarPage() {
-  console.log('[Shop Panel] Rendering CreditUdhaarPage');
-  useEffect(() => {
-    console.log('[Shop Panel] CreditUdhaarPage mounted');
-  }, []);
 
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -75,7 +71,7 @@ export default function CreditUdhaarPage() {
 
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState<string>('2000');
-  const [paymentMode, setPaymentMode] = useState<string>('Cash');
+  const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [paymentDate, setPaymentDate] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -477,11 +473,11 @@ export default function CreditUdhaarPage() {
                     onChange={(e) => setPaymentMode(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
                   >
-                    <option value="Cash">Cash</option>
+                    <option value="CASH">Cash</option>
                     <option value="UPI">UPI</option>
-                    <option value="Card">Card</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
+                    <option value="CARD">Card</option>
+                    <option value="NETBANKING">Bank Transfer</option>
+                    <option value="CHEQUE">Cheque</option>
                   </select>
                 </div>
 

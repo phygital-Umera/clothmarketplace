@@ -1,3 +1,5 @@
+import {employeeCanOpen} from '@/lib/shopModules';
+
 /*
  * Exact internal role identifiers:
  * 1. SUPER_ADMIN = Platform Super Admin
@@ -72,9 +74,15 @@ export const homeFor = (role?: string | null) =>
 export const landingFor = (role?: string | null): Landing =>
   roleConfig(role)?.landing ?? {to: homeFor(role)};
 
-export const canOpen = (role: string | null | undefined, path: string) => {
+/** Employees also open the shop screens of the modules they were given */
+export const canOpen = (
+  role: string | null | undefined,
+  path: string,
+  permissions: string[] = [],
+) => {
   const config = roleConfig(role);
   if (!config) return false;
+  if (role === 'EMPLOYEE' && employeeCanOpen(path, permissions)) return true;
   return (
     SHARED_PATHS.includes(path) ||
     path === config.prefix ||

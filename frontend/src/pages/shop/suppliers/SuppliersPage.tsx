@@ -35,10 +35,6 @@ const formatInr = (n?: number | null) => {
 };
 
 export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps) {
-  console.log('[Shop Panel] Rendering SuppliersPage');
-  useEffect(() => {
-    console.log('[Shop Panel] SuppliersPage mounted');
-  }, []);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -60,14 +56,14 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
 
   // Payment form state
   const [payAmount, setPayAmount] = useState<string>('');
-  const [payMode, setPayMode] = useState<string>('NEFT / RTGS');
+  const [payMode, setPayMode] = useState<string>('Bank transfer (NEFT / RTGS)');
   const [payDate, setPayDate] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
   const [utrChequeNo, setUtrChequeNo] = useState<string>('');
   const [againstBill, setAgainstBill] = useState<string>('');
-  const [paidFrom, setPaidFrom] = useState<string>('Bank - HDFC current a/c (**4417)');
+  const [paidFrom, setPaidFrom] = useState<string>('Bank account');
 
   // Debounce search
   useEffect(() => {
@@ -439,11 +435,10 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     onChange={(e) => setPayMode(e.target.value)}
                     className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
                   >
-                    <option value="NEFT / RTGS">NEFT / RTGS</option>
+                    <option value="Bank transfer (NEFT / RTGS)">Bank transfer (NEFT / RTGS)</option>
                     <option value="Cash">Cash</option>
                     <option value="UPI">UPI</option>
                     <option value="Cheque">Cheque</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
                   </select>
                 </div>
 
@@ -503,12 +498,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     onChange={(e) => setPaidFrom(e.target.value)}
                     className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
                   >
-                    <option value="Bank - HDFC current a/c (**4417)">
-                      Bank - HDFC current a/c (**4417)
-                    </option>
-                    <option value="Bank - SBI main a/c (**1892)">
-                      Bank - SBI main a/c (**1892)
-                    </option>
+                    <option value="Bank account">Bank account</option>
                     <option value="Cash in shop register">Cash in shop register</option>
                     <option value="Petty cash">Petty cash</option>
                   </select>

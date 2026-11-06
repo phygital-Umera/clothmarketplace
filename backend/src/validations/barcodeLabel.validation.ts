@@ -16,7 +16,7 @@ export const printBarcodeLabelsSchema = z.object({
   sourceType: z.enum(['PURCHASE_BILL', 'PRODUCT_PICK', 'REPRINT']).default('PURCHASE_BILL'),
   sourceRef: z.string().optional(),
   labelSize: z.string().default('50 × 30 mm · 1 across (thermal roll)'),
-  printer: z.string().default('TSC TE244 (USB)'),
+  printer: z.string().trim().max(80).optional(),
   showShopName: z.boolean().default(true),
   showItemNameSize: z.boolean().default(true),
   showMrp: z.boolean().default(true),

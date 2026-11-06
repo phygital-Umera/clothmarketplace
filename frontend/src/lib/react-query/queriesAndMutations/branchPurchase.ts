@@ -1,21 +1,10 @@
 import {
-  createBranchPurchase,
   getBranchPurchase,
   getBranchPurchases,
   getBranchPurchaseSummary,
 } from '@/lib/api/branchPurchase';
-import {
-  BranchPurchaseQuery,
-  NewBranchPurchasePayload,
-} from '@/types/branchPurchase';
-import {getErrorMessage} from '@/utils/axios';
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import toast from 'react-hot-toast';
+import {BranchPurchaseQuery} from '@/types/branchPurchase';
+import {keepPreviousData, useQuery} from '@tanstack/react-query';
 
 export const BRANCH_PURCHASE_KEYS = {
   ALL: 'branch_purchases',
@@ -32,10 +21,10 @@ export const useBranchPurchases = (params: BranchPurchaseQuery) =>
     placeholderData: keepPreviousData,
   });
 
-export const useBranchPurchaseSummary = () =>
+export const useBranchPurchaseSummary = (month?: string) =>
   useQuery({
-    queryKey: [BRANCH_PURCHASE_KEYS.SUMMARY],
-    queryFn: getBranchPurchaseSummary,
+    queryKey: [BRANCH_PURCHASE_KEYS.SUMMARY, month],
+    queryFn: () => getBranchPurchaseSummary(month),
     select: (res) => res.data,
   });
 
@@ -46,22 +35,3 @@ export const useBranchPurchase = (id?: string) =>
     select: (res) => res.data,
     enabled: !!id,
   });
-
-export const useCreateBranchPurchase = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: NewBranchPurchasePayload) => createBranchPurchase(data),
-    onSuccess: (res: any) => {
-      toast.success(res?.message || 'Branch purchase saved successfully');
-      queryClient.invalidateQueries({queryKey: [BRANCH_PURCHASE_KEYS.ALL]});
-      queryClient.invalidateQueries({queryKey: [BRANCH_PURCHASE_KEYS.LIST]});
-      queryClient.invalidateQueries({queryKey: [BRANCH_PURCHASE_KEYS.SUMMARY]});
-      queryClient.invalidateQueries({queryKey: ['shop_bills']});
-      queryClient.invalidateQueries({queryKey: ['inventory']});
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, 'Failed to save purchase bill'));
-    },
-  });
-};
-

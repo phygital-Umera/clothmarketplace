@@ -6,7 +6,9 @@ import {
   getBill,
   getBillByNumber,
   getBills,
+  getBranchSalesSummary,
   recordBillPayment,
+  searchCustomers,
   updateBill,
 } from '@/lib/api/bill';
 import {ECOMM_KEYS} from '@/lib/react-query/queriesAndMutations/ecommerce';
@@ -14,6 +16,7 @@ import {
   BillKind,
   BillListParams,
   BillPayload,
+  BranchSalesParams,
   RecordPaymentPayload,
 } from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';

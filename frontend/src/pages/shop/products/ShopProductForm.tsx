@@ -352,10 +352,6 @@ const Form = ({product}: {product?: ShopProduct}) => {
 
 /** /shop-admin/products/new and /shop-admin/products/edit/:productId */
 const ShopProductForm = () => {
-  console.log('[Shop Panel] Rendering ShopProductForm');
-  useEffect(() => {
-    console.log('[Shop Panel] ShopProductForm mounted');
-  }, []);
   const {productId} = useParams({strict: false}) as {productId?: string};
   const {data: product, isPending, isError, error} = useShopProduct(productId);
 

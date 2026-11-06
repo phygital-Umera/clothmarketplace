@@ -1,7 +1,11 @@
 import {Request} from 'express';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
-import branchShopAssignmentService from '../services/branchShopAssignment.service';
+import branchShopAssignmentService, {
+    MOVE_ACTION,
+    moveEmployeeSchema,
+} from '../services/branchShopAssignment.service';
+import {auditService} from '@services/index';
 
 const branchOf = (req: Request) => {
     const {companyId, branchId} = req.user;
@@ -24,9 +28,13 @@ const get = catchAsync(async (req, res) => {
 });
 
 const move = catchAsync(async (req, res) => {
-    const actorName = req.user.fullname || 'Snehal Kulkarni';
-    const data = await branchShopAssignmentService.moveEmployee(branchOf(req), actorName, req.body);
-    return ok(res, data, data.message, httpStatus.CREATED);
+    const data = moveEmployeeSchema.parse(req.body);
+    const result = await auditService.track(
+        req,
+        {action: MOVE_ACTION, module: 'staff', targetId: data.employeeId, reason: data.reason},
+        () => branchShopAssignmentService.moveEmployee(branchOf(req), data),
+    );
+    return ok(res, {success: true, message: result.message}, result.message);
 });
 
 export default {

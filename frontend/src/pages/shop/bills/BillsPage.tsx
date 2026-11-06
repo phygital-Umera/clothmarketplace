@@ -73,10 +73,6 @@ const EditBill = ({
 };
 
 export default function BillsPage({panel, kind}: Props) {
-  console.log(`[Shop Panel] Rendering BillsPage (panel: ${panel}, kind: ${kind})`);
-  useEffect(() => {
-    console.log(`[Shop Panel] BillsPage mounted (panel: ${panel}, kind: ${kind})`);
-  }, [panel, kind]);
   const isPurchase = kind === 'purchase';
   const label = isPurchase ? 'Purchase Bills' : 'Sales Bills';
   const list = useListState();

@@ -1,4 +1,4 @@
-export type ReturnSettlement = 'REFUND' | 'EXCHANGE' | 'STORE_CREDIT';
+export type ReturnSettlement = 'REFUND' | 'EXCHANGE' | 'STORE_CREDIT' | 'ADJUST_DUE';
 export type CreditNoteStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 export type ReturnStockTo = 'RESTOCK' | 'DAMAGED';
 export type ReturnReason =
@@ -27,6 +27,7 @@ export const SETTLEMENT_LABEL: Record<ReturnSettlement, string> = {
   REFUND: 'Refund',
   EXCHANGE: 'Exchange',
   STORE_CREDIT: 'Store credit',
+  ADJUST_DUE: 'Take off what they owe',
 };
 
 export const STOCK_TO_LABEL: Record<ReturnStockTo, string> = {

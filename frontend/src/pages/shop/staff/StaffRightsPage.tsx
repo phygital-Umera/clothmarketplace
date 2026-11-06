@@ -127,7 +127,7 @@ const EMPTY_REQUEST: StaffRequestPayload = {
   email: '',
   employeeRole: 'Sales associate',
   shift: 'FULL_DAY',
-  permissions: ['pos.bill'],
+  permissions: ['billing.edit'],
   note: '',
 };
 
@@ -316,7 +316,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
       <PageHeader
         breadcrumbs={[{label: 'Shop'}, {label: 'Staff'}]}
         title="Staff & rights"
-        subtitle="Your team's shifts, task permissions and today's activity. Adding or moving staff is done by the Branch Admin."
+        subtitle="Your team's shifts and today's activity. A tick gives that module with edit access; set View-only access on the Employees page."
         actions={
           <button type="button" className="btn-ghost" onClick={() => setRequestOpen(true)}>
             Request new staff

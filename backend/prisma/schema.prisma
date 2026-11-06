@@ -127,6 +127,9 @@ model Company {
 
   categories    Category[]
   brands        Brand[]
+  subcategories Subcategory[]
+  colors        Color[]
+  sizes         Size[]
   products      Product[]
   orders        Order[]
   returns       ReturnRequest[]
@@ -357,6 +360,9 @@ model Brand {
 
 model Subcategory {
   id           String    @id @default(uuid())
+  /// null = platform-wide (super admin); otherwise one company's own
+  companyId    String?
+  company      Company?  @relation(fields: [companyId], references: [id])
   categoryId   String
   category     Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name         String
@@ -370,11 +376,15 @@ model Subcategory {
   offers       Offer[]
 
   @@index([categoryId])
+  @@index([companyId])
   @@index([code])
 }
 
 model Color {
   id        String   @id @default(uuid())
+  /// null = platform-wide (super admin); otherwise one company's own
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
   name      String
   code      String   @unique
   hexCode   String
@@ -384,11 +394,15 @@ model Color {
   products  ProductColor[]
   previews  ProductColorPreview[]
 
+  @@index([companyId])
   @@index([code])
 }
 
 model Size {
   id           String   @id @default(uuid())
+  /// null = platform-wide (super admin); otherwise one company's own
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
   name         String
   code         String   @unique
   description  String?
@@ -398,6 +412,7 @@ model Size {
   updatedAt    DateTime @updatedAt
   products     ProductSize[]
 
+  @@index([companyId])
   @@index([code])
 }
 
@@ -455,6 +470,8 @@ model Product {
   // Pricing & Tax
   mrp            Float           @default(0)
   sellingPrice   Float           @default(0)
+  /// Last time the selling price was changed (branch pricing)
+  priceChangedAt DateTime?
   taxRate        Float           @default(5.0) // Typical apparel GST (5% / 12%)
   currency       String          @default("INR")
 
@@ -1060,8 +1077,9 @@ model Expense {
   id          String   @id @default(uuid())
   companyId   String
   branchId    String
-  shopId      String
-  shop        Shop     @relation(fields: [shopId], references: [id])
+  /// null = a branch-level expense (rent, salaries) not charged to one shop
+  shopId      String?
+  shop        Shop?    @relation(fields: [shopId], references: [id])
   expenseDate DateTime @default(now())
   category    String
   amount      Float
@@ -1072,6 +1090,7 @@ model Expense {
   createdAt   DateTime @default(now())
 
   @@index([shopId, expenseDate])
+  @@index([branchId, expenseDate])
 }
 
 model StockAdjustment {
@@ -1436,6 +1455,8 @@ enum ReturnSettlement {
   REFUND
   EXCHANGE
   STORE_CREDIT
+  /// Return value is taken off what the customer still owes on the bill
+  ADJUST_DUE
 }
 
 enum CreditNoteStatus {
@@ -1672,7 +1693,7 @@ model SupplierPayment {
   billNumber    String?
   amount        Float
   paymentMode   String    @default("NEFT / RTGS")
-  paidFrom      String    @default("Bank - HDFC current a/c (**4417)")
+  paidFrom      String?
   paymentDate   DateTime  @default(now())
   utrChequeNo   String?
   tdsDeducted   Float     @default(0)
@@ -1699,7 +1720,7 @@ model BarcodePrintJob {
   sourceType       String   @default("PURCHASE_BILL")
   sourceRef        String?
   labelSize        String   @default("50x30mm")
-  printer          String   @default("TSC TE244 (USB)")
+  printer          String?
   showShopName     Boolean  @default(true)
   showItemNameSize  Boolean  @default(true)
   showMrp          Boolean  @default(true)

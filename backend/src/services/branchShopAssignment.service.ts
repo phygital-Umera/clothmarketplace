@@ -1,230 +1,140 @@
+import httpStatus from 'http-status';
+import {AccountStatus, Role} from '@prisma/client';
+import {z} from 'zod';
 import prisma from '../client';
+import ApiError from '@utils/ApiError';
 import {BranchScope} from './customerDue.service';
 
-export type ShopStaffMember = {
-    id: string;
-    name: string;
-    initials: string;
-    role: string;
-    shopName: string;
-};
+/*
+ * Which employee works in which shop of the branch, from the real users.
+ * Moving someone changes their shop; each move is kept in the audit log
+ * (action "employee.move"), which is also the history shown here.
+ */
 
-export type ShopAssignmentGroup = {
-    shopName: string;
-    shopCode: string;
-    staffCount: number;
-    manager: string;
-    staff: ShopStaffMember[];
-};
+export const MOVE_ACTION = 'employee.move';
 
-export type MoveEmployeePayload = {
-    employeeName: string;
-    targetShop: string;
-    roleInShop: string;
-    effectiveFrom: string;
-    reason?: string;
-};
+export const moveEmployeeSchema = z.object({
+    employeeId: z.string({required_error: 'Choose an employee'}).uuid('Choose an employee'),
+    targetShopId: z.string({required_error: 'Choose a shop'}).uuid('Choose a shop'),
+    roleInShop: z.string().trim().max(80).optional(),
+    reason: z.string().trim().max(300).optional(),
+});
+export type MoveEmployee = z.infer<typeof moveEmployeeSchema>;
+
+const initials = (name: string) =>
+    name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]!.toUpperCase())
+        .join('');
 
 class BranchShopAssignmentService {
-    private tableEnsured = false;
-
-    private async ensureTable() {
-        if (this.tableEnsured) return;
-        try {
-            await prisma.$executeRawUnsafe(`
-                CREATE TABLE IF NOT EXISTS "ShopAssignmentHistory" (
-                    "id" TEXT PRIMARY KEY,
-                    "companyId" TEXT NOT NULL,
-                    "branchId" TEXT NOT NULL,
-                    "employee" TEXT NOT NULL,
-                    "fromShop" TEXT NOT NULL,
-                    "toShop" TEXT NOT NULL,
-                    "role" TEXT NOT NULL,
-                    "date" TEXT NOT NULL,
-                    "by" TEXT NOT NULL,
-                    "reason" TEXT,
-                    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            this.tableEnsured = true;
-        } catch (e) {
-            console.error('Error creating ShopAssignmentHistory table:', e);
-        }
-    }
-
-    private async ensureSeedData(scope: BranchScope) {
-        await this.ensureTable();
-        const countRes: any = await prisma.$queryRawUnsafe(
-            `SELECT count(*) as count FROM "ShopAssignmentHistory" WHERE "branchId" = $1`,
-            scope.branchId,
-        );
-        const count = parseInt(countRes[0]?.count ?? '0', 10);
-        if (count > 0) return;
-
-        const initialHistory = [
-            {
-                id: `sah-${scope.branchId}-1`,
-                companyId: scope.companyId,
-                branchId: scope.branchId,
-                employee: 'Kiran More',
-                fromShop: '—',
-                toShop: 'Kids Wear',
-                role: 'Cashier',
-                date: '02 Nov 2026',
-                by: 'Snehal Kulkarni',
-                reason: 'Cashier reallocation',
-            },
-            {
-                id: `sah-${scope.branchId}-2`,
-                companyId: scope.companyId,
-                branchId: scope.branchId,
-                employee: 'Pallavi Kale',
-                fromShop: "Men's Wear",
-                toShop: "Women's Wear",
-                role: 'Sales associate',
-                date: '02 Nov 2026',
-                by: 'Snehal Kulkarni',
-                reason: 'Women section festival rush',
-            },
-            {
-                id: `sah-${scope.branchId}-3`,
-                companyId: scope.companyId,
-                branchId: scope.branchId,
-                employee: 'Priya Shinde',
-                fromShop: '—',
-                toShop: "Women's Wear",
-                role: 'Shop manager',
-                date: '01 Nov 2026',
-                by: 'Matoshri Admin',
-                reason: 'Manager promotion',
-            },
-        ];
-
-        for (const h of initialHistory) {
-            await prisma.$executeRawUnsafe(
-                `INSERT INTO "ShopAssignmentHistory" (
-                    "id", "companyId", "branchId", "employee", "fromShop", "toShop", "role", "date", "by", "reason"
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT ("id") DO NOTHING`,
-                h.id,
-                h.companyId,
-                h.branchId,
-                h.employee,
-                h.fromShop,
-                h.toShop,
-                h.role,
-                h.date,
-                h.by,
-                h.reason,
-            );
-        }
-    }
-
     public async getAssignmentData(scope: BranchScope) {
-        await this.ensureSeedData(scope);
+        const [shops, people, history] = await Promise.all([
+            prisma.shop.findMany({
+                where: {branchId: scope.branchId, companyId: scope.companyId, deletedAt: null},
+                select: {id: true, name: true, code: true},
+                orderBy: {name: 'asc'},
+            }),
+            prisma.user.findMany({
+                where: {
+                    branchId: scope.branchId,
+                    companyId: scope.companyId,
+                    role: {in: [Role.EMPLOYEE, Role.SHOP_ADMIN]},
+                    deletedAt: null,
+                    status: {not: AccountStatus.INACTIVE},
+                },
+                select: {id: true, fullname: true, role: true, shopId: true, employeeRole: true, jobTitle: true},
+                orderBy: {fullname: 'asc'},
+            }),
+            prisma.auditLog.findMany({
+                where: {companyId: scope.companyId, action: MOVE_ACTION, result: 'SUCCESS', after: {path: ['branchId'], equals: scope.branchId}},
+                orderBy: {createdAt: 'desc'},
+                take: 20,
+            }),
+        ]);
 
-        const historyRows: any[] = await prisma.$queryRawUnsafe(
-            `SELECT * FROM "ShopAssignmentHistory" WHERE "branchId" = $1 ORDER BY "createdAt" DESC`,
-            scope.branchId,
-        );
+        const shopName = (id: string | null) => shops.find((s) => s.id === id)?.name ?? 'No shop';
+        const staff = people.filter((p) => p.role === Role.EMPLOYEE);
 
-        const groups: ShopAssignmentGroup[] = [
-            {
-                shopName: "Men's Wear",
-                shopCode: 'MAT-B02-S01',
-                staffCount: 5,
-                manager: 'Rahul Mane',
-                staff: [
-                    {id: '1', name: 'Sagar Jadhav', initials: 'SJ', role: 'Cashier', shopName: "Men's Wear"},
-                    {id: '2', name: 'Ganesh Patil', initials: 'GP', role: 'Sales associate', shopName: "Men's Wear"},
-                    {id: '3', name: 'Mahesh Shinde', initials: 'MS', role: 'Sales associate', shopName: "Men's Wear"},
-                    {id: '4', name: 'Tushar Mali', initials: 'TM', role: 'Stock keeper', shopName: "Men's Wear"},
-                ],
-            },
-            {
-                shopName: "Women's Wear",
-                shopCode: 'MAT-B02-S02',
-                staffCount: 6,
-                manager: 'Priya Shinde',
-                staff: [
-                    {id: '5', name: 'Pallavi Kale', initials: 'PK', role: 'Sales associate', shopName: "Women's Wear"},
-                    {id: '6', name: 'Rutuja Pawar', initials: 'RP', role: 'Cashier', shopName: "Women's Wear"},
-                    {id: '7', name: 'Shital Mane', initials: 'SM', role: 'Sales associate', shopName: "Women's Wear"},
-                    {id: '8', name: 'Komal Desai', initials: 'KD', role: 'Sales associate', shopName: "Women's Wear"},
-                    {id: '9', name: 'Aarti Sutar', initials: 'AS', role: 'Stock keeper', shopName: "Women's Wear"},
-                ],
-            },
-            {
-                shopName: 'Kids Wear',
-                shopCode: 'MAT-B02-S03',
-                staffCount: 3,
-                manager: 'Not assigned',
-                staff: [
-                    {id: '10', name: 'Kiran More', initials: 'KM', role: 'Cashier', shopName: 'Kids Wear'},
-                    {id: '11', name: 'Pooja Kamble', initials: 'PK', role: 'Sales associate', shopName: 'Kids Wear'},
-                    {id: '12', name: 'Vaibhav Nikam', initials: 'VN', role: 'Stock keeper', shopName: 'Kids Wear'},
-                ],
-            },
-            {
-                shopName: 'Unassigned',
-                shopCode: 'Branch pool',
-                staffCount: 1,
-                manager: '—',
-                staff: [
-                    {id: '13', name: 'Akash Lohar', initials: 'AL', role: 'New joiner', shopName: 'Unassigned'},
-                ],
-            },
-        ];
+        const groups = shops.map((s) => {
+            const members = staff.filter((p) => p.shopId === s.id);
+            const managers = people.filter((p) => p.role === Role.SHOP_ADMIN && p.shopId === s.id);
+            return {
+                shopId: s.id,
+                shopName: s.name,
+                shopCode: s.code,
+                staffCount: members.length,
+                manager: managers.map((m) => m.fullname).join(', ') || '—',
+                staff: members.map((m) => ({
+                    id: m.id,
+                    name: m.fullname,
+                    initials: initials(m.fullname),
+                    role: m.employeeRole || m.jobTitle || 'Staff',
+                    shopName: s.name,
+                })),
+            };
+        });
+
+        const unassigned = staff
+            .filter((p) => !p.shopId || !shops.some((s) => s.id === p.shopId))
+            .map((m) => ({id: m.id, name: m.fullname, initials: initials(m.fullname), role: m.employeeRole || 'Staff', shopName: 'No shop'}));
 
         return {
+            shops: shops.map((s) => ({id: s.id, name: s.name})),
             groups,
-            history: historyRows.map((r) => ({
-                id: r.id,
-                employee: r.employee,
-                fromTo: `${r.fromShop} → ${r.toShop}`,
-                role: r.role,
-                date: r.date,
-                by: r.by,
-            })),
+            unassigned,
+            history: history.map((h) => {
+                const after = (h.after ?? {}) as {employeeName?: string; fromShopId?: string | null; toShopId?: string; roleInShop?: string};
+                return {
+                    id: h.id,
+                    employee: after.employeeName ?? '—',
+                    fromTo: `${shopName(after.fromShopId ?? null)} → ${shopName(after.toShopId ?? null)}`,
+                    role: after.roleInShop ?? '',
+                    date: h.createdAt.toISOString(),
+                    by: h.actorName ?? '—',
+                    reason: h.reason ?? '',
+                };
+            }),
         };
     }
 
-    public async moveEmployee(scope: BranchScope, actorName: string, payload: MoveEmployeePayload) {
-        await this.ensureTable();
-        const id = `sah-${scope.branchId}-${Date.now()}`;
-        const cleanEmp = payload.employeeName.split('—')[0].trim();
-        const fromShop = payload.employeeName.includes('—')
-            ? payload.employeeName.split('—')[1].trim()
-            : 'Unassigned';
+    /** Returns before/after for the audit log */
+    public async moveEmployee(scope: BranchScope, data: MoveEmployee) {
+        const [employee, shop] = await Promise.all([
+            prisma.user.findFirst({
+                where: {id: data.employeeId, branchId: scope.branchId, companyId: scope.companyId, role: Role.EMPLOYEE, deletedAt: null},
+                select: {id: true, fullname: true, shopId: true, employeeRole: true},
+            }),
+            prisma.shop.findFirst({
+                where: {id: data.targetShopId, branchId: scope.branchId, companyId: scope.companyId, deletedAt: null},
+                select: {id: true, name: true},
+            }),
+        ]);
+        if (!employee) throw new ApiError(httpStatus.NOT_FOUND, 'Employee not found in this branch');
+        if (!shop) throw new ApiError(httpStatus.NOT_FOUND, 'Shop not found in this branch');
+        if (employee.shopId === shop.id) {
+            throw new ApiError(httpStatus.BAD_REQUEST, `${employee.fullname} already works in ${shop.name}`);
+        }
 
-        const dateStr = new Date().toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
+        await prisma.user.update({
+            where: {id: employee.id},
+            data: {shopId: shop.id, ...(data.roleInShop ? {employeeRole: data.roleInShop} : {})},
         });
-
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO "ShopAssignmentHistory" (
-                "id", "companyId", "branchId", "employee", "fromShop", "toShop", "role", "date", "by", "reason"
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            id,
-            scope.companyId,
-            scope.branchId,
-            cleanEmp,
-            fromShop,
-            payload.targetShop,
-            payload.roleInShop,
-            dateStr,
-            actorName || 'Snehal Kulkarni',
-            payload.reason || null,
-        );
-
         return {
-            success: true,
-            message: `${cleanEmp} assigned to ${payload.targetShop} as ${payload.roleInShop}`,
+            before: {shopId: employee.shopId},
+            after: {
+                id: employee.id,
+                branchId: scope.branchId,
+                employeeName: employee.fullname,
+                fromShopId: employee.shopId,
+                toShopId: shop.id,
+                roleInShop: data.roleInShop ?? employee.employeeRole ?? undefined,
+            },
+            message: `${employee.fullname} moved to ${shop.name}`,
         };
     }
 }
 
 export default new BranchShopAssignmentService();
-

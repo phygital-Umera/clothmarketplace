@@ -6,29 +6,19 @@ import prisma from '../client';
 import supplierService from '../services/supplier.service';
 import { createSupplierSchema, recordSupplierPaymentSchema } from '../validations/supplier.validation';
 
+// Suppliers belong to a branch: a shop login uses its shop's branch
 const resolveScope = async (req: Request) => {
   const user = req.user as any;
   const companyId = user?.companyId;
   let branchId = user?.branchId;
-  let shopId = user?.shopId;
-
+  const shopId = user?.shopId;
   if (!branchId && shopId) {
-    const shop: any[] = await prisma.$queryRawUnsafe(`
-      SELECT "branchId" FROM "Shop" WHERE "id" = $1 LIMIT 1
-    `, shopId);
-    branchId = shop[0]?.branchId;
+    const shop = await prisma.shop.findFirst({where: {id: shopId}, select: {branchId: true}});
+    branchId = shop?.branchId;
   }
-  if (!branchId && companyId) {
-    const branch: any[] = await prisma.$queryRawUnsafe(`
-      SELECT "id" FROM "Branch" WHERE "companyId" = $1 LIMIT 1
-    `, companyId);
-    branchId = branch[0]?.id;
-  }
-
   if (!companyId || !branchId) {
-    throw new ApiError(httpStatus.FORBIDDEN, 'User is not linked to a company or branch');
+    throw new ApiError(httpStatus.FORBIDDEN, 'This account is not linked to a branch');
   }
-
   return { companyId, branchId, shopId };
 };
 

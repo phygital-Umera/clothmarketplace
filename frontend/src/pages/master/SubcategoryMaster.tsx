@@ -71,10 +71,6 @@ const STATUS_TABS = [
 ];
 
 const SubcategoryMaster = () => {
-  console.log('[Shop Panel] Rendering SubcategoryMaster');
-  useEffect(() => {
-    console.log('[Shop Panel] SubcategoryMaster mounted');
-  }, []);
   const list = useListState();
   // Fetch real categories from the backend
   const categoryOptionsQuery = useMasterCategoryOptions();
@@ -166,7 +162,7 @@ const SubcategoryMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (s) => (
-        <span className="text-espresso-muted line-clamp-1">
+        <span className="text-on-surface-variant line-clamp-1">
           {s.description || '–'}
         </span>
       ),

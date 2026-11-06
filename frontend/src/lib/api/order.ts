@@ -16,20 +16,20 @@ import {
 // -------------------------------------------------------------
 
 export const getOrderDashboard = (panel: string) =>
-  api.get<{statusCode: number; data: OrderDashboardData; message: string}>(
+  (api.get(
     `/${panel}/orders/dashboard`
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: OrderDashboardData; message: string}>);
 
 export const getOrders = (panel: string, params: OrderListParams) =>
-  api.get<{statusCode: number; data: {items: Order[]; pagination: any}; message: string}>(
+  (api.get(
     `/${panel}/orders`,
     {params}
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: {items: Order[]; pagination: any}; message: string}>);
 
 export const getOrder = (panel: string, id: string) =>
-  api.get<{statusCode: number; data: Order; message: string}>(
+  (api.get(
     `/${panel}/orders/${id}`
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const updateOrderStatus = (
   panel: string,
@@ -41,10 +41,10 @@ export const updateOrderStatus = (
     trackingNumber?: string;
   }
 ) =>
-  api.patch<{statusCode: number; data: Order; message: string}>(
+  (api.patch(
     `/${panel}/orders/${id}/status`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const updateOrderShipping = (
   panel: string,
@@ -56,10 +56,10 @@ export const updateOrderShipping = (
     comment?: string;
   }
 ) =>
-  api.patch<{statusCode: number; data: Order; message: string}>(
+  (api.patch(
     `/${panel}/orders/${id}/shipping`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const updateOrderPayment = (
   panel: string,
@@ -70,10 +70,10 @@ export const updateOrderPayment = (
     comment?: string;
   }
 ) =>
-  api.patch<{statusCode: number; data: Order; message: string}>(
+  (api.patch(
     `/${panel}/orders/${id}/payment`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const reviewCancellation = (
   panel: string,
@@ -83,19 +83,19 @@ export const reviewCancellation = (
     reason?: string;
   }
 ) =>
-  api.post<{statusCode: number; data: Order; message: string}>(
+  (api.post(
     `/${panel}/orders/${id}/cancel-review`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const getOrderReturns = (
   panel: string,
   params: {page?: number; limit?: number; status?: ReturnStatus}
 ) =>
-  api.get<{statusCode: number; data: {items: ReturnRequestItem[]; pagination: any}; message: string}>(
+  (api.get(
     `/${panel}/returns`,
     {params}
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: {items: ReturnRequestItem[]; pagination: any}; message: string}>);
 
 export const updateReturnStatus = (
   panel: string,
@@ -107,49 +107,49 @@ export const updateReturnStatus = (
     restock?: boolean;
   }
 ) =>
-  api.patch<{statusCode: number; data: ReturnRequestItem; message: string}>(
+  (api.patch(
     `/${panel}/returns/${id}`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: ReturnRequestItem; message: string}>);
 
 export const getOrderInvoiceData = (panel: string, id: string) =>
-  api.get<{statusCode: number; data: Order; message: string}>(
+  (api.get(
     `/${panel}/orders/${id}/invoice`
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 // -------------------------------------------------------------
 // CUSTOMER ORDER APIS
 // -------------------------------------------------------------
 
 export const checkoutCustomerOrder = (data: CreateOrderCheckoutPayload) =>
-  api.post<{statusCode: number; data: Order; message: string}>(
+  (api.post(
     '/users/orders/checkout',
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const getCustomerOrders = (params: {page?: number; limit?: number; status?: string}) =>
-  api.get<{statusCode: number; data: {items: Order[]; pagination: any}; message: string}>(
+  (api.get(
     '/users/orders',
     {params}
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: {items: Order[]; pagination: any}; message: string}>);
 
 export const getCustomerOrder = (id: string) =>
-  api.get<{statusCode: number; data: Order; message: string}>(
+  (api.get(
     `/users/orders/${id}`
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const cancelCustomerOrder = (id: string, reason: string) =>
-  api.post<{statusCode: number; data: Order; message: string}>(
+  (api.post(
     `/users/orders/${id}/cancel`,
     {reason}
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const returnCustomerOrder = (
   id: string,
   data: {reason: string; description?: string; returnItems?: any[]}
 ) =>
-  api.post<{statusCode: number; data: ReturnRequestItem; message: string}>(
+  (api.post(
     `/users/orders/${id}/return`,
     data
-  ).then((res: any) => res);
+  ) as unknown as Promise<{statusCode: number; data: ReturnRequestItem; message: string}>);
 

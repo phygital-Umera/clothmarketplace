@@ -59,10 +59,6 @@ const STATUS_TABS = [
 ];
 
 const ColorMaster = () => {
-  console.log('[Shop Panel] Rendering ColorMaster');
-  useEffect(() => {
-    console.log('[Shop Panel] ColorMaster mounted');
-  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} =
     useMasterColors({
@@ -121,7 +117,7 @@ const ColorMaster = () => {
       render: (c) => (
         <div className="flex items-center gap-3">
           <div
-            className="h-7 w-7 rounded-full border border-ivory-400 shadow-sm"
+            className="h-7 w-7 rounded-full border border-outline shadow-sm"
             style={{backgroundColor: c.hexCode}}
             title={c.hexCode}
           />
@@ -303,7 +299,7 @@ const ColorMaster = () => {
               value: (
                 <div className="flex items-center gap-2">
                   <span
-                    className="h-4 w-4 rounded-full border border-ivory-400"
+                    className="h-4 w-4 rounded-full border border-outline"
                     style={{backgroundColor: viewing.hexCode}}
                   />
                   <span className="font-mono">{viewing.hexCode}</span>

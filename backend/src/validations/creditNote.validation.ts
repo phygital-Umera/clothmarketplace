@@ -19,6 +19,27 @@ const createCreditNoteSchema = z
         reason: z.enum(RETURN_REASONS, {required_error: 'Choose a reason'}),
         reasonNote: field({label: 'Reason Note', kind: 'text', max: 500, required: false}),
         stockTo: z.nativeEnum(ReturnStockTo).default(ReturnStockTo.RESTOCK),
+        // EXCHANGE: the new items the customer takes. Their value must cover the
+        // return; any difference is paid with topUpMode.
+        exchangeItems: z
+            .array(
+                z.object({
+                    variantId: z.string().uuid('Select a valid item'),
+                    quantity: z.coerce
+                        .number({invalid_type_error: 'Enter a valid Quantity'})
+                        .int('Quantity must be a whole number')
+                        .min(1, 'Quantity must be at least 1')
+                        .max(100_000),
+                    unitPrice: z.coerce.number().min(0).max(10_000_000),
+                    taxRate: z.coerce
+                        .number()
+                        .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%')
+                        .default(0),
+                }),
+            )
+            .max(200)
+            .optional(),
+        topUpMode: z.enum(REFUND_MODES).default('CASH'),
         items: z
             .array(
                 z.object({

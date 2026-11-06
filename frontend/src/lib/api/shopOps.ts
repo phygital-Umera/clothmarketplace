@@ -2,40 +2,23 @@ import {api} from '@/utils/axios';
 import {
   CounterSession,
   ExpensePayload,
-  SalesReturnPayload,
   ShopDashboard,
 } from '@/types/shopOps';
 
-// Shop dashboard and counter operations: credit notes (sales returns), the
-// cash counter session and shop expenses.
+// Shop dashboard, the cash counter session and shop expenses.
+// Returns are credit notes (see creditNote.ts).
 
 type Res<T> = {statusCode: number; data: T; message: string};
 
 export const getShopDashboard = (panel: string) =>
-  api.get<Res<ShopDashboard>>(`/${panel}/dashboard`).then((res: any) => res);
-
-export const createSalesReturn = (panel: string, data: SalesReturnPayload) =>
-  api
-    .post<Res<unknown>>(`/${panel}/sales-returns`, data)
-    .then((res: any) => res);
+  (api.get(`/${panel}/dashboard`) as unknown as Promise<Res<ShopDashboard>>);
 
 export const openCounter = (panel: string, openingCash: number) =>
-  api
-    .post<Res<CounterSession>>(`/${panel}/counter/open`, {openingCash})
-    .then((res: any) => res);
+  (api.post(`/${panel}/counter/open`, {openingCash}) as unknown as Promise<Res<CounterSession>>);
 
 export const closeCounter = (panel: string, closingCash: number) =>
-  api
-    .post<Res<CounterSession>>(`/${panel}/counter/close`, {closingCash})
-    .then((res: any) => res);
+  (api.post(`/${panel}/counter/close`, {closingCash}) as unknown as Promise<Res<CounterSession>>);
 
 export const createExpense = (panel: string, data: ExpensePayload) =>
-  api.post<Res<unknown>>(`/${panel}/expenses`, data).then((res: any) => res);
+  (api.post(`/${panel}/expenses`, data) as unknown as Promise<Res<unknown>>);
 
-export const getSalesReturns = (
-  panel: string,
-  params?: {limit?: number; salesBillId?: string; search?: string},
-) =>
-  api
-    .get<Res<{items: any[]; pagination: any}>>(`/${panel}/sales-returns`, {params})
-    .then((res: any) => res);

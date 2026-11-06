@@ -87,10 +87,6 @@ const STATUS_TABS = [
 ];
 
 const SizeMaster = () => {
-  console.log('[Shop Panel] Rendering SizeMaster');
-  useEffect(() => {
-    console.log('[Shop Panel] SizeMaster mounted');
-  }, []);
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} = useMasterSizes({
     ...list.params,
@@ -161,7 +157,7 @@ const SizeMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (s) => (
-        <span className="line-clamp-1 text-espresso-muted">
+        <span className="line-clamp-1 text-on-surface-variant">
           {s.description || '–'}
         </span>
       ),

@@ -1,7 +1,11 @@
 import {Request} from 'express';
 import httpStatus from 'http-status';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
-import customerDueService from '../services/customerDue.service';
+import {z} from 'zod';
+import customerDueService, {
+    customerDueQuerySchema,
+    updateLimitSchema,
+} from '../services/customerDue.service';
 
 const branchOf = (req: Request) => {
     const {companyId, branchId} = req.user;
@@ -18,15 +22,10 @@ const ok = (
     status = 200,
 ) => res.status(status).json(new ApiResponse(status, data, message));
 
+const idOf = (req: Request) => z.string().uuid('Invalid customer').parse(req.params.id);
+
 const list = catchAsync(async (req, res) => {
-    const query = {
-        search: typeof req.query.search === 'string' ? req.query.search : undefined,
-        tab: typeof req.query.tab === 'string' ? (req.query.tab as any) : undefined,
-        shopId: typeof req.query.shopId === 'string' ? req.query.shopId : undefined,
-        page: req.query.page ? Number(req.query.page) : undefined,
-        limit: req.query.limit ? Number(req.query.limit) : undefined,
-    };
-    const data = await customerDueService.list(branchOf(req), query);
+    const data = await customerDueService.list(branchOf(req), customerDueQuerySchema.parse(req.query));
     return ok(res, data, 'Customer dues fetched successfully');
 });
 
@@ -36,28 +35,23 @@ const summary = catchAsync(async (req, res) => {
 });
 
 const get = catchAsync(async (req, res) => {
-    const {id} = req.params;
-    const data = await customerDueService.get(branchOf(req), id);
+    const data = await customerDueService.get(branchOf(req), idOf(req));
     return ok(res, data, 'Customer credit details fetched successfully');
 });
 
 const updateLimit = catchAsync(async (req, res) => {
-    const {id} = req.params;
-    const data = await customerDueService.updateLimit(branchOf(req), id, req.body);
-    return ok(res, data, 'Customer credit limit updated successfully');
+    const data = await customerDueService.updateLimit(branchOf(req), idOf(req), updateLimitSchema.parse(req.body));
+    return ok(res, data, 'Credit limit saved');
 });
 
 const sendReminders = catchAsync(async (req, res) => {
-    const data = await customerDueService.sendReminders(branchOf(req), req.body?.customerIds);
-    return ok(res, data, data.message);
+    const ids = z.array(z.string().uuid()).max(500).optional().parse(req.body?.customerIds);
+    const data = await customerDueService.reminders(branchOf(req), ids);
+    return ok(res, data, `${data.reminders.length} reminder${data.reminders.length === 1 ? '' : 's'} ready`);
 });
 
 const exportDues = catchAsync(async (req, res) => {
-    const query = {
-        search: typeof req.query.search === 'string' ? req.query.search : undefined,
-        tab: typeof req.query.tab === 'string' ? (req.query.tab as any) : undefined,
-    };
-    const data = await customerDueService.export(branchOf(req), query);
+    const data = await customerDueService.export(branchOf(req), customerDueQuerySchema.parse(req.query));
     return ok(res, data, 'Customer dues exported successfully');
 });
 
@@ -69,4 +63,3 @@ export default {
     sendReminders,
     export: exportDues,
 };
-

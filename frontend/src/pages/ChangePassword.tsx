@@ -33,10 +33,6 @@ const FIELDS = ['currentPassword', 'newPassword', 'confirmPassword'];
 
 /** For every role; also where a password chosen by someone else is replaced */
 const ChangePassword = () => {
-  console.log('[Shop Panel] Rendering ChangePassword');
-  useEffect(() => {
-    console.log('[Shop Panel] ChangePassword mounted');
-  }, []);
   const {login} = useAuthContext();
   const queryClient = useQueryClient();
   const {mutateAsync} = useChangeCurrentPassword();

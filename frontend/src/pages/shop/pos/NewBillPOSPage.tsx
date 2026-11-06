@@ -73,10 +73,6 @@ const BILL_TYPES = [
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 export default function NewBillPOSPage() {
-  console.log('[Shop Panel] Rendering NewBillPOSPage');
-  useEffect(() => {
-    console.log('[Shop Panel] NewBillPOSPage mounted');
-  }, []);
   const {user} = useAuthContext();
   const navigate = useNavigate();
   const save = useSaveBill(PANEL, 'sales');
@@ -208,105 +204,8 @@ export default function NewBillPOSPage() {
     return inventoryData?.items ?? [];
   }, [inventoryData]);
 
-  // Pre-seed sample items if inventory is empty so the POS is immediately usable
-  const quickCatalogItems = useMemo(() => {
-    if (inventorySuggestions.length > 0) {
-      return inventorySuggestions.slice(0, 8);
-    }
-    // Fallback default quick tiles matching the reference design
-    return [
-      {
-        variantId: '8f3d7805-e476-4aeb-8c70-3ce20df2d81c',
-        productId: '34c6cfcd-50d5-40b0-a1eb-404e563f4db4',
-        product: {name: 'Cotton Kurta', hsnCode: '6204', taxRate: 5},
-        variant: {
-          id: '8f3d7805-e476-4aeb-8c70-3ce20df2d81c',
-          sku: '8901234011012',
-          size: 'M',
-          color: 'Indigo',
-          colorHex: '#3b4d61',
-          mrp: 1299,
-          sellingPrice: 1099,
-        },
-        availableStock: 44,
-      },
-      {
-        variantId: 'bc77b679-d737-483b-be30-df7dc6008ac9',
-        productId: '8671a44a-f894-4431-ac11-2f37a99fd1b7',
-        product: {name: 'Cotton Dupatta', hsnCode: '6214', taxRate: 5},
-        variant: {
-          id: 'bc77b679-d737-483b-be30-df7dc6008ac9',
-          sku: '8901234015010',
-          size: 'Free',
-          color: 'Mustard',
-          colorHex: '#e1ad01',
-          mrp: 449,
-          sellingPrice: 349,
-        },
-        availableStock: 52,
-      },
-      {
-        variantId: '0ee471e4-6c8f-4b19-9008-fdb010f89005',
-        productId: 'e3db1f98-b118-46c4-b2e2-d44cefa540a3',
-        product: {name: 'Linen Top', hsnCode: '6206', taxRate: 5},
-        variant: {
-          id: '0ee471e4-6c8f-4b19-9008-fdb010f89005',
-          sku: '8901234020101',
-          size: 'L',
-          color: 'Beige',
-          colorHex: '#f5f5dc',
-          mrp: 1199,
-          sellingPrice: 899,
-        },
-        availableStock: 31,
-      },
-      {
-        variantId: '0c2dfd1a-06df-4108-a3ac-d2db2b26122b',
-        productId: '9c6c5758-1c2f-4025-a93a-5a83caf6522b',
-        product: {name: 'Palazzo Pants', hsnCode: '6204', taxRate: 5},
-        variant: {
-          id: '0c2dfd1a-06df-4108-a3ac-d2db2b26122b',
-          sku: '8901234024519',
-          size: 'XL',
-          color: 'White',
-          colorHex: '#ffffff',
-          mrp: 899,
-          sellingPrice: 699,
-        },
-        availableStock: 40,
-      },
-      {
-        variantId: '96ebfcc4-1576-4688-868c-5f05254cc0e1',
-        productId: 'e61cccc8-f09f-481b-9aed-609c1bcf1ea0',
-        product: {name: 'Printed Anarkali', hsnCode: '6204', taxRate: 12},
-        variant: {
-          id: '96ebfcc4-1576-4688-868c-5f05254cc0e1',
-          sku: '8901234029812',
-          size: 'M',
-          color: 'Floral Red',
-          colorHex: '#c0392b',
-          mrp: 2299,
-          sellingPrice: 1799,
-        },
-        availableStock: 18,
-      },
-      {
-        variantId: 'c34fdabc-e6d2-4e39-a766-e05807bbda30',
-        productId: 'ef012bb7-caf4-4da3-952d-51832262692d',
-        product: {name: 'Carry bag', hsnCode: '4202', taxRate: 0},
-        variant: {
-          id: 'c34fdabc-e6d2-4e39-a766-e05807bbda30',
-          sku: '8901234000001',
-          size: 'Std',
-          color: 'Brown',
-          colorHex: '#8b5a2b',
-          mrp: 10,
-          sellingPrice: 10,
-        },
-        availableStock: 999,
-      },
-    ];
-  }, [inventorySuggestions]);
+  // Quick tiles: the first items in stock
+  const quickCatalogItems = useMemo(() => inventorySuggestions.slice(0, 8), [inventorySuggestions]);
 
   // Add Item to Lines
   const handleAddItem = useCallback((invItem: any) => {
@@ -545,8 +444,8 @@ export default function NewBillPOSPage() {
       return;
     }
 
-    if (lines.some((l) => !l.variantId || l.variantId.startsWith('mock-'))) {
-      toast.error('One or more items in the bill are placeholders. Please remove them and pick items from stock.');
+    if (lines.some((l) => !l.variantId)) {
+      toast.error('Pick every item from stock before saving the bill');
       return;
     }
 
@@ -645,12 +544,10 @@ export default function NewBillPOSPage() {
   );
 
   const shopHeaderInfo = useMemo(() => {
-    const shopName = dashboard?.shop?.name || "Women's Wear";
-    const branch = dashboard?.shop?.branchName || 'Sangli';
     const shift = dashboard?.counter?.openedAt
-      ? `Shift opened ${new Date(dashboard.counter.openedAt).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}`
-      : 'Shift opened 10:02 AM';
-    return `${shopName} · ${branch} · ${shift}`;
+      ? `Shift opened ${new Date(dashboard.counter.openedAt).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}`
+      : 'Counter not open';
+    return [dashboard?.shop?.name, dashboard?.shop?.branchName, shift].filter(Boolean).join(' · ');
   }, [dashboard]);
 
   return (
@@ -710,13 +607,7 @@ export default function NewBillPOSPage() {
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="Shital Mane">Shital Mane</option>
-                    <option value="Rutuja Pawar">Rutuja Pawar</option>
-                    <option value={user?.fullname || 'Cashier'}>
-                      {user?.fullname || 'Cashier'}
-                    </option>
-                  </>
+                  <option value={user?.fullname || ''}>{user?.fullname || 'Cashier'}</option>
                 )}
               </select>
             </div>

@@ -66,13 +66,13 @@ export default function BranchSuppliersPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-label-caps uppercase text-ivory-600 tracking-wider">
+          <p className="text-label-caps uppercase text-outline tracking-wider">
             Purchase / Suppliers
           </p>
           <h1 className="font-serif text-headline-md font-normal text-burgundy-deep">
             Suppliers & payments
           </h1>
-          <p className="mt-1 text-body-sm text-espresso-muted">
+          <p className="mt-1 text-body-sm text-on-surface-variant">
             What the branch and its shops owe each supplier. Payments above ₹25,000 are made by the branch.
           </p>
         </div>
@@ -90,17 +90,17 @@ export default function BranchSuppliersPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-ivory-300 bg-white p-4 shadow-sm">
-          <p className="text-label-caps uppercase text-ivory-600">Total Payable</p>
+          <p className="text-label-caps uppercase text-outline">Total Payable</p>
           <p className="mt-1 font-serif text-headline-sm font-semibold text-burgundy-deep">
             {inr(summary?.totalPayable ?? 84790)}
           </p>
-          <p className="mt-0.5 text-technical-data text-espresso-muted">
+          <p className="mt-0.5 text-technical-data text-on-surface-variant">
             {summary?.suppliersCount ?? 5} suppliers
           </p>
         </div>
 
         <div className="rounded-lg border border-ivory-300 bg-white p-4 shadow-sm">
-          <p className="text-label-caps uppercase text-ivory-600">Overdue</p>
+          <p className="text-label-caps uppercase text-outline">Overdue</p>
           <p className="mt-1 font-serif text-headline-sm font-semibold text-error">
             {inr(summary?.overdueAmount ?? 17640)}
           </p>
@@ -108,19 +108,19 @@ export default function BranchSuppliersPage() {
         </div>
 
         <div className="rounded-lg border border-ivory-300 bg-white p-4 shadow-sm">
-          <p className="text-label-caps uppercase text-ivory-600">Due in 15 Days</p>
+          <p className="text-label-caps uppercase text-outline">Due in 15 Days</p>
           <p className="mt-1 font-serif text-headline-sm font-semibold text-espresso">
             {inr(summary?.dueIn15Days ?? 20950)}
           </p>
-          <p className="mt-0.5 text-technical-data text-espresso-muted">2 bills</p>
+          <p className="mt-0.5 text-technical-data text-on-surface-variant">2 bills</p>
         </div>
 
         <div className="rounded-lg border border-ivory-300 bg-white p-4 shadow-sm">
-          <p className="text-label-caps uppercase text-ivory-600">Paid This Month</p>
+          <p className="text-label-caps uppercase text-outline">Paid This Month</p>
           <p className="mt-1 font-serif text-headline-sm font-semibold text-espresso">
             {inr(summary?.paidThisMonth ?? 79950)}
           </p>
-          <p className="mt-0.5 text-technical-data text-espresso-muted">
+          <p className="mt-0.5 text-technical-data text-on-surface-variant">
             {summary?.paymentsCount ?? 3} payments
           </p>
         </div>
@@ -133,7 +133,7 @@ export default function BranchSuppliersPage() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-body-sm">
               <thead>
-                <tr className="border-b border-ivory-300 text-label-caps uppercase text-ivory-600">
+                <tr className="border-b border-ivory-300 text-label-caps uppercase text-outline">
                   <th className="py-2.5 pl-3 pr-2 font-medium">Supplier</th>
                   <th className="px-2 py-2.5 font-medium">GSTIN / State</th>
                   <th className="px-2 py-2.5 font-medium">Owed By</th>
@@ -145,7 +145,7 @@ export default function BranchSuppliersPage() {
               <tbody className="divide-y divide-ivory-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-espresso-muted">
+                    <td colSpan={6} className="py-8 text-center text-on-surface-variant">
                       Loading suppliers...
                     </td>
                   </tr>
@@ -166,12 +166,12 @@ export default function BranchSuppliersPage() {
                       >
                         <td className="py-3 pl-3 pr-2">
                           <p className="font-serif font-medium text-espresso">{s.name}</p>
-                          <p className="text-[11px] text-espresso-muted">
+                          <p className="text-[11px] text-on-surface-variant">
                             {s.contactPerson} {s.phone ? `· ${s.phone}` : ''}
                           </p>
                         </td>
-                        <td className="px-2 py-3 text-espresso-muted">{s.gstinState}</td>
-                        <td className="px-2 py-3 text-espresso-muted">{s.owedBy}</td>
+                        <td className="px-2 py-3 text-on-surface-variant">{s.gstinState}</td>
+                        <td className="px-2 py-3 text-on-surface-variant">{s.owedBy}</td>
                         <td className="px-2 py-3 text-center text-espresso font-medium">
                           {s.billsOpen}
                         </td>
@@ -181,14 +181,14 @@ export default function BranchSuppliersPage() {
                               {inr(s.payable)}
                             </span>
                           ) : (
-                            <span className="text-espresso-muted">₹0</span>
+                            <span className="text-on-surface-variant">₹0</span>
                           )}
                         </td>
                         <td className="py-3 pl-2 pr-3 text-right font-medium">
                           {s.isOverdue ? (
                             <span className="text-error">{s.nextDue}</span>
                           ) : (
-                            <span className="text-espresso-muted">{s.nextDue}</span>
+                            <span className="text-on-surface-variant">{s.nextDue}</span>
                           )}
                         </td>
                       </tr>
@@ -206,13 +206,13 @@ export default function BranchSuppliersPage() {
             <h3 className="font-serif text-title-lg font-normal text-burgundy-deep">
               Make payment
             </h3>
-            <span className="text-[11px] font-mono text-espresso-muted">BPY/26-27/0009</span>
+            <span className="text-[11px] font-mono text-on-surface-variant">BPY/26-27/0009</span>
           </div>
 
           <div className="space-y-4 text-body-sm">
             {/* Supplier select */}
             <div>
-              <label className="block text-label-caps uppercase text-ivory-600">
+              <label className="block text-label-caps uppercase text-outline">
                 Supplier <span className="text-error">*</span>
               </label>
               <select
@@ -233,7 +233,7 @@ export default function BranchSuppliersPage() {
 
             {/* Against Bills */}
             <div>
-              <label className="block text-label-caps uppercase text-ivory-600">
+              <label className="block text-label-caps uppercase text-outline">
                 Against Bills
               </label>
               <select className="mt-1 w-full rounded border border-ivory-300 bg-ivory-50/50 px-3 py-2 text-espresso focus:border-burgundy focus:outline-none">
@@ -246,7 +246,7 @@ export default function BranchSuppliersPage() {
             {/* Amount & Date */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-label-caps uppercase text-ivory-600">
+                <label className="block text-label-caps uppercase text-outline">
                   Amount <span className="text-error">*</span>
                 </label>
                 <input
@@ -258,7 +258,7 @@ export default function BranchSuppliersPage() {
               </div>
 
               <div>
-                <label className="block text-label-caps uppercase text-ivory-600">
+                <label className="block text-label-caps uppercase text-outline">
                   Date <span className="text-error">*</span>
                 </label>
                 <input
@@ -272,7 +272,7 @@ export default function BranchSuppliersPage() {
 
             {/* Mode */}
             <div>
-              <label className="block text-label-caps uppercase text-ivory-600">
+              <label className="block text-label-caps uppercase text-outline">
                 Mode <span className="text-error">*</span>
               </label>
               <select
@@ -291,7 +291,7 @@ export default function BranchSuppliersPage() {
 
             {/* UTR / Cheque No */}
             <div>
-              <label className="block text-label-caps uppercase text-ivory-600">
+              <label className="block text-label-caps uppercase text-outline">
                 UTR / Cheque No.
               </label>
               <input
@@ -305,7 +305,7 @@ export default function BranchSuppliersPage() {
 
             {/* TDS Deducted */}
             <div>
-              <label className="block text-label-caps uppercase text-ivory-600">
+              <label className="block text-label-caps uppercase text-outline">
                 TDS Deducted
               </label>
               <input
@@ -314,7 +314,7 @@ export default function BranchSuppliersPage() {
                 onChange={(e) => setTds(Number(e.target.value) || 0)}
                 className="mt-1 w-full rounded border border-ivory-300 bg-ivory-50/50 px-3 py-2 text-espresso focus:border-burgundy focus:outline-none"
               />
-              <p className="mt-1 text-[11px] text-espresso-muted">If applicable — ask your CA</p>
+              <p className="mt-1 text-[11px] text-on-surface-variant">If applicable — ask your CA</p>
             </div>
 
             {/* Submit button */}

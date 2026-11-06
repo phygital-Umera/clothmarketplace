@@ -27,46 +27,6 @@ export const EXPENSE_CATEGORIES = [
     'Other',
 ] as const;
 
-const createSalesReturnSchema = z.object({
-    salesBillId: z.string().uuid('Select a valid sales bill'),
-    refundMode: z.enum(REFUND_MODES, {errorMap: () => ({message: 'Select a refund mode'})}),
-    reason: text('Reason', 300),
-    exchangeItems: z
-        .array(
-            z.object({
-                variantId: z.string().uuid('Select a valid item'),
-                quantity: z.coerce.number().int().min(1),
-                unitPrice: money('Unit Price'),
-                taxRate: z.coerce.number().default(0),
-            }),
-        )
-        .optional(),
-    items: z
-        .array(
-            z.object({
-                salesBillItemId: z.string().uuid('Select a valid bill item'),
-                quantity: z.coerce
-                    .number({invalid_type_error: 'Enter a valid Quantity'})
-                    .int('Quantity must be a whole number')
-                    .min(1, 'Quantity must be at least 1'),
-            }),
-            {required_error: 'Select at least one item to return'},
-        )
-        .min(1, 'Select at least one item to return')
-        .max(200)
-        .refine(
-            (list) => new Set(list.map((i) => i.salesBillItemId)).size === list.length,
-            'Each bill item can be returned only once per credit note',
-        ),
-});
-
-const returnListSchema = listQuerySchema(
-    ['returnDate', 'returnNumber', 'totalAmount'] as const,
-    'returnDate',
-).extend({
-    salesBillId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
-});
-
 const openCounterSchema = z.object({openingCash: money('Opening Cash')});
 const closeCounterSchema = z.object({closingCash: money('Closing Cash')});
 
@@ -96,8 +56,6 @@ const expenseListSchema = listQuerySchema(
 const idSchema = z.object({id: z.string().uuid('Invalid ID parameter')});
 
 export default {
-    createSalesReturnSchema,
-    returnListSchema,
     openCounterSchema,
     closeCounterSchema,
     createExpenseSchema,

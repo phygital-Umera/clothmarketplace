@@ -67,17 +67,12 @@ export const useUpdateCreditLimit = () => {
   });
 };
 
+/** Builds WhatsApp reminder links; nothing is sent until the user taps one */
 export const useSendReminders = () => {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (customerIds?: string[]) => sendCustomerDueReminders(customerIds),
-    onSuccess: (res: any) => {
-      toast.success(res?.data?.message || res?.message || 'Reminders sent successfully');
-      queryClient.invalidateQueries({queryKey: [CUSTOMER_DUE_KEYS.LIST]});
-      queryClient.invalidateQueries({queryKey: [CUSTOMER_DUE_KEYS.SUMMARY]});
-    },
     onError: (err) => {
-      toast.error(getErrorMessage(err, 'Failed to send reminders'));
+      toast.error(getErrorMessage(err, 'Could not prepare reminders'));
     },
   });
 };

@@ -50,6 +50,31 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
+ * Shop modules an employee can be given, each as "view" (read only) or "edit"
+ * (view and change). Stored on the user as e.g. "billing.view" / "billing.edit".
+ * The /employee API is the shop API; employeeModuleGuard maps each request to
+ * one of these modules. Team management (employees, staff rights) is never
+ * given to employees.
+ */
+export const SHOP_MODULES = [
+    {key: 'dashboard', label: 'Dashboard'},
+    {key: 'billing', label: 'Billing (POS, sales bills, returns)'},
+    {key: 'customers', label: 'Customers & credit'},
+    {key: 'purchase', label: 'Purchase & suppliers'},
+    {key: 'products', label: 'Products'},
+    {key: 'stock', label: 'Stock, transfers & barcodes'},
+    {key: 'accounts', label: 'Cash book & expenses'},
+    {key: 'reports', label: 'Reports'},
+    {key: 'masters', label: 'Masters (categories, colors, sizes)'},
+] as const;
+export type ShopModule = (typeof SHOP_MODULES)[number]['key'];
+
+export const MODULE_PERMISSIONS = SHOP_MODULES.flatMap((m) => [
+    `${m.key}.view` as const,
+    `${m.key}.edit` as const,
+]);
+
+/**
  * Permissions a company admin or branch admin can give to an employee
  * (stored per user in User.permissions). Kept apart from PERMISSIONS so the
  * super admin does not get operational rights such as the AI studio.
@@ -69,20 +94,37 @@ export const EMPLOYEE_PERMISSIONS = [
     'purchase.create',
     'stock.transfer',
     'cash.manage',
+    // Shop module access (see SHOP_MODULES)
+    'dashboard.view',
+    'dashboard.edit',
+    'billing.view',
+    'billing.edit',
+    'customers.view',
+    'customers.edit',
+    'purchase.view',
+    'purchase.edit',
+    'products.view',
+    'products.edit',
+    'stock.view',
+    'stock.edit',
+    'accounts.view',
+    'accounts.edit',
+    'reports.edit',
+    'masters.view',
+    'masters.edit',
 ] as const;
 
 /**
- * The rights shown as columns on the shop's Staff & rights page, in order.
- * ADJUST maps to the existing inventory.adjust permission.
+ * The rights shown as columns on the shop's Staff & rights page: a tick gives
+ * that module with edit access (same strings as the Employees form).
  */
 export const STAFF_RIGHTS = [
-    {key: 'pos.bill', label: 'POS'},
-    {key: 'sales.discount', label: 'Discount'},
-    {key: 'sales.credit', label: 'Credit sale'},
-    {key: 'purchase.create', label: 'Purchase'},
-    {key: 'inventory.adjust', label: 'Adjust'},
-    {key: 'stock.transfer', label: 'Transfer'},
-    {key: 'cash.manage', label: 'Cash book'},
+    {key: 'billing.edit', label: 'Billing'},
+    {key: 'customers.edit', label: 'Customers'},
+    {key: 'purchase.edit', label: 'Purchase'},
+    {key: 'products.edit', label: 'Products'},
+    {key: 'stock.edit', label: 'Stock'},
+    {key: 'accounts.edit', label: 'Cash book'},
 ] as const satisfies ReadonlyArray<{key: EmployeePermission; label: string}>;
 
 export type EmployeePermission = (typeof EMPLOYEE_PERMISSIONS)[number];

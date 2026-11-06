@@ -1,445 +1,232 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {
   useBranchProfileSetup,
   useUpdateBranchProfileSetup,
 } from '@/lib/react-query/queriesAndMutations/branchExtras';
-import {Plus, X, Clock} from 'lucide-react';
+import {
+  WEEK_DAYS,
+  type BranchProfileContact,
+  type BranchProfileHours,
+  type WeekDay,
+} from '@/lib/api/branchExtras';
 import toast from 'react-hot-toast';
 
+const serif = {fontFamily: "'Playfair Display', Georgia, serif"};
+const card = 'space-y-4 rounded-lg border border-[#efe9e3] bg-white p-5 shadow-sm';
+const label = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#736862]';
+const input =
+  'w-full rounded border border-[#ded5ce] bg-white px-3 py-2 text-sm text-[#2a2220] focus:outline-none focus:ring-1 focus:ring-[#832729] disabled:bg-[#faf7f4] disabled:text-[#736862]';
+
+const EMPTY_CONTACT: BranchProfileContact = {
+  email: '',
+  phone: '',
+  alternatePhone: '',
+  address: '',
+  city: '',
+  district: '',
+  state: '',
+  postalCode: '',
+};
+const EMPTY_HOURS: BranchProfileHours = {openingTime: '', closingTime: '', weeklyHolidays: []};
+
+const dayLabel = (d: WeekDay) => d.charAt(0) + d.slice(1, 3).toLowerCase();
+
 export default function BranchProfileSetupPage() {
-  const {data} = useBranchProfileSetup();
-  const updateMutation = useUpdateBranchProfileSetup();
+  const {data, isLoading} = useBranchProfileSetup();
+  const update = useUpdateBranchProfileSetup();
+  const [contact, setContact] = useState(EMPTY_CONTACT);
+  const [hours, setHours] = useState(EMPTY_HOURS);
 
-  const [email, setEmail] = useState(data?.contact?.email || 'sangli@matoshri.in');
-  const [phone, setPhone] = useState(data?.contact?.phone || '+91 233 262 0011');
-  const [alternatePhone, setAlternatePhone] = useState(data?.contact?.alternatePhone || '');
-  const [whatsapp, setWhatsapp] = useState(data?.contact?.whatsapp || '');
-  const [address, setAddress] = useState(data?.contact?.address || '[Shop no.] Station Road');
-  const [city, setCity] = useState(data?.contact?.city || 'Sangli');
-  const [pincode, setPincode] = useState(data?.contact?.pincode || '416416');
-  const [mapsLink, setMapsLink] = useState(data?.contact?.mapsLink || '');
+  // Fill the form when the branch has loaded (and again after saving)
+  useEffect(() => {
+    if (data) {
+      setContact(data.contact);
+      setHours(data.hours);
+    }
+  }, [data]);
 
-  const [operatingHours, setOperatingHours] = useState(
-    data?.operatingHours || [
-      {day: 'Monday', open: true, from: '10:00 AM', to: '09:00 PM'},
-      {day: 'Tuesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-      {day: 'Wednesday', open: true, from: '10:00 AM', to: '09:00 PM'},
-      {day: 'Thursday', open: true, from: '10:00 AM', to: '09:00 PM'},
-      {day: 'Friday', open: true, from: '10:00 AM', to: '09:00 PM'},
-      {day: 'Saturday', open: true, from: '10:00 AM', to: '10:00 PM'},
-      {day: 'Sunday', open: true, from: '10:00 AM', to: '10:00 PM'},
-    ],
-  );
+  const set = (k: keyof BranchProfileContact) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setContact((c) => ({...c, [k]: e.target.value}));
 
-  const [holidays, setHolidays] = useState(
-    data?.holidays || [
-      {id: '1', name: 'Diwali – Laxmi Pujan', dateDesc: 'Fri 20 Nov 2026 · closes 14:00'},
-      {id: '2', name: 'Annual stock count', dateDesc: 'Sun 29 Nov 2026 · closed'},
-    ],
-  );
+  const toggleDay = (d: WeekDay) =>
+    setHours((h) => ({
+      ...h,
+      weeklyHolidays: h.weeklyHolidays.includes(d)
+        ? h.weeklyHolidays.filter((x) => x !== d)
+        : [...h.weeklyHolidays, d],
+    }));
 
-  const handleToggleDay = (idx: number) => {
-    const updated = [...operatingHours];
-    updated[idx].open = !updated[idx].open;
-    setOperatingHours(updated);
+  const save = () => {
+    if (hours.weeklyHolidays.length >= 7) {
+      toast.error('The branch must be open at least one day');
+      return;
+    }
+    if (hours.openingTime && hours.closingTime && hours.closingTime <= hours.openingTime) {
+      toast.error('Closing time must be after opening time');
+      return;
+    }
+    update.mutate({...contact, ...hours});
   };
 
-  const handleTimeChange = (idx: number, field: 'from' | 'to', val: string) => {
-    const updated = [...operatingHours];
-    updated[idx][field] = val;
-    setOperatingHours(updated);
-  };
-
-  const handleRemoveHoliday = (id: string) => {
-    setHolidays(holidays.filter((h) => h.id !== id));
-  };
-
-  const handleAddHoliday = () => {
-    const name = window.prompt('Holiday / Closure name:');
-    if (!name) return;
-    const desc = window.prompt('Date & hours description (e.g. 25 Dec · closed):') || 'closed';
-    setHolidays([...holidays, {id: String(Date.now()), name, dateDesc: desc}]);
-  };
-
-  const handleSaveChanges = async () => {
-    await updateMutation.mutateAsync({
-      contact: {
-        email,
-        phone,
-        alternatePhone,
-        whatsapp,
-        address,
-        city,
-        pincode,
-        mapsLink,
-      },
-      operatingHours,
-      holidays,
-    });
-  };
+  const fields: {key: keyof BranchProfileContact; title: string; type?: string; span?: boolean}[] = [
+    {key: 'email', title: 'Email', type: 'email'},
+    {key: 'phone', title: 'Phone', type: 'tel'},
+    {key: 'alternatePhone', title: 'Alternate phone', type: 'tel'},
+    {key: 'postalCode', title: 'Pincode *'},
+    {key: 'address', title: 'Address *', span: true},
+    {key: 'city', title: 'City *'},
+    {key: 'district', title: 'District *'},
+    {key: 'state', title: 'State *'},
+  ];
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto text-[#2b2b2b]">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div className="mx-auto max-w-[1400px] space-y-6 text-[#2b2b2b]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66] mb-1">
-            SETUP / BRANCH PROFILE
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+            Setup / Branch profile
           </div>
-          <h1
-            className="text-3xl font-serif text-[#2a2220] tracking-tight"
-            style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-          >
+          <h1 className="font-serif text-3xl tracking-tight text-[#2a2220]" style={serif}>
             Branch profile
           </h1>
-          <p className="text-sm text-[#736862] mt-1">
-            Name, code and status are set by your Company Admin. You can update contact details and hours.
+          <p className="mt-1 text-sm text-[#736862]">
+            Name, code and status are set by your Company Admin. You can update contact details
+            and hours.
           </p>
         </div>
-
         <button
-          onClick={handleSaveChanges}
-          disabled={updateMutation.isPending}
-          className="self-start bg-[#7a2222] hover:bg-[#681c1c] text-white px-5 py-2 rounded text-xs font-semibold tracking-wider uppercase transition shadow-sm disabled:opacity-50"
+          onClick={save}
+          disabled={isLoading || update.isPending}
+          className="self-start rounded bg-[#7a2222] px-5 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
         >
-          {updateMutation.isPending ? 'SAVING...' : 'SAVE CHANGES'}
+          {update.isPending ? 'Saving…' : 'Save changes'}
         </button>
       </div>
 
-      {/* Main Grid: Left 2 columns & Right column */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols): Identity, Contact & Operating Hours */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Card: Branch Identity */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3
-                className="text-base font-serif font-semibold text-[#2a2220]"
-                style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-              >
-                Branch identity
-              </h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#f3f4f6] text-[#4b5563] border border-[#e5e7eb]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#9ca3af]" />
-                READ-ONLY
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
+          <div className={card}>
+            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+              Branch identity
+            </h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  BRANCH NAME
-                </label>
-                <input
-                  type="text"
-                  value="Sangli Branch"
-                  disabled
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#736862] bg-[#f5ede7]/50 cursor-not-allowed"
-                />
+                <label className={label}>Branch name</label>
+                <input value={data?.identity.branchName ?? ''} disabled className={input} />
               </div>
-
               <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  BRANCH CODE
-                </label>
-                <input
-                  type="text"
-                  value="MAT-B02"
-                  disabled
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#736862] bg-[#f5ede7]/50 cursor-not-allowed"
-                />
+                <label className={label}>Branch code</label>
+                <input value={data?.identity.branchCode ?? ''} disabled className={input} />
               </div>
-
               <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  COMPANY
-                </label>
-                <input
-                  type="text"
-                  value="Matoshri Fashions"
-                  disabled
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#736862] bg-[#f5ede7]/50 cursor-not-allowed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  GSTIN
-                </label>
-                <input
-                  type="text"
-                  value="27ABCDE1234F1Z5"
-                  disabled
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#736862] bg-[#f5ede7]/50 cursor-not-allowed"
-                />
+                <label className={label}>Company</label>
+                <input value={data?.identity.company ?? ''} disabled className={input} />
               </div>
             </div>
           </div>
 
-          {/* Card: Contact & Address */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-            <h3
-              className="text-base font-serif font-semibold text-[#2a2220]"
-              style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-            >
+          <div className={card}>
+            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
               Contact & address
             </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  BRANCH EMAIL *
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  BRANCH PHONE *
-                </label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  ALTERNATE PHONE
-                </label>
-                <input
-                  type="text"
-                  value={alternatePhone}
-                  onChange={(e) => setAlternatePhone(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  WHATSAPP FOR CUSTOMERS
-                </label>
-                <input
-                  type="text"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                ADDRESS *
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  CITY
-                </label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                  PIN CODE
-                </label>
-                <input
-                  type="text"
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1">
-                GOOGLE MAPS LINK
-              </label>
-              <input
-                type="text"
-                value={mapsLink}
-                onChange={(e) => setMapsLink(e.target.value)}
-                placeholder="https://maps.google.com/..."
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
-              />
-            </div>
-          </div>
-
-          {/* Card: Operating Hours */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-            <h3
-              className="text-base font-serif font-semibold text-[#2a2220]"
-              style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-            >
-              Operating hours
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-[#f0eae3] bg-[#faf7f4] text-[#8b6f66] uppercase text-[10px] font-semibold tracking-wider">
-                    <th className="py-2.5 px-3">DAY</th>
-                    <th className="py-2.5 px-3">OPEN</th>
-                    <th className="py-2.5 px-3">FROM</th>
-                    <th className="py-2.5 px-3">TO</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f7f2ed]">
-                  {operatingHours.map((row, idx) => (
-                    <tr key={row.day} className="hover:bg-[#fdfbfa]">
-                      <td className="py-2.5 px-3 font-medium text-[#2a2220]">
-                        {row.day}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="checkbox"
-                          checked={row.open}
-                          onChange={() => handleToggleDay(idx)}
-                          className="accent-[#832729] rounded cursor-pointer"
-                        />
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="relative inline-flex items-center">
-                          <input
-                            type="text"
-                            value={row.from}
-                            onChange={(e) => handleTimeChange(idx, 'from', e.target.value)}
-                            disabled={!row.open}
-                            className="border border-[#ded5ce] rounded px-2.5 py-1 text-xs text-[#2a2220] bg-white disabled:bg-gray-100 disabled:text-gray-400 w-28"
-                          />
-                          <Clock className="w-3.5 h-3.5 text-[#736862] absolute right-2" />
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="relative inline-flex items-center">
-                          <input
-                            type="text"
-                            value={row.to}
-                            onChange={(e) => handleTimeChange(idx, 'to', e.target.value)}
-                            disabled={!row.open}
-                            className="border border-[#ded5ce] rounded px-2.5 py-1 text-xs text-[#2a2220] bg-white disabled:bg-gray-100 disabled:text-gray-400 w-28"
-                          />
-                          <Clock className="w-3.5 h-3.5 text-[#736862] absolute right-2" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (4 cols): Holidays, At a Glance, Your Access */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Holidays & closures */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3
-                className="text-base font-serif font-semibold text-[#2a2220]"
-                style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-              >
-                Holidays & closures
-              </h3>
-              <button
-                onClick={handleAddHoliday}
-                className="inline-flex items-center gap-1 border border-[#ded5ce] text-[#736862] hover:text-[#2a2220] px-2.5 py-1 rounded text-xs font-semibold tracking-wider uppercase hover:bg-[#faf7f4]"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                ADD
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              {holidays.map((h) => (
-                <div
-                  key={h.id}
-                  className="flex items-start justify-between p-2.5 rounded bg-[#faf7f4] border border-[#f0eae3]"
-                >
-                  <div>
-                    <div className="font-semibold text-[#2a2220]">{h.name}</div>
-                    <div className="text-[11px] text-[#736862] mt-0.5">{h.dateDesc}</div>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveHoliday(h.id)}
-                    className="text-[#736862] hover:text-red-600 p-0.5"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {fields.map((f) => (
+                <div key={f.key} className={f.span ? 'sm:col-span-2' : ''}>
+                  <label className={label} htmlFor={f.key}>
+                    {f.title}
+                  </label>
+                  <input
+                    id={f.key}
+                    type={f.type ?? 'text'}
+                    value={contact[f.key]}
+                    onChange={set(f.key)}
+                    disabled={isLoading}
+                    className={input}
+                  />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* At a glance */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-3 text-xs">
-            <h3
-              className="text-base font-serif font-semibold text-[#2a2220]"
-              style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-            >
-              At a glance
+          <div className={card}>
+            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+              Opening hours
             </h3>
-
-            <div className="space-y-2 divide-y divide-[#f7f2ed]">
-              <div className="flex justify-between pt-1">
-                <span className="text-[#736862]">Shops</span>
-                <span className="font-semibold text-[#2a2220]">3</span>
+            <div className="grid grid-cols-2 gap-4 sm:max-w-sm">
+              <div>
+                <label className={label}>Opens</label>
+                <input
+                  type="time"
+                  value={hours.openingTime}
+                  onChange={(e) => setHours((h) => ({...h, openingTime: e.target.value}))}
+                  className={input}
+                />
               </div>
-              <div className="flex justify-between pt-2">
-                <span className="text-[#736862]">Employees</span>
-                <span className="font-semibold text-[#2a2220]">14</span>
-              </div>
-              <div className="flex justify-between pt-2">
-                <span className="text-[#736862]">Branch opened</span>
-                <span className="font-semibold text-[#2a2220]">01 Nov 2026</span>
-              </div>
-              <div className="flex justify-between pt-2 items-center">
-                <span className="text-[#736862]">Status</span>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#ecfdf5] text-[#065f46] border border-[#a7f3d0]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
-                  ACTIVE
-                </span>
+              <div>
+                <label className={label}>Closes</label>
+                <input
+                  type="time"
+                  value={hours.closingTime}
+                  onChange={(e) => setHours((h) => ({...h, closingTime: e.target.value}))}
+                  className={input}
+                />
               </div>
             </div>
+            <div>
+              <span className={label}>Open on</span>
+              <div className="flex flex-wrap gap-2">
+                {WEEK_DAYS.map((d) => {
+                  const open = !hours.weeklyHolidays.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => toggleDay(d)}
+                      aria-pressed={open}
+                      className={`rounded border px-3 py-1.5 text-xs font-semibold transition ${
+                        open
+                          ? 'border-[#7a2222] bg-[#7a2222] text-white'
+                          : 'border-[#ded5ce] text-[#736862] line-through'
+                      }`}
+                    >
+                      {dayLabel(d)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-[#736862]">Tap a day to mark it as the weekly off.</p>
+            </div>
           </div>
+        </div>
 
-          {/* Your access */}
-          <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-2 text-xs">
-            <h3
-              className="text-base font-serif font-semibold text-[#2a2220]"
-              style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-            >
-              Your access
-            </h3>
-            <p className="text-[#554e48] leading-relaxed text-[11px]">
-              You manage billing oversight, purchases, supplier payments, stock transfers, customer credit and staff for this branch. Refunds and stock write-offs above limits go to the Company Admin.
-            </p>
-          </div>
+        <div className={`${card} lg:col-span-4`}>
+          <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+            At a glance
+          </h3>
+          <dl className="divide-y divide-[#f7f2ed] text-sm">
+            {[
+              ['Shops', data?.glance.shops],
+              ['Employees', data?.glance.employees],
+              [
+                'Branch opened',
+                data
+                  ? new Date(data.glance.branchOpened).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : undefined,
+              ],
+              ['Status', data?.glance.status],
+            ].map(([k, v]) => (
+              <div key={k as string} className="flex justify-between py-2.5">
+                <dt className="text-[#736862]">{k}</dt>
+                <dd className="font-medium text-[#2a2220]">{v ?? '—'}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
     </div>
   );
 }
-

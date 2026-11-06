@@ -37,10 +37,6 @@ const Detail = ({
 
 /** /shop-admin/products/:productId */
 const ShopProductDetail = () => {
-  console.log('[Shop Panel] Rendering ShopProductDetail');
-  useEffect(() => {
-    console.log('[Shop Panel] ShopProductDetail mounted');
-  }, []);
   const {productId} = useParams({strict: false}) as {productId: string};
   const navigate = useNavigate();
   const {data: p, isPending, isError, error} = useShopProduct(productId);

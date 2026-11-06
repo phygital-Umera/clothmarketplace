@@ -1,13 +1,7 @@
-import {CompanyForm} from '@/components/Company';
 import BranchForm from '@/components/Org/BranchForm';
 import EditorPanel from '@/components/Org/EditorPanel';
 import EmployeeForm from '@/components/Org/EmployeeForm';
 import ShopForm from '@/components/Org/ShopForm';
-import {
-  useCompany,
-  useCreateCompany,
-  useUpdateCompany,
-} from '@/lib/react-query/queriesAndMutations/company';
 import {
   useBranch,
   useEmployee,
@@ -24,64 +18,6 @@ import {Panel} from '@/types/org';
  */
 
 type EditorProps = {id?: string; onDone: () => void};
-
-/** Super admin: an admin together with their business (company) */
-export const AdminEditor = ({id, onDone}: EditorProps) => {
-  const {data: company, isPending, error} = useCompany(id);
-  const create = useCreateCompany();
-  const update = useUpdateCompany();
-
-  return (
-    <EditorPanel
-      title={id ? 'Edit Admin' : 'Add Admin'}
-      loading={!!id && isPending}
-      error={id ? error : undefined}
-      onCancel={onDone}
-    >
-      {!id ? (
-        <CompanyForm
-          mode="create"
-          adminFirst
-          onCancel={onDone}
-          onSubmit={async (payload, intent) => {
-            await create.mutateAsync(payload);
-            if (intent === 'save') onDone();
-          }}
-        />
-      ) : (
-        company && (
-          <CompanyForm
-            key={company.id}
-            mode="edit"
-            adminFirst
-            existingLogo={company.logo}
-            hasAdminLogin={company.hasAdminLogin}
-            defaultValues={{
-              name: company.name,
-              email: company.email,
-              contactNumber: company.contactNumber,
-              postalCode: company.postalCode,
-              state: company.state,
-              district: company.district ?? '',
-              city: company.city,
-              address: company.address,
-              adminName: company.adminName,
-              adminEmail: company.adminEmail,
-              adminPhone: company.adminPhone,
-              status: company.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-              adminPassword: '',
-            }}
-            onCancel={onDone}
-            onSubmit={async (payload) => {
-              await update.mutateAsync({id: company.id, ...payload});
-              onDone();
-            }}
-          />
-        )
-      )}
-    </EditorPanel>
-  );
-};
 
 /** Company admin: a branch and its optional admin login */
 export const BranchEditor = ({id, onDone}: EditorProps) => {

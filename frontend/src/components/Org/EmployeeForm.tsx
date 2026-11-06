@@ -1,6 +1,5 @@
 import {
   ConfirmDialog,
-  GenericCheckboxGroup,
   GenericDatePicker,
   GenericDropdown,
   GenericInputField,
@@ -18,7 +17,8 @@ import {
   EmployeeValues,
   EMPTY_EMPLOYEE,
 } from '@/lib/validation/orgSchemas';
-import {EMPLOYEE_PERMISSIONS, Panel} from '@/types/org';
+import {Panel} from '@/types/org';
+import ModuleAccessField from '@/components/Org/ModuleAccessField';
 import {getErrorMessage} from '@/utils/axios';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {useState} from 'react';
@@ -170,14 +170,11 @@ const EmployeeForm = ({
             </div>
           </FormGroup>
 
-          <FormGroup title="Access">
-            <div className="grid gap-x-4 gap-y-3 md:grid-cols-[1fr_16rem]">
-              <GenericCheckboxGroup
-                name="permissions"
-                label="Permissions"
-                options={EMPLOYEE_PERMISSIONS}
-                hint="Only what this employee needs. Changes sign them out."
-              />
+          <FormGroup title="Login">
+            <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+              <p className="self-center text-body-sm text-on-surface-variant">
+                The employee signs in with their phone number (or email) and this password.
+              </p>
               <GenericPasswordField
                 name="password"
                 label="Password"
@@ -189,6 +186,10 @@ const EmployeeForm = ({
                 }
               />
             </div>
+          </FormGroup>
+
+          <FormGroup title="Access">
+            <ModuleAccessField />
           </FormGroup>
         </div>
 

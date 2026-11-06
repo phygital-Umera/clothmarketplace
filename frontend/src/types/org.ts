@@ -143,16 +143,6 @@ export type ListParams = {
   stock?: string;
 };
 
-/** Permissions an admin can give an employee (backend EMPLOYEE_PERMISSIONS) */
-export const EMPLOYEE_PERMISSIONS = [
-  {value: 'products.manage', label: 'Manage products'},
-  {value: 'products.publish', label: 'Publish products'},
-  {value: 'inventory.view', label: 'View stock'},
-  {value: 'inventory.adjust', label: 'Adjust stock'},
-  {value: 'orders.process', label: 'Process orders'},
-  {value: 'ai.studio', label: 'AI Product Studio'},
-  {value: 'reports.view', label: 'View reports'},
-] as const;
 
 export type ScopedDashboard = {
   branches: number;
@@ -206,6 +196,7 @@ export type BranchOverview = {
       sales: number;
       cash: number;
       digital: number;
+      credit: number;
       monthSales: number;
     }[];
   };
