@@ -27,6 +27,13 @@ interface BarcodeLabelsPageProps {
   panel?: 'shop-admin' | 'branch-admin';
 }
 
+/** Escapes text written into the print window's HTML (product names are user data, and that window shares our origin) */
+const escapeHtml = (value: unknown) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]!
+  );
+
 /**
  * Clean SVG Barcode generator that renders crisp vector stripes
  */
@@ -285,7 +292,7 @@ export default function BarcodeLabelsPage({
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Print Barcode Labels - ${labelSetup.printer}</title>
+              <title>Print Barcode Labels - ${escapeHtml(labelSetup.printer)}</title>
               <style>
                 @page {
                   size: 50mm 30mm;
@@ -356,7 +363,7 @@ export default function BarcodeLabelsPage({
                       }
                       ${
                         labelSetup.showItemNameSize
-                          ? `<div class="item-name">${item.productName} · ${item.size}</div>`
+                          ? `<div class="item-name">${escapeHtml(item.productName)} · ${escapeHtml(item.size)}</div>`
                           : ''
                       }
                       <div class="barcode-img">
@@ -370,11 +377,11 @@ export default function BarcodeLabelsPage({
                             )
                             .join('')}
                         </svg>
-                        <div class="barcode-num">${item.barcode}</div>
+                        <div class="barcode-num">${escapeHtml(item.barcode)}</div>
                       </div>
                       <div class="price-row">
-                        ${labelSetup.showMrp ? `<span>MRP ₹${item.mrp}</span>` : ''}
-                        ${labelSetup.showSalePrice ? `<span>₹${item.price}</span>` : ''}
+                        ${labelSetup.showMrp ? `<span>MRP ₹${escapeHtml(item.mrp)}</span>` : ''}
+                        ${labelSetup.showSalePrice ? `<span>₹${escapeHtml(item.price)}</span>` : ''}
                       </div>
                     </div>
                   `

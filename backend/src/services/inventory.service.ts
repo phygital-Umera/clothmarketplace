@@ -175,7 +175,17 @@ class InventoryService {
      */
     private async resolveBranchId(scope: Scope, branchId?: string, variantId?: string): Promise<string> {
         if (scope.branchId) return scope.branchId;
-        if (branchId) return branchId;
+        if (branchId) {
+            // A company admin picks the branch; it must be one of their own
+            if (scope.companyId) {
+                const own = await prisma.branch.findFirst({
+                    where: {id: branchId, companyId: scope.companyId, deletedAt: null},
+                    select: {id: true},
+                });
+                if (!own) throw new ApiError(httpStatus.NOT_FOUND, 'Branch not found');
+            }
+            return branchId;
+        }
 
         // Try to resolve from variant's product shop/branch
         if (variantId) {
@@ -211,6 +221,13 @@ class InventoryService {
         }
 
         throw new ApiError(httpStatus.BAD_REQUEST, 'Branch is required for inventory operations');
+    }
+
+    /** Variant ids are public on the storefront, so every stock write must check the variant is the caller's */
+    private assertOwnVariants(scope: Scope, variants: {product: {companyId: string}}[]) {
+        if (scope.companyId && variants.some((v) => v.product.companyId !== scope.companyId)) {
+            throw new ApiError(httpStatus.FORBIDDEN, 'Variant does not belong to your company');
+        }
     }
 
     /**
@@ -697,9 +714,7 @@ class InventoryService {
      * recording audit logs, and keeping parent product stockQuantity in sync.
      */
     public adjustStock = async (scope: Scope, input: AdjustStockInput, performedById: string) => {
-        const branchId = await this.resolveBranchId(scope, input.branchId, input.variantId);
-
-        // Verify variant exists
+        // Verify variant exists and is ours before resolving a branch from it
         const variant = await prisma.productVariant.findUnique({
             where: {id: input.variantId},
             include: {
@@ -710,11 +725,9 @@ class InventoryService {
         if (!variant) {
             throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
         }
+        this.assertOwnVariants(scope, [variant]);
 
-        // Validate scope ownership
-        if (scope.companyId && variant.product.companyId !== scope.companyId) {
-            throw new ApiError(httpStatus.FORBIDDEN, 'Variant does not belong to your company');
-        }
+        const branchId = await this.resolveBranchId(scope, input.branchId, input.variantId);
 
         // Validate quantity
         const qty = Number(input.quantity);
@@ -850,6 +863,7 @@ class InventoryService {
         if (variants.length !== validItems.length) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'One or more selected variants do not exist');
         }
+        this.assertOwnVariants(scope, variants);
 
         const branchId = await this.resolveBranchId(
             scope,
@@ -944,6 +958,15 @@ class InventoryService {
      * Update low-stock threshold for a variant.
      */
     public updateThreshold = async (scope: Scope, input: UpdateThresholdInput) => {
+        const variant = await prisma.productVariant.findUnique({
+            where: {id: input.variantId},
+            select: {product: {select: {companyId: true}}},
+        });
+        if (!variant) {
+            throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
+        }
+        this.assertOwnVariants(scope, [variant]);
+
         const branchId = await this.resolveBranchId(scope, input.branchId, input.variantId);
         const threshold = Number(input.threshold);
 

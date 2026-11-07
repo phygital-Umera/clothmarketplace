@@ -578,6 +578,10 @@ const seed = async () => {
 };
 
 const main = async () => {
+    // Demo logins share a published password; switching the demo off stays allowed everywhere
+    if (config.env === 'production' && !process.argv.includes('--remove')) {
+        throw new Error('Refusing to create demo data with NODE_ENV=production (its logins use a known password).');
+    }
     const replace = process.argv.includes('--replace');
     console.log(process.argv.includes('--remove') ? 'Switching off demo data…' : replace ? 'Replacing demo data…' : 'Creating demo data…');
     if (process.argv.includes('--remove')) await remove();

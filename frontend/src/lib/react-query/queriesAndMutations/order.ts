@@ -1,7 +1,6 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  checkoutCustomerOrder,
   cancelCustomerOrder,
   getCustomerOrder,
   getCustomerOrders,
@@ -17,7 +16,6 @@ import {
   updateReturnStatus,
 } from '@/lib/api/order';
 import {
-  CreateOrderCheckoutPayload,
   OrderListParams,
   OrderStatus,
   PaymentStatus,
@@ -237,20 +235,6 @@ export const useCustomerOrder = (id: string | null) => {
       return res.data;
     },
     enabled: Boolean(id),
-  });
-};
-
-export const useCheckoutCustomerOrder = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: CreateOrderCheckoutPayload) => checkoutCustomerOrder(data),
-    onSuccess: () => {
-      toast.success('Order placed successfully!');
-      queryClient.invalidateQueries({queryKey: ['orders']});
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Failed to place order');
-    },
   });
 };
 

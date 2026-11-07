@@ -206,19 +206,4 @@ export interface OrderListParams {
   cancellationPending?: boolean;
 }
 
-export interface CreateOrderCheckoutPayload {
-  shopId?: string;
-  branchId?: string;
-  companyId?: string;
-  items: Array<{
-    productId: string;
-    variantId: string;
-    quantity: number;
-  }>;
-  shippingAddress: CustomerShippingAddress;
-  paymentMethod: 'COD' | 'ONLINE';
-  paymentDetails?: any;
-  couponCode?: string;
-  notes?: string;
-}
 
