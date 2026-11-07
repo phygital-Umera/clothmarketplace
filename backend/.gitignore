@@ -122,4 +122,7 @@ dist/
 package-lock.json
 .vscode
 public/temp
+# seed:org input, holds passwords (seed.example.json is the template)
+seed.json
 mall-backend.zip
+prisma/migrations
