@@ -29,7 +29,7 @@ export interface ShopProductImage {
   aiStyle?: PhotoStyle | null;
 }
 
-export type PhotoStyle = 'GHOST' | 'MANNEQUIN' | 'MODEL';
+export type PhotoStyle = 'GHOST' | 'MANNEQUIN' | 'MODEL' | 'ENHANCE';
 
 export interface ColorPreview {
   id: string;

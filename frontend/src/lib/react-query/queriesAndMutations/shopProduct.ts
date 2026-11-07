@@ -11,7 +11,9 @@ import {
   cleanShopProductImage,
   professionalShopProductImage,
   getAiStatus,
+  PhotoPanel,
 } from '@/lib/api/shopProduct';
+import {CATALOG_KEYS} from '@/lib/react-query/queriesAndMutations/catalog';
 import {PhotoStyle, ShopProduct, ShopProductParams} from '@/types/shopProduct';
 import {getErrorMessage} from '@/utils/axios';
 import {
@@ -113,13 +115,21 @@ export const useShopProductImages = (productId: string) => {
       onError: errorToast('Could not remove the image'),
     }),
     clean: useMutation({
-      mutationFn: (imageId: string) => cleanShopProductImage(productId, imageId),
+      mutationFn: (imageId: string) =>
+        cleanShopProductImage(productId, imageId),
       onSuccess: done,
       onError: errorToast('Could not clean the background'),
     }),
     professional: useMutation({
-      mutationFn: ({imageId, style, details}: {imageId: string; style: PhotoStyle; details?: string}) =>
-        professionalShopProductImage(productId, imageId, style, details),
+      mutationFn: ({
+        imageId,
+        style,
+        details,
+      }: {
+        imageId: string;
+        style: PhotoStyle;
+        details?: string;
+      }) => professionalShopProductImage(productId, imageId, style, details),
       onSuccess: done,
       onError: errorToast('Could not make the professional photo'),
     }),
@@ -127,12 +137,49 @@ export const useShopProductImages = (productId: string) => {
 };
 
 /** Are AI photos (Cloudflare keys) set up on the server? */
-export const useAiStatus = () =>
+export const useAiStatus = (panel: PhotoPanel = 'shop-admin') =>
   useQuery({
-    queryKey: ['ai-status'],
-    queryFn: async () => (await getAiStatus()).data.ready,
+    queryKey: ['ai-status', panel],
+    queryFn: async () => (await getAiStatus(panel)).data.ready,
     staleTime: 60_000,
   });
+
+/** AI photo tools on the company panel's product page; its catalog product is refetched after each */
+export const useCompanyPhotoTools = (productId: string) => {
+  const queryClient = useQueryClient();
+  const done = (res: {message: string}) => {
+    toast.success(res.message);
+    queryClient.invalidateQueries({queryKey: [CATALOG_KEYS.PRODUCTS]});
+  };
+  return {
+    clean: useMutation({
+      mutationFn: (imageId: string) =>
+        cleanShopProductImage(productId, imageId, 'company-admin'),
+      onSuccess: done,
+      onError: errorToast('Could not clean the background'),
+    }),
+    professional: useMutation({
+      mutationFn: ({
+        imageId,
+        style,
+        details,
+      }: {
+        imageId: string;
+        style: PhotoStyle;
+        details?: string;
+      }) =>
+        professionalShopProductImage(
+          productId,
+          imageId,
+          style,
+          details,
+          'company-admin',
+        ),
+      onSuccess: done,
+      onError: errorToast('Could not make the professional photo'),
+    }),
+  };
+};
 
 export const useShopProductPreviews = (productId: string) => {
   const refresh = useRefresh();

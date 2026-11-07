@@ -3,6 +3,7 @@ import {ColorPreview, ShopProduct} from '@/types/shopProduct';
 import {getErrorMessage} from '@/utils/axios';
 import {
   CircleAlert,
+  ExternalLink,
   ImageOff,
   Loader2,
   RefreshCw,
@@ -10,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import {useState} from 'react';
+import PhotoViewer, {PhotoView, ViewAllPhotosButton} from './PhotoViewer';
 
 type Props = {product: ShopProduct; editable?: boolean};
 
@@ -23,6 +25,7 @@ const AiColorPreview = ({product, editable = true}: Props) => {
   const [sourceId, setSourceId] = useState<string | undefined>();
   const [selected, setSelected] = useState<string[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<PhotoView>(null);
 
   const source =
     product.images.find((img) => img.id === sourceId) ?? product.images[0];
@@ -54,6 +57,24 @@ const AiColorPreview = ({product, editable = true}: Props) => {
   const missing = product.colors.filter(
     (c) => previews.get(c.id)?.status !== 'READY',
   );
+  // The original and every finished colour photo, for "View all photos"
+  const colourPhotos = source
+    ? [
+        {id: source.id, url: source.url, caption: 'Original'},
+        ...product.colors.flatMap((c) => {
+          const p = previews.get(c.id);
+          return p?.status === 'READY' && p.url
+            ? [{id: p.id, url: p.url, caption: c.name}]
+            : [];
+        }),
+      ]
+    : [];
+  // The photo on the stage, when it shows one (not while generating / failed)
+  const stageUrl = !activeColor
+    ? source?.url
+    : !generating.has(activeColor.id) && activePreview?.status === 'READY'
+      ? activePreview.url
+      : undefined;
 
   if (!source) {
     return (
@@ -151,6 +172,16 @@ const AiColorPreview = ({product, editable = true}: Props) => {
               ? `${activePreview?.model === 'built-in-recolour' ? 'Recoloured' : 'AI preview'} · ${activeColor.name}`
               : 'Original · unchanged'}
           </span>
+          {stageUrl && (
+            <a
+              href={stageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute right-2 top-2 inline-flex items-center gap-1 bg-white/90 px-2 py-1 text-body-sm text-burgundy hover:underline"
+            >
+              <ExternalLink size={14} /> Open full size
+            </a>
+          )}
           {editable && activePreview && activePreview.status !== 'PENDING' && (
             <div className="absolute bottom-2 right-2 flex gap-1 bg-white/90">
               <button
@@ -223,6 +254,13 @@ const AiColorPreview = ({product, editable = true}: Props) => {
             );
           })}
         </div>
+        {colourPhotos.length > 1 && (
+          <ViewAllPhotosButton
+            count={colourPhotos.length}
+            onClick={() => setViewing('all')}
+          />
+        )}
+        <PhotoViewer photos={colourPhotos} view={viewing} onView={setViewing} />
       </div>
 
       {/* Controls */}
@@ -347,10 +385,10 @@ const AiColorPreview = ({product, editable = true}: Props) => {
 
         <p className="field-hint">
           Made from the selected photo, up to 6 colours per run, in about a
-          second each; your original photo is never changed. Only the garment
-          is recoloured and every result is checked before it is saved. Best
-          for one-colour garments; pick a clean or professional photo as the
-          source for white-background colour photos.
+          second each; your original photo is never changed. Only the garment is
+          recoloured and every result is checked before it is saved. Best for
+          one-colour garments; pick a clean or professional photo as the source
+          for white-background colour photos.
         </p>
       </div>
     </div>

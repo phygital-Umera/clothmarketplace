@@ -1,4 +1,19 @@
+import {
+  CleanPhotoBar,
+  PhotoBadges,
+  ProfessionalPhotoBox,
+  canCleanPhoto,
+  ownPhoto,
+} from '@/components/ShopProduct/AiPhotoTools';
+import PhotoViewer, {
+  PhotoView,
+  ViewAllPhotosButton,
+} from '@/components/ShopProduct/PhotoViewer';
 import {useProductImages} from '@/lib/react-query/queriesAndMutations/catalog';
+import {
+  useAiStatus,
+  useCompanyPhotoTools,
+} from '@/lib/react-query/queriesAndMutations/shopProduct';
 import {checkFile, IMAGE_RULE} from '@/lib/validation/fieldRules';
 import {CatalogPanel, Product} from '@/types/catalog';
 import {ImagePlus, Loader2, Star, Trash2} from 'lucide-react';
@@ -17,6 +32,7 @@ const ProductImages = ({
   const inputId = useId();
   const {upload, setMain, remove} = useProductImages(panel, product.id);
   const [error, setError] = useState('');
+  const [viewing, setViewing] = useState<PhotoView>(null);
   const room = MAX_IMAGES - product.images.length;
 
   const pick = (list: FileList | null) => {
@@ -29,21 +45,25 @@ const ProductImages = ({
   return (
     <div>
       <div className="flex flex-wrap gap-3">
-        {product.images.map((img) => (
+        {product.images.map((img, i) => (
           <figure
             key={img.id}
             className={`relative h-24 w-24 border ${img.isMain ? 'border-burgundy' : 'border-ivory-300'}`}
           >
-            <img
-              src={img.url}
-              alt={img.altText ?? ''}
-              className="h-full w-full object-cover"
-            />
-            {img.isMain && (
-              <span className="absolute left-0 top-0 bg-burgundy px-1.5 py-0.5 text-label-caps uppercase text-ivory">
-                Main
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={() => setViewing(i)}
+              aria-label="View photo large"
+              title="View large"
+              className="block h-full w-full cursor-zoom-in"
+            >
+              <img
+                src={img.url}
+                alt={img.altText ?? ''}
+                className="h-full w-full object-cover"
+              />
+            </button>
+            <PhotoBadges photo={img} />
             {product.canEdit && (
               <div className="absolute bottom-0 right-0 flex bg-white/90">
                 {!img.isMain && (
@@ -95,11 +115,56 @@ const ProductImages = ({
           }}
         />
       </div>
+      <ViewAllPhotosButton
+        count={product.images.length}
+        onClick={() => setViewing('all')}
+      />
+      <PhotoViewer photos={product.images} view={viewing} onView={setViewing} />
       <p className={error ? 'field-error' : 'field-hint'}>
         {error ||
           `${IMAGE_RULE.hint} · up to ${MAX_IMAGES} images · the starred one shows first`}
       </p>
+      {/* AI photo tools: only the company panel has the server routes for them */}
+      {panel === 'company-admin' && product.canEdit && (
+        <CompanyPhotoTools product={product} room={room} />
+      )}
     </div>
+  );
+};
+
+/** Professional photo (AI) and Clean background, for any product of the company */
+const CompanyPhotoTools = ({
+  product,
+  room,
+}: {
+  product: Product;
+  room: number;
+}) => {
+  const {clean, professional} = useCompanyPhotoTools(product.id);
+  const {data: aiReady} = useAiStatus('company-admin');
+  const source = ownPhoto(product.images);
+  const firstToClean = product.images.find((i) =>
+    canCleanPhoto(product.images, i, room),
+  );
+
+  return (
+    <>
+      {source && (
+        <ProfessionalPhotoBox
+          sourceId={source.id}
+          room={room}
+          aiReady={aiReady}
+          pending={professional.isPending}
+          onMake={(input) => professional.mutate(input)}
+        />
+      )}
+      {firstToClean && (
+        <CleanPhotoBar
+          pending={clean.isPending}
+          onClean={() => clean.mutate(firstToClean.id)}
+        />
+      )}
+    </>
   );
 };
 
