@@ -401,7 +401,11 @@ class CatalogService {
         const similar = (
             await this.cards({
                 id: {not: p.id},
-                OR: [{subcategoryId: p.subcategoryId ?? undefined}, {categoryId: p.categoryId ?? undefined}],
+                // Only real ids: {subcategoryId: undefined} would match every product
+                OR: [
+                    ...(p.subcategoryId ? [{subcategoryId: p.subcategoryId}] : []),
+                    ...(p.categoryId ? [{categoryId: p.categoryId}] : []),
+                ],
             })
         )
             .sort((a, b) => Number(b.inStock) - Number(a.inStock) || b.sold - a.sold)
