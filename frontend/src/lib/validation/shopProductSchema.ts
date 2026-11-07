@@ -23,7 +23,8 @@ export const shopProductSchema = z
     shortDesc: text('Short Description', 300),
     detailedDesc: field({label: 'Description', kind: 'text', max: 4000}),
     categoryId: z.string().min(1, 'Category is required'),
-    subcategoryId: z.string().min(1, 'Subcategory is required'),
+    // Optional: blank = no subcategory
+    subcategoryId: z.string(),
     sizeIds: z.array(z.string()).min(1, 'Select at least one Size'),
     colorIds: z.array(z.string()).min(1, 'Select at least one Color'),
     mrp: field({label: 'Price', kind: 'price'}).refine(
@@ -119,14 +120,16 @@ export const fromShopProduct = (p: ShopProduct): ShopProductValues => ({
   tagsText: p.tags.join(', '),
 });
 
-/** Form values -> API body (tags as a list, blank SKU left to the backend) */
+/** Form values -> API body (tags as a list, blank SKU left to the backend, blank subcategory = none) */
 export const toShopProductBody = ({
   tagsText,
   sku,
+  subcategoryId,
   ...rest
 }: ShopProductOutput) => ({
   ...rest,
   sku: sku || undefined,
+  subcategoryId: subcategoryId || null,
   tags: (tagsText ?? '')
     .split(',')
     .map((t) => t.trim())

@@ -121,29 +121,32 @@ class ShopProductService {
      */
     private async assertRefs(
         companyId: string,
-        data: {categoryId: string; subcategoryId: string; sizeIds?: string[]; colorIds?: string[]},
+        data: {categoryId: string; subcategoryId?: string | null; sizeIds?: string[]; colorIds?: string[]},
         current?: {sizeIds: string[]; colorIds: string[]},
     ) {
         // Only the company's own masters or platform-wide ones
         const visible = {OR: [{companyId}, {companyId: null}]};
         const [category, subcategory] = await Promise.all([
             prisma.category.findFirst({where: {id: data.categoryId, ...visible}, select: {isActive: true}}),
-            prisma.subcategory.findFirst({
-                where: {id: data.subcategoryId, ...visible},
-                select: {isActive: true, categoryId: true},
-            }),
+            data.subcategoryId
+                ? prisma.subcategory.findFirst({
+                      where: {id: data.subcategoryId, ...visible},
+                      select: {isActive: true, categoryId: true},
+                  })
+                : null,
         ]);
         if (!category?.isActive) {
             throw fieldError(httpStatus.BAD_REQUEST, 'categoryId', 'Select an active category');
         }
-        if (!subcategory?.isActive) {
+        // Subcategory is optional; when given it must be active and in the category
+        if (data.subcategoryId && !subcategory?.isActive) {
             throw fieldError(
                 httpStatus.BAD_REQUEST,
                 'subcategoryId',
                 'Select an active subcategory',
             );
         }
-        if (subcategory.categoryId !== data.categoryId) {
+        if (subcategory && subcategory.categoryId !== data.categoryId) {
             throw fieldError(
                 httpStatus.BAD_REQUEST,
                 'subcategoryId',
@@ -310,7 +313,8 @@ class ShopProductService {
         const before = await this.get(scope, id);
         const merged = {
             categoryId: data.categoryId ?? before.categoryId,
-            subcategoryId: data.subcategoryId ?? before.subcategoryId ?? '',
+            // null = cleared on purpose; undefined = not sent, keep the current one
+            subcategoryId: data.subcategoryId !== undefined ? data.subcategoryId : before.subcategoryId,
             mrp: data.mrp ?? before.mrp,
             sellingPrice:
                 data.sellingPrice ?? (data.mrp !== undefined ? data.mrp : before.sellingPrice),

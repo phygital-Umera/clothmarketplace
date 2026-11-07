@@ -40,7 +40,11 @@ const productFields = {
     shortDesc: text('Short Description', 300),
     detailedDesc: field({label: 'Description', kind: 'text', max: 4000}),
     categoryId: id('Category'),
-    subcategoryId: id('Subcategory'),
+    // Optional: blank or null = no subcategory (on edit, clears it)
+    subcategoryId: z.preprocess(
+        (v) => (v === '' ? null : v),
+        z.string().uuid('Select a valid Subcategory').nullable().optional(),
+    ),
     sizeIds: ids('Size', 30),
     colorIds: ids('Color', 30),
     mrp: z.preprocess(

@@ -12,7 +12,10 @@ import {
 import useProductMasters from '@/components/ShopProduct/useProductMasters';
 import {PageHeader} from '@/components/ui';
 import {FormError, FormFooter, FormGroup} from '@/components/ui/FormLayout';
-import {cleanShopProductImage, generateShopProductPreviews} from '@/lib/api/shopProduct';
+import {
+  cleanShopProductImage,
+  generateShopProductPreviews,
+} from '@/lib/api/shopProduct';
 import {
   useSaveShopProduct,
   useShopProduct,
@@ -91,20 +94,39 @@ const Form = ({product}: {product?: ShopProduct}) => {
       const busy = toast.loading('Cleaning the photo background…');
       try {
         const res = await cleanShopProductImage(saved.id, firstId);
-        sourceId = res.data.images.find((i) => i.cleanedFromId === firstId)?.id ?? firstId;
+        sourceId =
+          res.data.images.find((i) => i.cleanedFromId === firstId)?.id ??
+          firstId;
         toast.success(res.message, {id: busy});
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Product saved, but the background could not be cleaned'), {id: busy});
+        toast.error(
+          getErrorMessage(
+            error,
+            'Product saved, but the background could not be cleaned',
+          ),
+          {id: busy},
+        );
       }
     }
     if (!product && colourPhotos && sourceId) {
       const colorIds = (values.colorIds ?? []).slice(0, 6);
-      const busy = toast.loading(`Making photos in ${colorIds.length} colour${colorIds.length > 1 ? 's' : ''}…`);
+      const busy = toast.loading(
+        `Making photos in ${colorIds.length} colour${colorIds.length > 1 ? 's' : ''}…`,
+      );
       try {
-        const res = await generateShopProductPreviews(saved.id, {colorIds, imageId: sourceId});
+        const res = await generateShopProductPreviews(saved.id, {
+          colorIds,
+          imageId: sourceId,
+        });
         toast.success(res.message, {id: busy});
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Product saved, but the colour photos could not be made'), {id: busy});
+        toast.error(
+          getErrorMessage(
+            error,
+            'Product saved, but the colour photos could not be made',
+          ),
+          {id: busy},
+        );
       }
     }
     toDetail(saved.id);
@@ -115,7 +137,15 @@ const Form = ({product}: {product?: ShopProduct}) => {
       <form onSubmit={submit} noValidate className="space-y-4">
         <FormError message={formError} />
         <div className="panel space-y-5 p-4 md:p-5">
-          <FormGroup title="Product">
+          <p className="rounded border border-ivory-300 bg-ivory-100 px-3 py-2 text-body-sm text-espresso">
+            Fill the fields marked <span className="text-error">*</span>: name,
+            description, category, sizes, colours, price and stock. Everything
+            else is optional and can be added later.
+          </p>
+          <FormGroup
+            title="Product"
+            description="What the customer sees: the name, a description and whether it is on the online store."
+          >
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
               <GenericInputField
                 name="name"
@@ -132,11 +162,12 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 kind="code"
                 maxLength={40}
                 placeholder="Auto-generated if blank"
-                hint="Letters, numbers and dashes"
+                hint="Your own product code. Leave blank and one is made for you."
               />
               <GenericDropdown
                 name="status"
                 label="Status"
+                hint="Draft: saved, not on the online store. Published: shown on the online store."
                 options={SHOP_PRODUCT_STATUSES.map((s) => ({
                   value: s,
                   label: label(s),
@@ -149,11 +180,13 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 rows={4}
                 maxLength={4000}
                 placeholder="Fabric feel, fit, styling notes…"
+                hint="A few lines about the fabric, fit and how to wear it."
                 className="sm:col-span-2 md:col-span-4"
               />
               <GenericTextArea
                 name="shortDesc"
                 label="Short Description"
+                hint="Optional one-line summary."
                 rows={2}
                 maxLength={300}
                 className="sm:col-span-2 md:col-span-4"
@@ -161,7 +194,10 @@ const Form = ({product}: {product?: ShopProduct}) => {
             </div>
           </FormGroup>
 
-          <FormGroup title="Classification">
+          <FormGroup
+            title="Classification"
+            description="Where the product shows up in the online store's menus and filters."
+          >
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
               <GenericDropdown
                 name="categoryId"
@@ -175,18 +211,17 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 }))}
                 hint={
                   !masters.loading.categories && !masters.categories.length
-                    ? 'No categories yet. Add one under Masters › Categories.'
-                    : undefined
+                    ? 'No categories yet. Add one under Setup (Masters) › Categories.'
+                    : 'For example Shirts, Trousers, Sarees.'
                 }
               />
               <GenericDropdown
                 name="subcategoryId"
                 label="Subcategory"
-                required
                 dependsOn="categoryId"
                 disabled={!categoryId}
                 placeholder={
-                  categoryId ? 'Select subcategory' : 'Select a category first'
+                  categoryId ? 'None (optional)' : 'Select a category first'
                 }
                 loading={!!categoryId && masters.loading.subcategories}
                 options={
@@ -201,13 +236,14 @@ const Form = ({product}: {product?: ShopProduct}) => {
                   categoryId &&
                   !masters.loading.subcategories &&
                   !masters.subcategories.length
-                    ? 'No subcategories in this category yet.'
-                    : undefined
+                    ? 'None in this category. You can leave it blank.'
+                    : 'Optional. A narrower group, e.g. Formal Shirts.'
                 }
               />
               <GenericDropdown
                 name="gender"
                 label="For"
+                hint="Who wears it: used in store filters and AI photos."
                 options={GENDERS.map((g) => ({value: g, label: label(g)}))}
               />
               <GenericInputField
@@ -215,11 +251,15 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 label="Product Type"
                 kind="text"
                 placeholder="Shirt"
+                hint="Optional, e.g. Shirt, Kurta, Jeans."
               />
             </div>
           </FormGroup>
 
-          <FormGroup title="Sizes & colors">
+          <FormGroup
+            title="Sizes & colors"
+            description="Tap every size and colour you have. Each size + colour pair (for example M + Red) gets its own stock count and barcode. Common sizes and colours are already listed; add others under Setup (Masters)."
+          >
             <div className="space-y-4">
               <ChipMultiSelect
                 name="sizeIds"
@@ -227,7 +267,8 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 required
                 options={masters.sizes}
                 loading={masters.loading.sizes}
-                emptyHint="No sizes yet. Add them under Masters › Sizes."
+                hint="Sarees and dupattas: pick Free Size."
+                emptyHint="No sizes yet. Add them under Setup (Masters) › Sizes."
               />
               <ChipMultiSelect
                 name="colorIds"
@@ -235,12 +276,16 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 required
                 options={masters.colors}
                 loading={masters.loading.colors}
-                emptyHint="No colors yet. Add them under Masters › Colors."
+                hint="Pick the colours you have in stock."
+                emptyHint="No colours yet. Add them under Setup (Masters) › Colors."
               />
             </div>
           </FormGroup>
 
-          <FormGroup title="Pricing & stock">
+          <FormGroup
+            title="Pricing & stock"
+            description="Price is the MRP on the tag. If you sell for less, put that in Discount Price."
+          >
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
               <GenericInputField
                 name="mrp"
@@ -265,6 +310,7 @@ const Form = ({product}: {product?: ShopProduct}) => {
               <GenericDropdown
                 name="taxRate"
                 label="GST"
+                hint="GST rate on this item."
                 options={[0, 5, 12, 18].map((r) => ({
                   value: String(r),
                   label: `${r}%`,
@@ -273,7 +319,10 @@ const Form = ({product}: {product?: ShopProduct}) => {
             </div>
           </FormGroup>
 
-          <FormGroup title="Clothing details">
+          <FormGroup
+            title="Clothing details"
+            description="All optional. They help customers search and filter on the online store."
+          >
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
               <GenericInputField
                 name="fabric"
@@ -334,7 +383,10 @@ const Form = ({product}: {product?: ShopProduct}) => {
             </div>
           </FormGroup>
 
-          <FormGroup title="Images">
+          <FormGroup
+            title="Images"
+            description="Up to 8 photos; the first is the main one. A photo on a bed or floor is fine: the options below can clean it up."
+          >
             {product ? (
               <ShopProductImages product={product} />
             ) : (
@@ -351,8 +403,9 @@ const Form = ({product}: {product?: ShopProduct}) => {
                   <span>
                     Clean the background of the first photo
                     <span className="block text-xs text-on-surface-variant">
-                      For photos taken on a bed, floor or mat: the garment is put on plain white, centred, and becomes the
-                      main photo. Your photo is kept as well.
+                      For photos taken on a bed, floor or mat: the garment is
+                      put on plain white, centred, and becomes the main photo.
+                      Your photo is kept as well.
                     </span>
                   </span>
                 </label>
@@ -367,7 +420,10 @@ const Form = ({product}: {product?: ShopProduct}) => {
                   <span>
                     Make a photo in each selected colour
                     <span className="block text-xs text-on-surface-variant">
-                      Made from the first photo after saving, up to 6 colours. Uses Cloudflare AI when its keys are set, otherwise a built-in recolour. You can also make or redo them on the product page.
+                      Made from the first photo after saving, up to 6 colours.
+                      Uses Cloudflare AI when its keys are set, otherwise a
+                      built-in recolour. You can also make or redo them on the
+                      product page.
                     </span>
                   </span>
                 </label>

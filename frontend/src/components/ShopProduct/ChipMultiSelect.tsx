@@ -10,6 +10,7 @@ const ChipMultiSelect = ({
   options,
   loading,
   required,
+  hint,
   emptyHint,
 }: {
   name: string;
@@ -17,6 +18,8 @@ const ChipMultiSelect = ({
   options: ChipOption[];
   loading?: boolean;
   required?: boolean;
+  /** Short help under the label */
+  hint?: string;
   /** Shown when the master has no entries yet */
   emptyHint: string;
 }) => {
@@ -32,6 +35,7 @@ const ChipMultiSelect = ({
         {label}
         {required && <span className="text-error"> *</span>}
       </legend>
+      {hint && <p className="field-hint -mt-1 mb-2">{hint}</p>}
       <Controller
         name={name}
         control={control}
