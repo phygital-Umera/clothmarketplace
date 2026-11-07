@@ -26,7 +26,7 @@ export const exportSalesExcel = async (bills: Bill[], fileName: string) => {
     {header: 'Customer', key: 'customer', width: 22},
     {header: 'Mobile', key: 'mobile', width: 14},
     {header: 'Cashier', key: 'cashier', width: 18},
-    {header: 'Subtotal', key: 'subtotal', width: 12, style: {numFmt: money}},
+    {header: 'Taxable value', key: 'subtotal', width: 12, style: {numFmt: money}},
     {header: 'Discount', key: 'discount', width: 12, style: {numFmt: money}},
     {header: 'GST', key: 'tax', width: 12, style: {numFmt: money}},
     {header: 'Net', key: 'net', width: 13, style: {numFmt: money}},

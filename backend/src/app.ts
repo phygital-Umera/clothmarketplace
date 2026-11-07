@@ -19,6 +19,8 @@ import {ApiResponse} from '@utils/index';
 const app = express();
 // Middleware setup
 app.use(helmet()); // Set security HTTP headers
+// Uploaded pictures are shown by the store and the panels, which run on other origins
+app.use('/uploads', helmet.crossOriginResourcePolicy({policy: 'cross-origin'}));
 app.use(express.json({limit: '16mb'})); // Parse JSON request body with size limit
 app.use(express.urlencoded({extended: true, limit: '16mb'})); // Parse URL-encoded request body with size limit
 app.use(express.static('public')); // Serve static files

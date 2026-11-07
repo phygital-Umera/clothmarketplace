@@ -33,10 +33,16 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('base URL of the frontend, used in password reset emails'),
+    STORE_URL: z
+        .string()
+        .optional()
+        .describe('base URL of the customer store, used in its password reset emails'),
     TRUST_PROXY: z
         .string()
         .optional()
         .describe('number of proxies in front of the API; empty when clients connect directly'),
+    RAZORPAY_KEY_ID: z.string().optional().describe('Razorpay key id (rzp_test_... or rzp_live_...)'),
+    RAZORPAY_KEY_SECRET: z.string().optional().describe('Razorpay key secret'),
     CLOUDFLARE_ACCOUNT_ID: z.string().optional().describe('Cloudflare account id for Workers AI'),
     CLOUDFLARE_AI_API_TOKEN: z
         .string()
@@ -86,6 +92,7 @@ export default {
         from: envVars.EMAIL_FROM,
     },
     frontendUrl: envVars.FRONTEND_URL?.replace(/\/$/, ''),
+    storeUrl: envVars.STORE_URL?.replace(/\/$/, ''),
     // Only trust X-Forwarded-For when a known proxy sits in front; otherwise
     // clients could fake their IP and dodge the login rate limit
     trustProxy: envVars.TRUST_PROXY ? Number(envVars.TRUST_PROXY) : false,
@@ -93,6 +100,10 @@ export default {
         cloudflareAccountId: envVars.CLOUDFLARE_ACCOUNT_ID || undefined,
         cloudflareApiToken: envVars.CLOUDFLARE_AI_API_TOKEN || undefined,
         imageModel: envVars.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-2-klein-4b',
+    },
+    razorpay: {
+        keyId: envVars.RAZORPAY_KEY_ID || undefined,
+        keySecret: envVars.RAZORPAY_KEY_SECRET || undefined,
     },
     cors: {
         origins: envVars.CORS_ORIGINS

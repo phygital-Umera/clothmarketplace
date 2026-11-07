@@ -46,6 +46,9 @@ model User {
   /// Shop staff shift: FULL_DAY, MORNING, EVENING
   shift                  String?
   sessionsRevokedAt      DateTime?
+  /// Customer profile: WOMAN, MAN, OTHER (optional)
+  gender                 String?
+  dateOfBirth            DateTime?     @db.Date
   admin                  Admin?
   branch                 Branch?       @relation(fields: [branchId], references: [id])
   shop                   Shop?         @relation(fields: [shopId], references: [id])
@@ -57,6 +60,7 @@ model User {
   assignedTasks          OrderTask[]
   reviews                ProductReview[]
   cart                   Cart?
+  wishlist               WishlistItem[]
   addresses              CustomerAddress[]
   returns                ReturnRequest[]
   couponUsages           CouponUsage[]
@@ -68,6 +72,8 @@ model User {
 salesReturns           SalesReturn[]          @relation("SalesReturnCreatedBy")
   expenses               Expense[]              @relation("ExpenseCreatedBy")
   attendances            Attendance[]           @relation("AttendanceUser")
+  notifications          Notification[]
+  supportRequests        SupportRequest[]
 
 }
 
@@ -498,6 +504,7 @@ model Product {
   reviews        ProductReview[]
   orderItems     OrderItem[]
   cartItems      CartItem[]
+  wishlistedBy   WishlistItem[]
   sizes          ProductSize[]
   colors         ProductColor[]
   previews       ProductColorPreview[]
@@ -762,6 +769,10 @@ model SalesBill {
   /// Edits made after the bill was confirmed
   editCount     Int        @default(0)
   lastEditedAt  DateTime?
+/// true: unit prices include GST (the tag price); false: GST was added on top (bills before Nov 2026)
+  pricesIncludeTax Boolean @default(false)
+  /// Total rounded to the rupee: roundOff = totalAmount - (subtotal + taxAmount)
+  roundOff      Float      @default(0)
 /// Collected so far (at billing + later collections); balanceDue is the customer's credit
   amountPaid    Float      @default(0)
   balanceDue    Float      @default(0)
@@ -1280,6 +1291,11 @@ model ReturnRequest {
   refundStatus RefundStatus @default(NONE)
   notes        String?
   returnItems  Json?
+  /// What the customer wants: REFUND or EXCHANGE
+  resolution   String       @default("REFUND")
+  /// Size/colour wanted for an exchange
+  exchangeFor  String?
+  images       String[]     @default([])
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -1301,6 +1317,8 @@ model CustomerAddress {
   state      String
   postalCode String
   country    String   @default("India")
+  /// HOME, WORK or OTHER
+  label      String   @default("HOME")
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1313,6 +1331,19 @@ model Cart {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   items     CartItem[]
+}
+
+/// A product a customer saved for later (storefront wishlist)
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
 }
 
 model CartItem {
@@ -1336,6 +1367,9 @@ model ProductReview {
   rating    Int      @default(5)
   title     String?
   comment   String?
+  /// How it fits: SMALL, TRUE, LARGE
+  fit       String?
+  images    String[] @default([])
   createdAt DateTime @default(now())
 }
 
@@ -1756,4 +1790,39 @@ model PhysicalStockAudit {
   createdAt          DateTime @default(now())
 
   @@index([branchId, createdAt])
+}
+
+/// Messages to a store customer: order updates, payments, returns, offers
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// ORDER, PAYMENT, RETURN, OFFER, ACCOUNT
+  type      String
+  title     String
+  body      String
+  /// Store page to open, e.g. /account/orders/<id>
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// "Contact us" messages from the store's help page
+model SupportRequest {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  name        String
+  email       String
+  phone       String?
+  topic       String
+  orderNumber String?
+  message     String
+  /// OPEN, CLOSED
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+
+  @@index([status, createdAt])
 }

@@ -1,4 +1,5 @@
 import {useAuthContext} from '@/context/AuthContext';
+import OnlineBuyers from '@/components/Customers/OnlineBuyers';
 import {
   useCreateCustomer,
   useCustomers,
@@ -736,6 +737,11 @@ export default function CustomerPage() {
       </div>
 
       {/* 4. EXCEL / CSV IMPORT MODAL */}
+      {/* Website shoppers of this shop (not on credit, so listed apart) */}
+      <div className="px-4 pb-8 md:px-8">
+        <OnlineBuyers />
+      </div>
+
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150">

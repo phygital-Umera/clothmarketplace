@@ -1,3 +1,4 @@
+import fs from 'fs/promises';
 import {Request} from 'express';
 import httpStatus from 'http-status';
 import {aiPreviewService, auditService, shopProductService} from '@services/index';
@@ -39,15 +40,53 @@ const getProduct = catchAsync(async (req, res) => {
     return ok(res, await shopProductService.get(shopOf(req), id), 'Product fetched successfully');
 });
 
+/**
+ * Form data sends every field as text: list fields (sizes, colours, tags)
+ * come as JSON arrays or repeated keys. JSON bodies pass through unchanged.
+ */
+const LIST_FIELDS = ['sizeIds', 'colorIds', 'tags'];
+const fromForm = (body: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {...body};
+    for (const key of LIST_FIELDS) {
+        const value = out[key];
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                out[key] = Array.isArray(parsed) ? parsed : [value];
+            } catch {
+                out[key] = value ? [value] : [];
+            }
+        }
+    }
+    return out;
+};
+
 const createProduct = catchAsync(async (req, res) => {
     const scope = shopOf(req);
-    const data = v.createShopProductSchema.parse(req.body);
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    // Check the fields before keeping any photo; a rejected form leaves no files behind
+    const parsed = v.createShopProductSchema.safeParse(fromForm(req.body ?? {}));
+    if (!parsed.success) {
+        await Promise.all(files.map((f) => fs.unlink(f.path).catch(() => undefined)));
+        throw parsed.error;
+    }
+    const data = parsed.data;
     const {after} = await auditService.track(
         req,
         {action: 'product.create', module: 'catalog'},
-        async () => ({after: await shopProductService.create(scope, req.user.id, data)}),
+        async () => {
+            const created = await shopProductService.create(scope, req.user.id, data);
+            if (!files.length) return {after: created};
+            const urls = await Promise.all(files.map((file) => storeUpload(req, file, 'products')));
+            return {after: await shopProductService.addImages(scope, created.id, urls)};
+        },
     );
-    return ok(res, after, 'Product created successfully', httpStatus.CREATED);
+    return ok(
+        res,
+        after,
+        files.length ? `Product created with ${files.length} photo${files.length > 1 ? 's' : ''}` : 'Product created successfully',
+        httpStatus.CREATED,
+    );
 });
 
 const updateProduct = catchAsync(async (req, res) => {

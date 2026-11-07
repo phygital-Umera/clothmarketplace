@@ -47,6 +47,59 @@ class DashboardService {
         return new Map(rows.map((r) => [r.variantId, Number(r.cost) || 0]));
     }
 
+    /** What the online store needs from this shop: orders to confirm, pack and ship, and open requests */
+    private async shopOnlineOrders(shopId: string, today: Date) {
+        const [byStatus, cancelRequests, returnRequests, todayOrders, waiting] = await Promise.all([
+            prisma.order.groupBy({by: ['status'], where: {shopId}, _count: {_all: true}}),
+            prisma.order.count({where: {shopId, cancelRequested: true, cancelApproved: null}}),
+            prisma.returnRequest.count({where: {shopId, returnStatus: {in: ['REQUESTED', 'IN_REVIEW', 'APPROVED', 'RECEIVED']}}}),
+            prisma.order.aggregate({
+                where: {shopId, createdAt: {gte: today}, status: {not: 'CANCELLED'}},
+                _count: {_all: true},
+                _sum: {totalAmount: true},
+            }),
+            prisma.order.findMany({
+                where: {shopId, status: {in: ['PENDING', 'CONFIRMED', 'PROCESSING', 'PACKED', 'READY_FOR_DISPATCH']}},
+                orderBy: {createdAt: 'asc'},
+                take: 5,
+                select: {
+                    id: true,
+                    orderNumber: true,
+                    status: true,
+                    totalAmount: true,
+                    paymentMethod: true,
+                    paymentStatus: true,
+                    createdAt: true,
+                    customer: {select: {fullname: true}},
+                    _count: {select: {items: true}},
+                },
+            }),
+        ]);
+        const count = (...st: string[]) => byStatus.filter((r) => st.includes(r.status)).reduce((n, r) => n + r._count._all, 0);
+        return {
+            toConfirm: count('PENDING'),
+            toPack: count('CONFIRMED', 'PROCESSING'),
+            toShip: count('PACKED', 'READY_FOR_DISPATCH'),
+            onTheWay: count('DISPATCHED', 'SHIPPED', 'OUT_FOR_DELIVERY'),
+            delivered: count('DELIVERED'),
+            cancelRequests,
+            returnRequests,
+            ordersToday: todayOrders._count._all,
+            salesToday: round2(todayOrders._sum.totalAmount ?? 0),
+            waiting: waiting.map((o) => ({
+                id: o.id,
+                orderNumber: o.orderNumber,
+                status: o.status,
+                totalAmount: o.totalAmount,
+                paymentMethod: o.paymentMethod,
+                paymentStatus: o.paymentStatus,
+                createdAt: o.createdAt,
+                customer: o.customer.fullname,
+                items: o._count.items,
+            })),
+        };
+    }
+
     public getShopDashboard = async (scope: ShopScope) => {
         const shop = await billService.shopContext(scope);
         const now = new Date();
@@ -397,8 +450,12 @@ class DashboardService {
             amount: round2(todayBills.reduce((s, b) => s + b.balanceDue, 0)),
         });
 
+        // ---- Online store orders waiting for this shop ----
+        const onlineOrders = await this.shopOnlineOrders(shop.id, today);
+
         return {
             generatedAt: now,
+            onlineOrders,
             shop: {
                 name: shopInfo.name,
                 code: shopInfo.code,

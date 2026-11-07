@@ -95,6 +95,12 @@ export interface ReturnRequestItem {
   refundStatus: RefundStatus;
   notes?: string;
   returnItems?: any;
+  /** What the customer wants: money back or another size/colour */
+  resolution?: 'REFUND' | 'EXCHANGE';
+  exchangeFor?: string | null;
+  images?: string[];
+  /** The items actually being returned */
+  lines?: {orderItemId: string; name: string; size?: string | null; color?: string | null; image?: string | null; unitPrice: number; quantity: number}[];
   createdAt: string;
   updatedAt: string;
   customer?: {

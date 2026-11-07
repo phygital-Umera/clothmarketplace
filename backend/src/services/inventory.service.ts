@@ -648,6 +648,7 @@ class InventoryService {
                     category: v.product.category.name,
                     image: v.product.images[0]?.url ?? null,
                     taxRate: v.product.taxRate,
+                    mrp: v.product.mrp,
                 },
                 variant: {
                     id: v.id,
@@ -655,7 +656,11 @@ class InventoryService {
                     size: v.size,
                     color: v.color,
                     colorHex: v.colorHex,
+                    // MRP printed on the tag; the POS shows it and the saving against it
+                    mrp: v.mrp ?? v.product.mrp,
                     sellingPrice: v.sellingPrice ?? v.product.sellingPrice ?? v.product.mrp,
+                    // This colour's own photo (e.g. a generated colour photo), else the product's
+                    image: v.image ?? v.product.images[0]?.url ?? null,
                 },
                 physicalStock: physical,
                 reservedStock: reserved,

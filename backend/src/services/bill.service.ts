@@ -311,15 +311,27 @@ class BillService {
         return {lines, totals: this.totalsCheck(subtotal, taxAmount, data.discount)};
     }
 
-    private async salesLines(tx: Tx, scope: ShopScope, data: CreateSales | UpdateSales) {
+    /**
+     * Sales lines and totals.
+     *
+     * Tag-price bills (pricesIncludeTax, all new bills): the unit price already
+     * contains GST, like the online store. The bill discount is shared over the
+     * lines by value first, then GST is taken out of what the customer pays for
+     * each line, and the total is rounded to the rupee (roundOff).
+     *   line pays   = qty × price − item discount − its share of the bill discount
+     *   taxable     = line pays ÷ (1 + rate)       GST = line pays − taxable
+     *   total       = Σ line pays rounded to ₹1
+     *
+     * Older bills (GST added on top) keep their original maths so editing them
+     * never changes what was charged.
+     */
+    private async salesLines(tx: Tx, scope: ShopScope, data: CreateSales | UpdateSales, inclusive = true) {
         const variants = await this.loadVariants(
             tx,
             scope,
             data.items.map((i) => i.variantId),
         );
-        let subtotal = 0;
-        let taxAmount = 0;
-        const lines = data.items.map((item) => {
+        const nets = data.items.map((item) => {
             const v = variants.get(item.variantId)!;
             const gross = round2(item.quantity * item.unitPrice);
             if (item.discount > gross) {
@@ -328,10 +340,10 @@ class BillService {
                     `Discount on "${v.product.name}" cannot be more than its amount`,
                 );
             }
-            const net = round2(gross - item.discount);
-            const tax = round2((net * item.taxRate) / 100);
-            subtotal += net;
-            taxAmount += tax;
+            return round2(gross - item.discount);
+        });
+        const describe = (item: (typeof data.items)[number], totalPrice: number) => {
+            const v = variants.get(item.variantId)!;
             return {
                 productId: v.productId,
                 variantId: v.id,
@@ -339,14 +351,62 @@ class BillService {
                 unitPrice: item.unitPrice,
                 discount: item.discount,
                 taxRate: item.taxRate,
-                totalPrice: round2(net + tax),
+                totalPrice,
                 productName: v.product.name,
                 variantSku: v.variantSku,
                 size: v.size,
                 color: v.color,
             };
+        };
+
+        if (!inclusive) {
+            let subtotal = 0;
+            let taxAmount = 0;
+            const lines = data.items.map((item, i) => {
+                const tax = round2((nets[i] * item.taxRate) / 100);
+                subtotal += nets[i];
+                taxAmount += tax;
+                return describe(item, round2(nets[i] + tax));
+            });
+            return {lines, totals: {...this.totalsCheck(subtotal, taxAmount, data.discount), roundOff: 0, pricesIncludeTax: false}};
+        }
+
+        const itemsValue = round2(nets.reduce((t, n) => t + n, 0));
+        const discount = round2(data.discount ?? 0);
+        if (discount > itemsValue) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Discount cannot be more than the bill amount');
+        }
+        // Share the bill discount by line value; the last line takes the paise left over
+        let shared = 0;
+        let subtotal = 0;
+        let taxAmount = 0;
+        const lines = data.items.map((item, i) => {
+            const share =
+                i === data.items.length - 1
+                    ? round2(discount - shared)
+                    : itemsValue
+                      ? round2((discount * nets[i]) / itemsValue)
+                      : 0;
+            shared = round2(shared + share);
+            const pays = round2(nets[i] - share);
+            const taxable = round2(pays / (1 + item.taxRate / 100));
+            subtotal += taxable;
+            taxAmount += round2(pays - taxable);
+            return describe(item, pays);
         });
-        return {lines, totals: this.totalsCheck(subtotal, taxAmount, data.discount)};
+        const exact = round2(lines.reduce((t, l) => t + l.totalPrice, 0));
+        const totalAmount = Math.round(exact);
+        return {
+            lines,
+            totals: {
+                subtotal: round2(subtotal),
+                taxAmount: round2(taxAmount),
+                discount,
+                roundOff: round2(totalAmount - exact),
+                totalAmount,
+                pricesIncludeTax: true,
+            },
+        };
     }
 
     /**
@@ -711,6 +771,8 @@ class BillService {
                             shopId: shop.id,
                             createdById: actorId,
                             items: {create: lines},
+                            // What was received at the counter (cash book and day close read these)
+                            payments: {create: paidNow.map((p) => ({...p, receivedById: actorId}))},
                         },
                     });
                     if (status === BillStatus.CONFIRMED) {
@@ -817,7 +879,7 @@ class BillService {
                 include: {items: true},
             });
             await this.assertNoReturns(tx, id);
-            const {lines, totals} = await this.salesLines(tx, scope, data);
+            const {lines, totals} = await this.salesLines(tx, scope, data, before.pricesIncludeTax);
             const paidNow = this.salesPaidNow(data, totals.totalAmount);
             const later = await this.collected(tx, 'SALES', id);
 
@@ -838,6 +900,8 @@ class BillService {
                         ? {editCount: {increment: 1}, lastEditedAt: new Date()}
                         : {}),
                     items: {create: lines},
+                    // The counter payments were removed above; save the edited ones
+                    payments: {create: paidNow.map((p) => ({...p, receivedById: actorId}))},
                 },
             });
             if (before.status === BillStatus.CONFIRMED) {

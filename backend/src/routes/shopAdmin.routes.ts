@@ -53,7 +53,8 @@ router.route('/sizes').get(m.listSizes).post(m.createSize);
 router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSize);
 
 // ---- 5. Products ----
-router.route('/products').get(p.listProducts).post(p.createProduct);
+// Create takes form data: the product fields and its photos in one request
+router.route('/products').get(p.listProducts).post(imageUpload.array('images', 8), p.createProduct);
 router.route('/products/:id').get(p.getProduct).patch(p.updateProduct).delete(p.deleteProduct);
 router.post('/products/:id/images', imageUpload.array('images', 8), p.uploadImages);
 router.route('/products/:id/images/:imageId').patch(p.updateImage).delete(p.deleteImage);
@@ -82,6 +83,7 @@ router.get('/credit-notes/:id', cn.get);
 
 // ---- Shop Customers ----
 router.get('/customers', customerController.list);
+router.get('/customers/online', customerController.online);
 router.post('/customers', customerController.create);
 router.get('/customers/:id', customerController.get);
 router.patch('/customers/:id', customerController.update);

@@ -42,6 +42,10 @@ export interface BillItem {
 }
 
 export interface Bill {
+  /** Sales: true when unit prices include GST (tag price); older bills added GST on top */
+  pricesIncludeTax?: boolean;
+  /** Sales: total rounded to the rupee */
+  roundOff?: number;
   id: string;
   billNumber: string;
   billDate: string;

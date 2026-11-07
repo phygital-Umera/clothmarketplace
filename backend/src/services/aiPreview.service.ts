@@ -7,6 +7,7 @@ import ApiError from '@utils/ApiError';
 import {readStoredImage, storeGenerated} from '../utils/fileStore';
 import {config, logger} from '@config/index';
 import shopProductService, {ShopScope} from './shopProduct.service';
+import {Photo, checkRecolour, compositeGarment, loadPhoto, recolourGarment, segmentGarment, toJpeg} from '../utils/recolour';
 
 /*
  * AI color previews (Cloudflare Workers AI, FLUX.2 image editing).
@@ -29,21 +30,47 @@ const promptFor = (colorName: string, hex: string) =>
         'Plain warm ivory studio backdrop (#F3F0EA), soft diffused lighting, subtle natural shadow, sharp focus, editorial fashion catalogue style.',
     ].join(' ');
 
-/** Shrink to what the model accepts; PNG keeps detail for the edit */
-const toModelInput = (data: Buffer) =>
-    sharp(data)
-        .rotate()
-        .resize(INPUT_MAX, INPUT_MAX, {fit: 'inside', withoutEnlargement: true})
-        .flatten({background: '#F3F0EA'})
+/**
+ * The model returns a square image, so the photo is padded to a square first
+ * (and the result cropped back), otherwise the garment would be stretched.
+ */
+const squareOf = (photo: Photo) => {
+    const side = Math.max(photo.width, photo.height);
+    return {side, left: Math.floor((side - photo.width) / 2), top: Math.floor((side - photo.height) / 2)};
+};
+const toModelInput = (photo: Photo) => {
+    const sq = squareOf(photo);
+    return sharp(photo.data, {raw: {width: photo.width, height: photo.height, channels: 3}})
+        .extend({top: sq.top, bottom: sq.side - photo.height - sq.top, left: sq.left, right: sq.side - photo.width - sq.left, background: '#ffffff'})
+        .resize(INPUT_MAX, INPUT_MAX)
         .png()
         .toBuffer();
+};
+/** The model's square output, back to the photo's own shape and size */
+const fromModelOutput = async (photo: Photo, base64: string) => {
+    const sq = squareOf(photo);
+    return sharp(Buffer.from(base64, 'base64'))
+        .resize(sq.side, sq.side, {fit: 'fill'})
+        .extract({left: sq.left, top: sq.top, width: photo.width, height: photo.height})
+        .png()
+        .toBuffer();
+};
+
+/** Built-in recolour, used when no Cloudflare AI keys are set */
+export const LOCAL_MODEL = 'built-in-recolour';
 
 class AiPreviewService {
-    get model() {
-        return config.ai.imageModel;
+    /** Cloudflare Workers AI when its keys are set, otherwise the built-in recolour */
+    get aiReady() {
+        return !!(config.ai.cloudflareAccountId && config.ai.cloudflareApiToken);
     }
 
-    private assertConfigured() {
+    get model() {
+        return this.aiReady ? config.ai.imageModel : LOCAL_MODEL;
+    }
+
+    /** Only for callers that need the AI itself */
+    public assertConfigured() {
         if (!config.ai.cloudflareAccountId || !config.ai.cloudflareApiToken) {
             throw new ApiError(
                 httpStatus.SERVICE_UNAVAILABLE,
@@ -109,6 +136,39 @@ class AiPreviewService {
     }
 
     /**
+     * One colour photo. The AI result (when keys are set) only supplies the
+     * garment; the original background is always kept. Every result is checked
+     * against the original before it may be saved; a failed AI result falls
+     * back to the built-in recolour, a failed recolour is reported, not saved.
+     */
+    private async makeColour(
+        photo: Photo,
+        mask: Buffer,
+        modelInput: Buffer | null,
+        color: {name: string; hexCode: string},
+        run: {aiOff: boolean},
+    ) {
+        if (modelInput && !run.aiOff) {
+            try {
+                const generated = await fromModelOutput(photo, await this.run(promptFor(color.name, color.hexCode), modelInput));
+                const rgb = await compositeGarment(photo, mask, generated);
+                const check = checkRecolour(photo, mask, rgb, color.hexCode);
+                if (check.ok) return {ok: true as const, rgb, model: this.model};
+                logger.warn(`AI colour photo rejected (${color.name}): ${check.reason} ${JSON.stringify(check)}`);
+            } catch (error) {
+                // Out of free AI for today: built-in recolour for the rest of this run
+                if (error instanceof QuotaError) run.aiOff = true;
+                logger.warn(`AI colour photo failed (${color.name}), using built-in recolour: ${String(error)}`);
+            }
+        }
+        const rgb = recolourGarment(photo, mask, color.hexCode);
+        const check = checkRecolour(photo, mask, rgb, color.hexCode);
+        return check.ok
+            ? {ok: true as const, rgb, model: LOCAL_MODEL}
+            : {ok: false as const, reason: `Not saved: ${check.reason}`};
+    }
+
+    /**
      * Generate a preview of the product in each selected color, one after
      * another (free-tier rate limits). Failures are kept per color so the
      * shop can retry just those.
@@ -119,7 +179,6 @@ class AiPreviewService {
         productId: string,
         input: {colorIds: string[]; imageId?: string},
     ) {
-        this.assertConfigured();
         const product = await shopProductService.get(scope, productId);
 
         const source = input.imageId
@@ -138,13 +197,23 @@ class AiPreviewService {
             ]);
         }
 
-        let image: Buffer;
+        let photo: Photo;
         try {
-            image = await toModelInput(await readStoredImage(source.url));
+            photo = await loadPhoto(await readStoredImage(source.url));
         } catch (error) {
-            logger.warn(`AI preview: cannot read image ${source.url}: ${String(error)}`);
+            logger.warn(`Colour preview: cannot read image ${source.url}: ${String(error)}`);
             throw new ApiError(httpStatus.BAD_REQUEST, 'Could not read the product image');
         }
+        // Where the garment is: found once, used for every colour
+        let mask: Buffer;
+        try {
+            mask = await segmentGarment(photo);
+        } catch (error) {
+            logger.warn(`Colour preview: garment detection failed: ${String(error)}`);
+            throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, 'Could not find the garment in this photo. Use a photo of the garment on a plain background.');
+        }
+        const modelInput = this.aiReady ? await toModelInput(photo) : null;
+        const runState = {aiOff: false};
 
         let quotaMessage: string | null = null;
         let failed = 0;
@@ -164,7 +233,7 @@ class AiPreviewService {
                     error: null,
                     createdById: req.user.id,
                 },
-                select: {id: true},
+                select: {id: true, url: true},
             });
 
             if (quotaMessage) {
@@ -176,12 +245,25 @@ class AiPreviewService {
                 continue;
             }
             try {
-                const base64 = await this.run(promptFor(color.name, color.hexCode), image);
-                const url = await storeGenerated(req, base64, 'previews');
-                await prisma.productColorPreview.update({
-                    where: {id: row.id},
-                    data: {status: PreviewStatus.READY, url, error: null},
-                });
+                const made = await this.makeColour(photo, mask, modelInput, color, runState);
+                if (!made.ok) throw new Error(made.reason);
+                const url = await storeGenerated(req, (await toJpeg(photo, made.rgb)).toString('base64'), 'previews');
+                await prisma.$transaction([
+                    prisma.productColorPreview.update({
+                        where: {id: row.id},
+                        data: {status: PreviewStatus.READY, url, error: null, model: made.model},
+                    }),
+                    // Every size of this colour shows this photo (store, bag, orders, POS),
+                    // unless the shop set its own photo for that variant
+                    prisma.productVariant.updateMany({
+                        where: {
+                            productId,
+                            color: {equals: color.name, mode: 'insensitive'},
+                            OR: [{image: null}, {image: ''}, ...(row.url ? [{image: row.url}] : [])],
+                        },
+                        data: {image: url},
+                    }),
+                ]);
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'AI generation failed';
                 if (error instanceof QuotaError) quotaMessage = message;
@@ -203,7 +285,13 @@ class AiPreviewService {
         const product = await shopProductService.get(scope, productId);
         const preview = product.previews.find((p) => p.id === previewId);
         if (!preview) throw new ApiError(httpStatus.NOT_FOUND, 'Preview not found');
-        await prisma.productColorPreview.delete({where: {id: previewId}});
+        await prisma.$transaction([
+            prisma.productColorPreview.delete({where: {id: previewId}}),
+            // Variants that showed this photo go back to the product's own photos
+            ...(preview.url
+                ? [prisma.productVariant.updateMany({where: {productId, image: preview.url}, data: {image: null}})]
+                : []),
+        ]);
         return {before: preview, after: await shopProductService.get(scope, productId)};
     }
 }

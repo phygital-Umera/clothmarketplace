@@ -196,6 +196,39 @@ export default function BillDetailsModal({
               </tbody>
             </table>
 
+            {bill.pricesIncludeTax ? (
+              // Tag-price bill: prices include GST; the discount is already shared over the lines
+              <div className="ml-auto max-w-xs space-y-1 text-body-sm">
+                {bill.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-outline">Bill discount (applied)</span>
+                    <span>−₹{bill.discount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-outline">Taxable value</span>
+                  <span>₹{bill.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-outline">CGST</span>
+                  <span>₹{(Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-outline">SGST</span>
+                  <span>₹{(bill.taxAmount - Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}</span>
+                </div>
+                {!!bill.roundOff && (
+                  <div className="flex justify-between">
+                    <span className="text-outline">Round off</span>
+                    <span>₹{bill.roundOff.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-ivory-300 pt-1 font-bold text-espresso">
+                  <span>Total (incl. GST)</span>
+                  <span>₹{bill.totalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+            ) : (
             <div className="ml-auto max-w-xs space-y-1 text-body-sm">
               <div className="flex justify-between">
                 <span className="text-outline">Subtotal</span>
@@ -214,6 +247,7 @@ export default function BillDetailsModal({
                 <span>₹{bill.totalAmount.toFixed(2)}</span>
               </div>
             </div>
+            )}
 
             {!!bill.payments?.length && (
               <div>

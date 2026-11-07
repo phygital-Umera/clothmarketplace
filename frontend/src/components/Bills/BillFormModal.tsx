@@ -63,6 +63,8 @@ const fromBill = (bill: Bill, kind: BillKind): Line[] =>
 export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   const isPurchase = kind === 'purchase';
   const isEdit = !!bill;
+  // New sales bills use tag prices (GST included); older ones keep GST on top
+  const inclusive = !isPurchase && (bill ? !!bill.pricesIncludeTax : true);
   const wasPosted = bill?.status === 'CONFIRMED';
   const save = useSaveBill(panel, kind);
 
@@ -172,8 +174,8 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
         quantity: 1,
         rate: isPurchase ? '' : (i.variant?.sellingPrice ?? 0),
         discount: 0,
-        // Purchase costs are usually before GST; shop selling prices already include it
-        taxRate: isPurchase ? (i.product?.taxRate ?? 0) : 0,
+        // Purchase costs are before GST; selling prices include it (GST is taken out on the bill)
+        taxRate: i.product?.taxRate ?? 0,
       },
     ]);
   };
@@ -187,17 +189,38 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
 
   // Same arithmetic as the server (which recomputes and is the source of truth)
   const totals = useMemo(() => {
+    const nets = lines.map((l) =>
+      round2(round2((Number(l.quantity) || 0) * (Number(l.rate) || 0)) - (isPurchase ? 0 : Number(l.discount) || 0)),
+    );
+    const discount = Number(billDiscount) || 0;
+    if (inclusive) {
+      // Bill discount shared over the lines, GST taken out of each, total rounded to ₹1
+      const value = round2(nets.reduce((t, n) => t + n, 0));
+      let shared = 0;
+      let taxable = 0;
+      let tax = 0;
+      let exact = 0;
+      lines.forEach((l, i) => {
+        const share = i === lines.length - 1 ? round2(discount - shared) : value ? round2((discount * nets[i]) / value) : 0;
+        shared = round2(shared + share);
+        const pays = round2(nets[i] - share);
+        const t = round2(pays / (1 + l.taxRate / 100));
+        taxable += t;
+        tax += round2(pays - t);
+        exact += pays;
+      });
+      const total = Math.round(round2(exact));
+      return {subtotal: round2(taxable), tax: round2(tax), roundOff: round2(total - round2(exact)), total};
+    }
     let subtotal = 0;
     let tax = 0;
-    for (const l of lines) {
-      const gross = round2((Number(l.quantity) || 0) * (Number(l.rate) || 0));
-      const net = round2(gross - (isPurchase ? 0 : Number(l.discount) || 0));
-      subtotal += net;
-      tax += round2((net * l.taxRate) / 100);
-    }
-    const total = round2(subtotal + tax - (Number(billDiscount) || 0));
-    return {subtotal: round2(subtotal), tax: round2(tax), total};
-  }, [lines, billDiscount, isPurchase]);
+    lines.forEach((l, i) => {
+      subtotal += nets[i];
+      tax += round2((nets[i] * l.taxRate) / 100);
+    });
+    const total = round2(subtotal + tax - discount);
+    return {subtotal: round2(subtotal), tax: round2(tax), roundOff: 0, total};
+  }, [lines, billDiscount, isPurchase, inclusive]);
 
   const errors: string[] = [];
   if (isPurchase && !party.name.trim())
@@ -709,7 +732,7 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                           </select>
                         </td>
                         <td className="py-2 text-right font-semibold text-espresso">
-                          ₹{round2(net * (1 + l.taxRate / 100)).toFixed(2)}
+                          ₹{round2(inclusive ? net : net * (1 + l.taxRate / 100)).toFixed(2)}
                         </td>
                         <td className="py-2 text-right">
                           <button
@@ -747,11 +770,11 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
             </label>
             <div className="space-y-1.5 rounded-xl border border-ivory-200 bg-ivory-50/60 p-4 text-body-sm">
               <div className="flex justify-between">
-                <span className="text-outline">Subtotal</span>
+                <span className="text-outline">{inclusive ? 'Taxable value' : 'Subtotal'}</span>
                 <span>₹{totals.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-outline">GST</span>
+                <span className="text-outline">{inclusive ? 'GST (included in prices)' : 'GST'}</span>
                 <span>₹{totals.tax.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -765,6 +788,12 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                   className="w-28 rounded-lg border border-ivory-300 px-2 py-1 text-right focus:border-burgundy focus:outline-none"
                 />
               </div>
+              {inclusive && totals.roundOff !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-outline">Round off</span>
+                  <span>₹{totals.roundOff.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-ivory-300 pt-1.5 font-bold text-espresso">
                 <span>Total</span>
                 <span>₹{totals.total.toFixed(2)}</span>

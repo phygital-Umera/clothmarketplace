@@ -31,7 +31,8 @@
         "prisma:studio": "prisma studio",
         "prisma:db:seed": "prisma db seed",
         "prisma:reset": "prisma migrate reset --force",
-        "create:superadmin": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/createSuperAdmin.ts"
+        "create:superadmin": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/createSuperAdmin.ts",
+        "seed:demo": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedDemo.ts"
     },
     "lint-staged": {
         "src/**/*.{ts,tsx,js,jsx}": [
@@ -57,6 +58,7 @@
     "dependencies": {
         "@aws-sdk/client-s3": "^3.758.0",
         "@aws-sdk/lib-storage": "^3.758.0",
+        "@imgly/background-removal-node": "^1.4.5",
         "@prisma/client": "^5.21.1",
         "axios": "^1.13.2",
         "bcryptjs": "^2.4.3",

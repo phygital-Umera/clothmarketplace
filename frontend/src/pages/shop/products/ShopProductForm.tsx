@@ -12,7 +12,7 @@ import {
 import useProductMasters from '@/components/ShopProduct/useProductMasters';
 import {PageHeader} from '@/components/ui';
 import {FormError, FormFooter, FormGroup} from '@/components/ui/FormLayout';
-import {uploadShopProductImages} from '@/lib/api/shopProduct';
+import {generateShopProductPreviews} from '@/lib/api/shopProduct';
 import {
   useSaveShopProduct,
   useShopProduct,
@@ -44,6 +44,8 @@ const Form = ({product}: {product?: ShopProduct}) => {
   const [formError, setFormError] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  // Make a photo in each selected colour from the first photo (AI), right after saving
+  const [colourPhotos, setColourPhotos] = useState(false);
 
   const form = useForm<ShopProductValues>({
     resolver: zodResolver(shopProductSchema),
@@ -70,7 +72,7 @@ const Form = ({product}: {product?: ShopProduct}) => {
     try {
       const res = await save.mutateAsync({
         ...toShopProductBody(shopProductSchema.parse(values)),
-        ...(product ? {id: product.id} : {}),
+        ...(product ? {id: product.id} : {files}),
       });
       saved = res.data;
     } catch (error) {
@@ -79,17 +81,15 @@ const Form = ({product}: {product?: ShopProduct}) => {
       }
       return;
     }
-    // New product: upload the picked images now that it exists
-    if (!product && files.length) {
+    // Photos were saved with the product. Colour photos are made from the first one.
+    if (!product && colourPhotos && saved.images?.length) {
+      const colorIds = (values.colorIds ?? []).slice(0, 6);
+      const busy = toast.loading(`Making photos in ${colorIds.length} colour${colorIds.length > 1 ? 's' : ''}…`);
       try {
-        await uploadShopProductImages(saved.id, files);
+        const res = await generateShopProductPreviews(saved.id, {colorIds, imageId: saved.images[0].id});
+        toast.success(res.message, {id: busy});
       } catch (error) {
-        toast.error(
-          getErrorMessage(
-            error,
-            'Product saved, but the images could not be uploaded',
-          ),
-        );
+        toast.error(getErrorMessage(error, 'Product saved, but the colour photos could not be made'), {id: busy});
       }
     }
     toDetail(saved.id);
@@ -323,7 +323,24 @@ const Form = ({product}: {product?: ShopProduct}) => {
             {product ? (
               <ShopProductImages product={product} />
             ) : (
-              <PendingImages files={files} onChange={setFiles} />
+              <div className="space-y-3">
+                <PendingImages files={files} onChange={setFiles} />
+                <label className="flex items-start gap-2 text-body-sm text-espresso">
+                  <input
+                    type="checkbox"
+                    checked={colourPhotos}
+                    disabled={!files.length}
+                    onChange={(e) => setColourPhotos(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-burgundy"
+                  />
+                  <span>
+                    Make a photo in each selected colour
+                    <span className="block text-xs text-on-surface-variant">
+                      Made from the first photo after saving, up to 6 colours. Uses Cloudflare AI when its keys are set, otherwise a built-in recolour. You can also make or redo them on the product page.
+                    </span>
+                  </span>
+                </label>
+              </div>
             )}
           </FormGroup>
         </div>

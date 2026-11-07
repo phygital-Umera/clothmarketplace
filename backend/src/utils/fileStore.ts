@@ -16,7 +16,7 @@ const PUBLIC_DIR = path.join(__dirname, '../../public');
 export const storeUpload = async (
     req: Request,
     file: Express.Multer.File,
-    folder: 'companies' | 'products' | 'offers' | 'coupons',
+    folder: 'companies' | 'products' | 'offers' | 'coupons' | 'customer',
 ): Promise<string> => {
     try {
         const result = await uploadFileToHostedServer(file.path);

@@ -274,19 +274,24 @@ class UserService {
      * Emails a one-time reset link. Always succeeds from the caller's point of
      * view, so it cannot be used to check whether an account exists.
      */
-    public async forgotPassword(identifier: string) {
+    public async forgotPassword(identifier: string, opts: {role?: Role; resetUrl?: string} = {}) {
         const user = await prisma.user.findFirst({
             where: {
                 deletedAt: null,
                 status: AccountStatus.ACTIVE,
+                ...(opts.role ? {role: opts.role} : {}),
                 OR: [{phoneNumber: identifier}, {email: {equals: identifier, mode: 'insensitive'}}],
             },
             select: {id: true, email: true},
         });
         if (!user?.email) return;
 
-        if (!isEmailConfigured() || !config.frontendUrl) {
-            logger.warn('Password reset requested, but SMTP or FRONTEND_URL is not configured');
+        const resetUrl = opts.resetUrl ?? (config.frontendUrl ? `${config.frontendUrl}/reset-password` : undefined);
+        const canEmail = isEmailConfigured() && !!resetUrl;
+        // Without email in development, the link is written to the server log so the flow can be tried
+        const logLink = !canEmail && config.env === 'development' && !!resetUrl;
+        if (!canEmail && !logLink) {
+            logger.warn('Password reset requested, but SMTP or the reset page URL is not configured');
             return;
         }
 
@@ -298,12 +303,12 @@ class UserService {
                 passwordResetExpiresAt: new Date(Date.now() + RESET_TOKEN_MINUTES * 60 * 1000),
             },
         });
+        if (logLink) {
+            logger.info(`[dev] Password reset link for ${user.email}: ${resetUrl}?token=${token}`);
+            return;
+        }
         try {
-            await emailService.sendResetPasswordEmail(
-                user.email,
-                token,
-                `${config.frontendUrl}/reset-password`,
-            );
+            await emailService.sendResetPasswordEmail(user.email, token, resetUrl);
         } catch (error) {
             logger.error(`Reset email could not be sent: ${(error as Error).message}`);
         }

@@ -7,7 +7,7 @@ import {ShopModule} from '../config/permissions';
  * Employees use the shop API under /employee. Each request belongs to a shop
  * module (by its first path segment): reading needs "<module>.view" or
  * "<module>.edit", changing needs "<module>.edit". Anything not listed here
- * (employees, staff rights, online orders, promotions) is closed to employees.
+ * (employees, staff rights, promotions) is closed to employees.
  */
 
 type Rule = {read: ShopModule[]; write: ShopModule[]};
@@ -19,6 +19,9 @@ const RULES: Record<string, Rule> = {
     'sales-bills': only('billing'),
     'credit-notes': only('billing'),
     counter: only('billing'),
+    // Online store orders and their returns
+    orders: only('orders'),
+    returns: only('orders'),
     // The POS searches customers; the Customers page manages them
     customers: {read: ['billing', 'customers'], write: ['customers']},
     credit: only('customers'),

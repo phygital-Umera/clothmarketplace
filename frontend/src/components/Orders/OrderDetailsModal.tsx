@@ -32,7 +32,7 @@ interface Props {
   onRefresh?: () => void;
 }
 
-export default function OrderDetailsModal({panel, order, isOpen, onClose, onRefresh}: Props) {
+function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Props) {
   if (!isOpen || !order) return null;
 
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -392,3 +392,8 @@ export default function OrderDetailsModal({panel, order, isOpen, onClose, onRefr
   );
 }
 
+/** Mounted only while open (keyed by the record), so the form starts fresh and hook order never changes */
+export default function OrderDetailsModal(props: Props) {
+  if (!props.isOpen || !props.order) return null;
+  return <OrderDetailsModalInner key={props.order.id} {...props} />;
+}

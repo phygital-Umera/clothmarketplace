@@ -285,6 +285,23 @@ export default function ShopOrdersPage({panel}: Props) {
       ),
     },
     {
+      header: 'Items',
+      render: (r) => (
+        <div className="max-w-[240px] space-y-1">
+          {(r.lines ?? []).map((l) => (
+            <div key={l.orderItemId} className="flex items-center gap-2">
+              {l.image && <img src={l.image} alt="" className="h-9 w-7 rounded object-cover" />}
+              <span className="text-xs text-espresso">
+                {l.quantity} × {l.name}
+                {l.size ? ` · ${l.size}` : ''}
+              </span>
+            </div>
+          ))}
+          {!!r.images?.length && <span className="text-[11px] text-outline">{r.images.length} photo{r.images.length > 1 ? 's' : ''} from customer</span>}
+        </div>
+      ),
+    },
+    {
       header: 'Reason',
       render: (r) => (
         <div className="max-w-xs">
@@ -294,12 +311,15 @@ export default function ShopOrdersPage({panel}: Props) {
       ),
     },
     {
-      header: 'Refund Amount',
-      render: (r) => (
-        <span className="font-semibold text-espresso">
-          ₹{r.refundAmount || r.order?.totalAmount || 0}
-        </span>
-      ),
+      header: 'Customer wants',
+      render: (r) =>
+        r.resolution === 'EXCHANGE' ? (
+          <span className="text-body-sm font-semibold text-espresso">
+            Exchange{r.exchangeFor ? ` for ${r.exchangeFor}` : ''}
+          </span>
+        ) : (
+          <span className="font-semibold text-espresso">Refund ₹{(r.refundAmount ?? 0).toLocaleString('en-IN')}</span>
+        ),
     },
     {
       header: 'Return Status',

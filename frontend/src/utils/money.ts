@@ -1,6 +1,10 @@
 /** ₹20,640 / ₹1,199.50 (Indian digit grouping) */
-export const inr = (n: number) =>
-  `${n < 0 ? '−' : ''}₹${Math.abs(n).toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
+export const inr = (n: number) => {
+  const abs = Math.abs(n);
+  // Whole rupees stay whole (₹20,640); paise always show two digits (₹80.30, not ₹80.3)
+  const paise = Math.round(abs * 100) % 100 !== 0;
+  return `${n < 0 ? '−' : ''}₹${abs.toLocaleString('en-IN', {minimumFractionDigits: paise ? 2 : 0, maximumFractionDigits: 2})}`;
+};
 
 /** Large amounts in lakh / crore for KPI tiles: ₹9.8 L, ₹1.2 Cr */
 export const inrShort = (n: number) => {

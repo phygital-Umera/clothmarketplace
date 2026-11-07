@@ -2,7 +2,7 @@ import {useShopProductImages} from '@/lib/react-query/queriesAndMutations/shopPr
 import {checkFile, IMAGE_RULE} from '@/lib/validation/fieldRules';
 import {ShopProduct} from '@/types/shopProduct';
 import {ImagePlus, Loader2, Star, Trash2, X} from 'lucide-react';
-import {useEffect, useId, useMemo, useState} from 'react';
+import {useEffect, useId, useState} from 'react';
 
 export const MAX_IMAGES = 8;
 
@@ -118,8 +118,14 @@ export const PendingImages = ({
 }) => {
   const inputId = useId();
   const [error, setError] = useState('');
-  const urls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+  // Preview links are made and released by the same effect, so React's
+  // double run in development never leaves an image pointing at a released link
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const made = files.map((f) => URL.createObjectURL(f));
+    setUrls(made);
+    return () => made.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
   const room = MAX_IMAGES - files.length;
 
   const pick = (list: FileList | null) => {

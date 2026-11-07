@@ -25,6 +25,29 @@ type DueBill = {id: string; billNumber: string; balanceDue: number};
 /** GET /shop-admin/dashboard */
 export interface ShopDashboard {
   generatedAt: string;
+  /** Orders from the online store for this shop */
+  onlineOrders?: {
+    toConfirm: number;
+    toPack: number;
+    toShip: number;
+    onTheWay: number;
+    delivered: number;
+    cancelRequests: number;
+    returnRequests: number;
+    ordersToday: number;
+    salesToday: number;
+    waiting: {
+      id: string;
+      orderNumber: string;
+      status: string;
+      totalAmount: number;
+      paymentMethod: string;
+      paymentStatus: string;
+      createdAt: string;
+      customer: string;
+      items: number;
+    }[];
+  };
   shop: {name: string; code: string; gstin: string | null; branchName: string};
   counter: {id: string; openedAt: string; openingCash: number} | null;
   staff: {in: number; total: number};

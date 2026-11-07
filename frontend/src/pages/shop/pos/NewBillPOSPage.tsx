@@ -289,45 +289,60 @@ export default function NewBillPOSPage() {
 
   // Calculations
   const totals = useMemo(() => {
+    // Same maths as the server (tag prices include GST, like the website):
+    // the bill discount is shared over the lines, GST is taken out of what is
+    // paid for each line, and the total is rounded to the rupee.
     let grossMRP = 0;
-    let subtotal = 0;
-    let totalTax = 0;
+    let itemsValue = 0;
     let totalPcs = 0;
-
-    for (const l of lines) {
-      const lineMRP = round2(l.mrp * l.quantity);
-      const lineTotal = round2(l.rate * l.quantity);
-      grossMRP += lineMRP;
-      subtotal += lineTotal;
+    const nets = lines.map((l) => {
+      grossMRP += round2(l.mrp * l.quantity);
       totalPcs += l.quantity;
+      const net = round2(l.rate * l.quantity - (l.discount || 0));
+      itemsValue += net;
+      return net;
+    });
+    itemsValue = round2(itemsValue);
 
-      // GST component
-      const lineTax = round2((lineTotal * l.taxRate) / 100);
-      totalTax += lineTax;
-    }
+    const calculatedBillDiscount = Math.min(
+      itemsValue,
+      billDiscountType === 'percent' ? round2((itemsValue * billDiscount) / 100) : round2(billDiscount),
+    );
 
-    // Bill discount
-    const calculatedBillDiscount =
-      billDiscountType === 'percent'
-        ? round2((subtotal * billDiscount) / 100)
-        : round2(billDiscount);
+    let shared = 0;
+    let taxable = 0;
+    let totalTax = 0;
+    let exact = 0;
+    lines.forEach((l, i) => {
+      const share =
+        i === lines.length - 1
+          ? round2(calculatedBillDiscount - shared)
+          : itemsValue
+            ? round2((calculatedBillDiscount * nets[i]) / itemsValue)
+            : 0;
+      shared = round2(shared + share);
+      const pays = round2(nets[i] - share);
+      const lineTaxable = round2(pays / (1 + l.taxRate / 100));
+      taxable += lineTaxable;
+      totalTax += round2(pays - lineTaxable);
+      exact += pays;
+    });
+    taxable = round2(taxable);
+    totalTax = round2(totalTax);
+    exact = round2(exact);
 
-    const discountOnMRP = Math.max(0, round2(grossMRP - subtotal));
-    const finalTaxable = Math.max(0, round2(subtotal - calculatedBillDiscount));
-
-    // CGST & SGST split
+    // CGST & SGST split (the paise left over goes to SGST)
     const cgst = round2(totalTax / 2);
-    const sgst = round2(totalTax / 2);
+    const sgst = round2(totalTax - cgst);
 
-    const rawNet = round2(finalTaxable + totalTax);
-    const roundedNet = Math.round(rawNet);
-    const roundOff = round2(roundedNet - rawNet);
+    const roundedNet = Math.round(exact);
+    const roundOff = round2(roundedNet - exact);
 
     return {
       grossMRP: round2(grossMRP),
-      discountOnMRP,
+      discountOnMRP: Math.max(0, round2(grossMRP - itemsValue)),
       billDiscountAmount: calculatedBillDiscount,
-      taxableValue: finalTaxable,
+      taxableValue: taxable,
       cgst,
       sgst,
       roundOff,
@@ -1171,12 +1186,12 @@ export default function NewBillPOSPage() {
             </div>
 
             <div className="flex justify-between text-outline">
-              <span>CGST</span>
+              <span>CGST (included)</span>
               <span className="font-medium text-espresso">{inr(totals.cgst)}</span>
             </div>
 
             <div className="flex justify-between text-outline">
-              <span>SGST</span>
+              <span>SGST (included)</span>
               <span className="font-medium text-espresso">{inr(totals.sgst)}</span>
             </div>
 

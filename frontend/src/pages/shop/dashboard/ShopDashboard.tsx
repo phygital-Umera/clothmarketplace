@@ -16,6 +16,88 @@ import {ReactNode, useEffect, useState} from 'react';
 
 const PANEL = 'shop-admin';
 
+const ORDER_STEP: Record<string, string> = {
+  PENDING: 'To confirm',
+  CONFIRMED: 'To pack',
+  PROCESSING: 'To pack',
+  PACKED: 'To ship',
+  READY_FOR_DISPATCH: 'To ship',
+};
+
+/** Orders from the online store: what is waiting at each step, and the oldest ones first */
+function OnlineOrders({o}: {o: NonNullable<Dashboard['onlineOrders']>}) {
+  const steps = [
+    {label: 'To confirm', value: o.toConfirm, hot: o.toConfirm > 0},
+    {label: 'To pack', value: o.toPack, hot: o.toPack > 0},
+    {label: 'To ship', value: o.toShip, hot: o.toShip > 0},
+    {label: 'On the way', value: o.onTheWay},
+    {label: 'Cancel requests', value: o.cancelRequests, hot: o.cancelRequests > 0},
+    {label: 'Return requests', value: o.returnRequests, hot: o.returnRequests > 0},
+  ];
+  return (
+    <section className="panel mt-4 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ivory-300 px-4 py-3">
+        <div>
+          <h2 className="font-serif text-subheading text-espresso">Online orders</h2>
+          <p className="text-body-sm text-outline">
+            Today: {o.ordersToday} order{o.ordersToday === 1 ? '' : 's'} · {inr(o.salesToday)} from the online store
+          </p>
+        </div>
+        <Link to="/shop-admin/orders" className={capsLink}>
+          Open online orders
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-y divide-ivory-300 border-b border-ivory-300 sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
+        {steps.map((s) => (
+          <Link key={s.label} to="/shop-admin/orders" className="px-4 py-3 hover:bg-ivory-100">
+            <p className="text-label-caps uppercase text-outline">{s.label}</p>
+            <p className={`font-serif text-2xl ${s.hot ? 'text-burgundy' : 'text-espresso'}`}>{s.value}</p>
+          </Link>
+        ))}
+      </div>
+      {!o.waiting.length ? (
+        <Empty>No online orders waiting. New orders from the store appear here.</Empty>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-left text-body-sm">
+            <thead className="bg-ivory-100 text-label-caps uppercase text-outline">
+              <tr>
+                <th className="px-4 py-2.5 font-semibold">Order</th>
+                <th className="px-3 py-2.5 font-semibold">Placed</th>
+                <th className="px-3 py-2.5 font-semibold">Customer</th>
+                <th className="px-3 py-2.5 font-semibold">Payment</th>
+                <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                <th className="px-4 py-2.5 font-semibold">Next step</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ivory-300">
+              {o.waiting.map((w) => (
+                <tr key={w.id}>
+                  <td className="px-4 py-2.5">
+                    <Link to="/shop-admin/orders" className="font-medium text-burgundy hover:underline">
+                      {w.orderNumber}
+                    </Link>
+                    <span className="block text-outline">
+                      {w.items} item{w.items === 1 ? '' : 's'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">{new Date(w.createdAt).toLocaleString('en-IN', {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'})}</td>
+                  <td className="px-3 py-2.5">{w.customer}</td>
+                  <td className="px-3 py-2.5">
+                    {w.paymentMethod === 'COD' ? 'Cash on delivery' : w.paymentStatus === 'PAID' ? 'Paid online' : 'Online · not paid'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">{inr(w.totalAmount)}</td>
+                  <td className="px-4 py-2.5 font-semibold text-burgundy">{ORDER_STEP[w.status] ?? w.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** 1:42 PM */
 const time = (d: string) =>
   new Date(d).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
@@ -299,6 +381,9 @@ export default function ShopDashboard() {
           }
         />
       </div>
+
+      {/* Online store orders this shop must handle */}
+      {data?.onlineOrders && <OnlineOrders o={data.onlineOrders} />}
 
       {/* Today's bills | payment mix + dues */}
       <div className="mt-4 grid gap-4 lg:grid-cols-3">

@@ -23,7 +23,7 @@ const COMMON_COURIERS = [
   'Self Delivery / In-house',
 ];
 
-export default function ShippingModal({panel, order, isOpen, onClose, onSuccess}: Props) {
+function ShippingModalInner({panel, order, isOpen, onClose, onSuccess}: Props) {
   if (!isOpen || !order) return null;
 
   const [courierName, setCourierName] = useState(order.courierName || '');
@@ -153,3 +153,8 @@ export default function ShippingModal({panel, order, isOpen, onClose, onSuccess}
   );
 }
 
+/** Mounted only while open (keyed by the record), so the form starts fresh and hook order never changes */
+export default function ShippingModal(props: Props) {
+  if (!props.isOpen || !props.order) return null;
+  return <ShippingModalInner key={props.order.id} {...props} />;
+}

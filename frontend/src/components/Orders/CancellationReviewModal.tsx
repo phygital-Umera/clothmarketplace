@@ -11,7 +11,7 @@ interface Props {
   onSuccess?: () => void;
 }
 
-export default function CancellationReviewModal({panel, order, isOpen, onClose, onSuccess}: Props) {
+function CancellationReviewModalInner({panel, order, isOpen, onClose, onSuccess}: Props) {
   if (!isOpen || !order) return null;
 
   const [reason, setReason] = useState('');
@@ -137,3 +137,8 @@ export default function CancellationReviewModal({panel, order, isOpen, onClose, 
   );
 }
 
+/** Mounted only while open (keyed by the record), so the form starts fresh and hook order never changes */
+export default function CancellationReviewModal(props: Props) {
+  if (!props.isOpen || !props.order) return null;
+  return <CancellationReviewModalInner key={props.order.id} {...props} />;
+}

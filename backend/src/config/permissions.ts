@@ -59,6 +59,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 export const SHOP_MODULES = [
     {key: 'dashboard', label: 'Dashboard'},
     {key: 'billing', label: 'Billing (POS, sales bills, returns)'},
+    {key: 'orders', label: 'Online orders & returns'},
     {key: 'customers', label: 'Customers & credit'},
     {key: 'purchase', label: 'Purchase & suppliers'},
     {key: 'products', label: 'Products'},
@@ -99,6 +100,8 @@ export const EMPLOYEE_PERMISSIONS = [
     'dashboard.edit',
     'billing.view',
     'billing.edit',
+    'orders.view',
+    'orders.edit',
     'customers.view',
     'customers.edit',
     'purchase.view',

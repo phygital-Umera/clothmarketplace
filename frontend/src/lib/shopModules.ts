@@ -10,6 +10,7 @@
 export const SHOP_MODULES = [
   {key: 'dashboard', label: 'Dashboard', hint: 'Shop dashboard: today’s sales and cash'},
   {key: 'billing', label: 'Billing', hint: 'New bill (POS), sales bills, sales returns'},
+  {key: 'orders', label: 'Online orders', hint: 'Orders from the online store: pack, ship, returns'},
   {key: 'customers', label: 'Customers', hint: 'Customers, credit / udhaar'},
   {key: 'purchase', label: 'Purchase', hint: 'Purchase bills, purchase return, suppliers'},
   {key: 'products', label: 'Products', hint: 'Products and their prices'},
@@ -28,6 +29,7 @@ const SCREEN_MODULE: Record<string, ShopModule> = {
   'new-bill': 'billing',
   'sales-bills': 'billing',
   'sales-returns': 'billing',
+  orders: 'orders',
   customers: 'customers',
   credit: 'customers',
   'purchase-bills': 'purchase',

@@ -12,6 +12,50 @@ import prisma from '../client';
 import ApiError from '@utils/ApiError';
 import {Scope} from './account.service';
 import inventoryService from './inventory.service';
+import {notify, notifyOrderStatus} from './notification.service';
+
+/** Items a customer is returning: [{orderItemId, quantity}] (older requests have none = whole order) */
+export const returnedLines = <T extends {id: string; quantity: number}>(items: T[], returnItems: unknown) => {
+    const picked = Array.isArray(returnItems)
+        ? (returnItems as {orderItemId?: string; quantity?: number}[]).filter((r) => r?.orderItemId)
+        : [];
+    if (!picked.length) return items.map((item) => ({item, quantity: item.quantity}));
+    return picked
+        .map((r) => {
+            const item = items.find((i) => i.id === r.orderItemId);
+            return item ? {item, quantity: Math.min(item.quantity, Math.max(1, Number(r.quantity) || 1))} : null;
+        })
+        .filter((x): x is {item: T; quantity: number} => x !== null);
+};
+
+/**
+ * Where an order may go next. Forward only (a failed delivery can go back to
+ * Shipped); Delivered moves on only through a return, Cancelled never moves.
+ */
+export const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
+    PENDING: ['CONFIRMED', 'CANCELLED'],
+    CONFIRMED: ['PROCESSING', 'PACKED', 'CANCELLED'],
+    PROCESSING: ['PACKED', 'CANCELLED'],
+    PACKED: ['READY_FOR_DISPATCH', 'DISPATCHED', 'SHIPPED', 'CANCELLED'],
+    READY_FOR_DISPATCH: ['DISPATCHED', 'SHIPPED', 'CANCELLED'],
+    DISPATCHED: ['SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    SHIPPED: ['OUT_FOR_DELIVERY', 'DELIVERED'],
+    OUT_FOR_DELIVERY: ['DELIVERED', 'SHIPPED'],
+    DELIVERED: [],
+    CANCELLED: [],
+    RETURNED: [],
+};
+const STATUS_NAME = (s: string) => s.toLowerCase().replace(/_/g, ' ');
+
+/** Return requests move forward only; Completed and Rejected are final */
+export const NEXT_RETURN_STATUS: Record<ReturnStatus, ReturnStatus[]> = {
+    REQUESTED: ['IN_REVIEW', 'APPROVED', 'REJECTED'],
+    IN_REVIEW: ['APPROVED', 'REJECTED'],
+    APPROVED: ['RECEIVED', 'REJECTED'],
+    RECEIVED: ['COMPLETED', 'REJECTED'],
+    COMPLETED: [],
+    REJECTED: [],
+};
 
 /** Statuses from which an order can no longer be cancelled (stock already settled) */
 const NON_CANCELLABLE: OrderStatus[] = [
@@ -384,7 +428,26 @@ class OrderService {
         const order = await this.get(scope, id);
 
         const nextStatus = data.status;
-        const comment = data.comment || `Status updated to ${nextStatus}`;
+        const comment = data.comment || `Status updated to ${STATUS_NAME(nextStatus)}`;
+
+        if (nextStatus !== order.status && !NEXT_STATUS[order.status].includes(nextStatus)) {
+            const allowed = NEXT_STATUS[order.status];
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                allowed.length
+                    ? `A ${STATUS_NAME(order.status)} order can only move to: ${allowed.map(STATUS_NAME).join(', ')}`
+                    : `A ${STATUS_NAME(order.status)} order cannot change status${order.status === OrderStatus.DELIVERED ? '. Use a return instead.' : ''}`,
+            );
+        }
+        // Online orders are packed only after the money arrives
+        if (
+            nextStatus !== OrderStatus.CANCELLED &&
+            order.status === OrderStatus.PENDING &&
+            order.paymentMethod === 'ONLINE' &&
+            order.paymentStatus !== PaymentStatus.PAID
+        ) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'This order is waiting for online payment. Confirm it after the customer pays, or cancel it.');
+        }
 
         // A cancelled order has had its stock restored; reopening it would desync inventory
         if (order.status === OrderStatus.CANCELLED && nextStatus !== OrderStatus.CANCELLED) {
@@ -434,6 +497,7 @@ class OrderService {
                     updatedById: actorId,
                 },
             });
+            if (nextStatus !== order.status) await notifyOrderStatus(tx, order, nextStatus);
 
             return res;
         });
@@ -455,9 +519,22 @@ class OrderService {
         },
         actorId?: string,
     ) => {
-        await this.get(scope, id);
+        const order = await this.get(scope, id);
 
         const targetStatus = data.status || 'SHIPPED';
+        // Tracking can be added when shipping, or corrected while it is on the way
+        const onTheWay: OrderStatus[] = [OrderStatus.DISPATCHED, OrderStatus.SHIPPED, OrderStatus.OUT_FOR_DELIVERY];
+        if (
+            !(targetStatus === order.status && onTheWay.includes(order.status)) &&
+            !NEXT_STATUS[order.status].includes(targetStatus)
+        ) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                onTheWay.includes(targetStatus) && !onTheWay.includes(order.status)
+                    ? `Pack the order before shipping it (it is ${STATUS_NAME(order.status)})`
+                    : `A ${STATUS_NAME(order.status)} order cannot be marked ${STATUS_NAME(targetStatus)}`,
+            );
+        }
 
         return prisma.$transaction(async (tx) => {
             const updated = await tx.order.update({
@@ -477,6 +554,7 @@ class OrderService {
                     updatedById: actorId,
                 },
             });
+            await notifyOrderStatus(tx, order, targetStatus, `Courier: ${data.courierName}, tracking no. ${data.trackingNumber}.`);
 
             return updated;
         });
@@ -524,6 +602,14 @@ class OrderService {
                     updatedById: actorId,
                 },
             });
+            if (data.paymentStatus === PaymentStatus.REFUNDED && order.paymentStatus !== PaymentStatus.REFUNDED) {
+                await notify(tx, order.customerId, {
+                    type: 'PAYMENT',
+                    title: 'Refund processed',
+                    body: `₹${order.totalAmount.toLocaleString('en-IN')} for order ${order.orderNumber} has been refunded. Banks take 5–7 working days to show it.`,
+                    link: `/account/orders/${order.id}`,
+                });
+            }
 
             return updated;
         });
@@ -584,6 +670,12 @@ class OrderService {
                         updatedById: actorId,
                     },
                 });
+                await notifyOrderStatus(
+                    tx,
+                    order,
+                    OrderStatus.CANCELLED,
+                    nextPaymentStatus === PaymentStatus.REFUNDED ? 'Your payment will be refunded in 5–7 working days.' : undefined,
+                );
 
                 return updated;
             } else {
@@ -603,6 +695,12 @@ class OrderService {
                         comment: `Cancellation rejected: ${data.reason || 'Not approved'}`,
                         updatedById: actorId,
                     },
+                });
+                await notify(tx, order.customerId, {
+                    type: 'ORDER',
+                    title: 'Cancellation not possible',
+                    body: `We could not cancel order ${order.orderNumber}: ${data.reason || 'it is already on its way'}. You can return it after delivery.`,
+                    link: `/account/orders/${order.id}`,
                 });
 
                 return updated;
@@ -657,7 +755,19 @@ class OrderService {
         ]);
 
         return {
-            items,
+            // What is actually coming back: the returned lines, not the whole order
+            items: items.map((r) => ({
+                ...r,
+                lines: returnedLines(r.order.items, r.returnItems).map(({item, quantity}) => ({
+                    orderItemId: item.id,
+                    name: item.productName ?? item.product?.name,
+                    size: item.size ?? item.variant?.size,
+                    color: item.color ?? item.variant?.color,
+                    image: item.image ?? item.product?.images?.[0]?.url ?? null,
+                    unitPrice: item.unitPrice,
+                    quantity,
+                })),
+            })),
             pagination: {
                 page,
                 limit,
@@ -697,6 +807,23 @@ class OrderService {
         if (!item) {
             throw new ApiError(httpStatus.NOT_FOUND, 'Return request not found');
         }
+        if (data.returnStatus && data.returnStatus !== item.returnStatus && !NEXT_RETURN_STATUS[item.returnStatus].includes(data.returnStatus)) {
+            const allowed = NEXT_RETURN_STATUS[item.returnStatus];
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                allowed.length
+                    ? `A ${STATUS_NAME(item.returnStatus)} return can only move to: ${allowed.map(STATUS_NAME).join(', ')}`
+                    : `This return is ${STATUS_NAME(item.returnStatus)} and cannot change`,
+            );
+        }
+        const nextReturn = data.returnStatus ?? item.returnStatus;
+        if (item.resolution === 'EXCHANGE' && data.refundStatus && data.refundStatus !== 'NONE') {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'This is an exchange: send the new size instead of a refund');
+        }
+        // Money goes back only once the item is back with the shop
+        if (data.refundStatus === 'PROCESSED' && !['RECEIVED', 'COMPLETED'].includes(nextReturn)) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Mark the item as received before refunding');
+        }
 
         return prisma.$transaction(async (tx) => {
             // If restock is explicitly requested or when completing return with restock
@@ -708,10 +835,10 @@ class OrderService {
                 if (!alreadyRestocked) {
                     await inventoryService.applyStockChanges(tx, {
                         branchId: item.order.branchId,
-                        changes: item.order.items.map((orderItem) => ({
+                        changes: returnedLines(item.order.items, item.returnItems).map(({item: orderItem, quantity}) => ({
                             variantId: orderItem.variantId,
                             productId: orderItem.productId,
-                            delta: orderItem.quantity,
+                            delta: quantity,
                             type: MovementType.RETURN_RESTOCK,
                         })),
                         reason: `Return restocked for Order #${item.order.orderNumber}`,
@@ -732,8 +859,15 @@ class OrderService {
                 },
             });
 
-            // If return is approved / completed and refund is processed, update order refund status
-            if (data.refundStatus === 'PROCESSED' || data.refundStatus === 'APPROVED') {
+            // A refund for the whole order closes it as returned; part returns and exchanges leave it delivered
+            const lines = returnedLines(item.order.items, item.returnItems);
+            const wholeOrder =
+                lines.reduce((n, l) => n + l.quantity, 0) === item.order.items.reduce((n, i) => n + i.quantity, 0);
+            if (
+                item.resolution === 'REFUND' &&
+                wholeOrder &&
+                (data.refundStatus === 'PROCESSED' || data.refundStatus === 'APPROVED')
+            ) {
                 await tx.order.update({
                     where: {id: item.orderId},
                     data: {
@@ -741,6 +875,21 @@ class OrderService {
                         paymentStatus: PaymentStatus.REFUNDED,
                     },
                 });
+            }
+
+            const no = item.order.orderNumber;
+            const link = '/account/returns';
+            const amount = `₹${(item.refundAmount ?? 0).toLocaleString('en-IN')}`;
+            const changed = (to: string) => data.returnStatus === to && item.returnStatus !== to;
+            const messages: {when: boolean; title: string; body: string}[] = [
+                {when: changed('APPROVED'), title: 'Return approved', body: `Your return for order ${no} is approved. Our courier will pick it up in 1–2 days.`},
+                {when: changed('REJECTED'), title: 'Return not approved', body: `We could not accept the return for order ${no}${data.notes ? `: ${data.notes}` : '.'}`},
+                {when: changed('RECEIVED'), title: 'Return received', body: `We have received the items from order ${no} and are checking them.`},
+                {when: changed('COMPLETED') && item.resolution === 'EXCHANGE', title: 'Exchange shipped', body: `Your exchange for order ${no}${item.exchangeFor ? ` (${item.exchangeFor})` : ''} is on its way.`},
+                {when: data.refundStatus === 'PROCESSED' && item.refundStatus !== 'PROCESSED', title: 'Refund processed', body: `${amount} for your return from order ${no} has been refunded. Banks take 5–7 working days to show it.`},
+            ];
+            for (const m of messages.filter((x) => x.when)) {
+                await notify(tx, item.customerId, {type: 'RETURN', title: m.title, body: m.body, link});
             }
 
             return updated;

@@ -3,6 +3,21 @@ import {Order, OrderStatus} from '@/types/order';
 import {useUpdateOrderStatus} from '@/lib/react-query/queriesAndMutations/order';
 import {CheckCircle2, RefreshCw, X} from 'lucide-react';
 
+/** Same rules as the server: forward only; Delivered changes only through a return */
+const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['PROCESSING', 'PACKED', 'CANCELLED'],
+  PROCESSING: ['PACKED', 'CANCELLED'],
+  PACKED: ['SHIPPED', 'CANCELLED'],
+  READY_FOR_DISPATCH: ['SHIPPED', 'CANCELLED'],
+  DISPATCHED: ['SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+  SHIPPED: ['OUT_FOR_DELIVERY', 'DELIVERED'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'SHIPPED'],
+  DELIVERED: [],
+  CANCELLED: [],
+  RETURNED: [],
+};
+
 interface Props {
   panel: string;
   order: Order | null;
@@ -23,9 +38,17 @@ const ORDER_STATUS_OPTIONS: {label: string; value: OrderStatus; desc: string}[] 
 ];
 
 export default function OrderStatusUpdateModal({panel, order, isOpen, onClose, onSuccess}: Props) {
+  // Hooks live in the form, so opening and closing never changes the hook order
   if (!isOpen || !order) return null;
+  return <StatusForm key={order.id} panel={panel} order={order} onClose={onClose} onSuccess={onSuccess} />;
+}
 
-  const [status, setStatus] = useState<OrderStatus>(order.status);
+function StatusForm({panel, order, onClose, onSuccess}: {panel: string; order: Order; onClose: () => void; onSuccess?: () => void}) {
+
+  const next = NEXT_STATUS[order.status] ?? [];
+  const options = ORDER_STATUS_OPTIONS.filter((o) => next.includes(o.value));
+  const [status, setStatus] = useState<OrderStatus>(next[0] ?? order.status);
+  const awaitingPayment = order.status === 'PENDING' && order.paymentMethod === 'ONLINE' && order.paymentStatus !== 'PAID';
   const [comment, setComment] = useState('');
   const [courierName, setCourierName] = useState(order.courierName || '');
   const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber || '');
@@ -69,12 +92,25 @@ export default function OrderStatusUpdateModal({panel, order, isOpen, onClose, o
             <label className="text-xs font-semibold text-espresso block mb-1">
               Select New Status <span className="text-rose-600">*</span>
             </label>
+            {!options.length && (
+              <p className="rounded-lg bg-ivory-100 px-3 py-2 text-body-sm text-outline">
+                {order.status === 'DELIVERED'
+                  ? 'This order is delivered. Changes now happen through a return request.'
+                  : 'This order is closed and its status cannot change.'}
+              </p>
+            )}
+            {awaitingPayment && (
+              <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-body-sm text-amber-800">
+                Waiting for the customer's online payment. Confirm it once paid, or cancel it.
+              </p>
+            )}
             <select
+              hidden={!options.length}
               value={status}
               onChange={(e) => setStatus(e.target.value as OrderStatus)}
               className="w-full rounded-lg border border-ivory-300 bg-white px-3.5 py-2 text-body-sm text-espresso focus:border-burgundy focus:outline-none"
             >
-              {ORDER_STATUS_OPTIONS.map((opt) => (
+              {options.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label} — {opt.desc}
                 </option>
@@ -135,7 +171,7 @@ export default function OrderStatusUpdateModal({panel, order, isOpen, onClose, o
             </button>
             <button
               type="submit"
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || !options.length}
               className="flex items-center gap-2 rounded-lg bg-burgundy px-4 py-2 text-body-sm font-medium text-white shadow hover:bg-burgundy/90 disabled:opacity-50"
             >
               {updateMutation.isPending ? (

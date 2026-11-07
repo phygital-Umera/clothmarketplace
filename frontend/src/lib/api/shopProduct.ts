@@ -21,10 +21,22 @@ export const getShopProducts = (params: ShopProductParams) =>
 export const getShopProduct = (id: string) =>
   api.get(`${BASE}/${id}`) as unknown as Res<ShopProduct>;
 
-export const saveShopProduct = ({id, ...body}: Body & {id?: string}) =>
+/** A new product is sent as form data: its fields and photos in one request */
+const toFormData = (body: Body, files: File[]) => {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined || value === null) continue;
+    // Lists (sizes, colours, tags) go as JSON text; the server reads them back
+    form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
+  }
+  files.forEach((file) => form.append('images', file));
+  return form;
+};
+
+export const saveShopProduct = ({id, files = [], ...body}: Body & {id?: string; files?: File[]}) =>
   (id
     ? api.patch(`${BASE}/${id}`, body)
-    : api.post(BASE, body)) as unknown as Res<ShopProduct>;
+    : api.post(BASE, toFormData(body, files))) as unknown as Res<ShopProduct>;
 
 export const deleteShopProduct = (id: string) =>
   api.delete(`${BASE}/${id}`) as unknown as Res<object>;

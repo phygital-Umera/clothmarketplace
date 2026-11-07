@@ -28,11 +28,29 @@ const REFUND_STATUS_OPTIONS: {label: string; value: RefundStatus}[] = [
   {value: 'REJECTED', label: 'Refund Rejected'},
 ];
 
-export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, onSuccess}: Props) {
+/** Same rules as the server: forward only; Completed and Rejected are final */
+const NEXT_RETURN: Record<ReturnStatus, ReturnStatus[]> = {
+  REQUESTED: ['IN_REVIEW', 'APPROVED', 'REJECTED'],
+  IN_REVIEW: ['APPROVED', 'REJECTED'],
+  APPROVED: ['RECEIVED', 'REJECTED'],
+  RECEIVED: ['COMPLETED', 'REJECTED'],
+  COMPLETED: [],
+  REJECTED: [],
+};
+
+function ReturnReviewModalInner({panel, returnItem, isOpen, onClose, onSuccess}: Props) {
   if (!isOpen || !returnItem) return null;
 
-  const [returnStatus, setReturnStatus] = useState<ReturnStatus>(returnItem.returnStatus);
+  const exchange = returnItem.resolution === 'EXCHANGE';
+  const nextReturn = NEXT_RETURN[returnItem.returnStatus] ?? [];
+  const returnOptions = RETURN_STATUS_OPTIONS.filter((o) => o.value === returnItem.returnStatus || nextReturn.includes(o.value));
+  const closed = !nextReturn.length;
+  const [returnStatus, setReturnStatus] = useState<ReturnStatus>(nextReturn[0] ?? returnItem.returnStatus);
   const [refundStatus, setRefundStatus] = useState<RefundStatus>(returnItem.refundStatus);
+  // Exchanges have no refund; refunds are sent once the item is back
+  const refundOptions = exchange
+    ? REFUND_STATUS_OPTIONS.filter((o) => o.value === 'NONE')
+    : REFUND_STATUS_OPTIONS.filter((o) => o.value !== 'PROCESSED' || returnStatus === 'RECEIVED' || returnStatus === 'COMPLETED');
   const [notes, setNotes] = useState(returnItem.notes || '');
   const [restock, setRestock] = useState(true);
 
@@ -79,8 +97,27 @@ export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, o
           <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4 space-y-1.5">
             <div className="flex justify-between items-center text-xs">
               <span className="font-semibold text-orange-950">Customer: {returnItem.customer?.fullname}</span>
-              <span className="text-orange-900 font-medium">Refund Amount: ₹{returnItem.refundAmount || returnItem.order?.totalAmount || 0}</span>
+              <span className="text-orange-900 font-medium">
+                {exchange ? `Exchange${returnItem.exchangeFor ? ` for ${returnItem.exchangeFor}` : ''}` : `Refund ₹${(returnItem.refundAmount ?? 0).toLocaleString('en-IN')}`}
+              </span>
             </div>
+            {(returnItem.lines ?? []).map((l) => (
+              <div key={l.orderItemId} className="flex items-center gap-2 text-xs text-espresso">
+                {l.image && <img src={l.image} alt="" className="h-10 w-8 rounded object-cover" />}
+                {l.quantity} × {l.name}
+                {l.size ? ` · Size ${l.size}` : ''}
+                {l.color ? ` · ${l.color}` : ''}
+              </div>
+            ))}
+            {!!returnItem.images?.length && (
+              <div className="flex gap-2 pt-1">
+                {returnItem.images.map((u) => (
+                  <a key={u} href={u} target="_blank" rel="noreferrer">
+                    <img src={u} alt="Customer photo" className="h-14 w-14 rounded border border-orange-200 object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-espresso">
               <span className="font-semibold">Reason:</span> {returnItem.reason}
             </p>
@@ -99,7 +136,7 @@ export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, o
                 onChange={(e) => setReturnStatus(e.target.value as ReturnStatus)}
                 className="w-full rounded-lg border border-ivory-300 bg-white px-3 py-2 text-xs text-espresso focus:border-burgundy focus:outline-none"
               >
-                {RETURN_STATUS_OPTIONS.map((opt) => (
+                {returnOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -116,7 +153,7 @@ export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, o
                 onChange={(e) => setRefundStatus(e.target.value as RefundStatus)}
                 className="w-full rounded-lg border border-ivory-300 bg-white px-3 py-2 text-xs text-espresso focus:border-burgundy focus:outline-none"
               >
-                {REFUND_STATUS_OPTIONS.map((opt) => (
+                {refundOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -162,7 +199,7 @@ export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, o
             </button>
             <button
               type="submit"
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || closed}
               className="flex items-center gap-2 rounded-lg bg-burgundy px-4 py-2 text-body-sm font-medium text-white shadow hover:bg-burgundy/90 disabled:opacity-50"
             >
               {updateMutation.isPending ? (
@@ -179,3 +216,8 @@ export default function ReturnReviewModal({panel, returnItem, isOpen, onClose, o
   );
 }
 
+/** Mounted only while open (keyed by the record), so the form starts fresh and hook order never changes */
+export default function ReturnReviewModal(props: Props) {
+  if (!props.isOpen || !props.returnItem) return null;
+  return <ReturnReviewModalInner key={props.returnItem.id} {...props} />;
+}

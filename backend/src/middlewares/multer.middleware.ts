@@ -180,4 +180,18 @@ const imageUpload = multer({
     limits: {fileSize: 2 * 1024 * 1024},
 });
 
-export {upload, imageUpload};
+/** Photos customers attach to reviews and returns: JPG, PNG or WEBP only (no SVG), up to 5 MB */
+const PHOTO_TYPES: Record<string, string> = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'};
+const customerPhotoUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, tempDir),
+        filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${PHOTO_TYPES[file.mimetype] ?? ''}`),
+    }),
+    fileFilter: (req, file, cb) => {
+        if (PHOTO_TYPES[file.mimetype]) cb(null, true);
+        else cb(new ApiError(400, 'Photos must be JPG, PNG or WEBP files.'));
+    },
+    limits: {fileSize: 5 * 1024 * 1024, files: 1},
+});
+
+export {upload, imageUpload, customerPhotoUpload};
