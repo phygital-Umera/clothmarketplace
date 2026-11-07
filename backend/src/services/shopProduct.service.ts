@@ -14,6 +14,8 @@ type Tx = Prisma.TransactionClient;
 
 /** Products of one shop; always taken from the signed-in user */
 export type ShopScope = {companyId: string; shopId: string};
+/** Reading one product: a shop sees its own, a company admin (no shopId) any product of the company */
+export type ProductScope = {companyId: string; shopId?: string};
 
 const MAX_IMAGES = 8;
 export const LOW_STOCK = 5;
@@ -104,10 +106,10 @@ class ShopProductService {
         return toListResult(items.map(present), total, query);
     }
 
-    /** 404 outside the caller's shop (no probing other shops) */
-    public async get(scope: ShopScope, id: string) {
+    /** 404 outside the caller's shop, or company when there is no shop (no probing others) */
+    public async get(scope: ProductScope, id: string) {
         const product = await prisma.product.findFirst({
-            where: this.scopeWhere(scope, id),
+            where: {id, companyId: scope.companyId, deletedAt: null, ...(scope.shopId ? {shopId: scope.shopId} : {})},
             include: DETAIL_INCLUDE,
         });
         if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');

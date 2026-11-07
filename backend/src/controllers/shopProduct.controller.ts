@@ -5,7 +5,8 @@ import {aiPreviewService, auditService, shopProductService} from '@services/inde
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {shopProductValidation as v} from '@validations/index';
 import {storeUpload} from '../utils/fileStore';
-import {ShopScope} from '../services/shopProduct.service';
+import {Role} from '@prisma/client';
+import {ProductScope, ShopScope} from '../services/shopProduct.service';
 
 /*
  * Shop-side products. Products belong to the signed-in user's shop; the
@@ -18,6 +19,10 @@ const shopOf = (req: Request): ShopScope => {
     }
     return {companyId, shopId};
 };
+
+/** AI photo tools: a shop works on its own products, a company admin on any product of the company */
+const photoScopeOf = (req: Request): ProductScope =>
+    req.user.role === Role.ADMIN && req.user.companyId ? {companyId: req.user.companyId} : shopOf(req);
 
 const ok = (
     res: Parameters<Parameters<typeof catchAsync>[0]>[1],
@@ -145,7 +150,7 @@ const deleteImage = catchAsync(async (req, res) => {
 // ---- AI color previews ----
 
 const generatePreviews = catchAsync(async (req, res) => {
-    const scope = shopOf(req);
+    const scope = photoScopeOf(req);
     const {id} = v.idSchema.parse(req.params);
     const data = v.generatePreviewSchema.parse(req.body);
     const {product, failed, error} = await aiPreviewService.generate(req, scope, id, data);
@@ -157,13 +162,13 @@ const generatePreviews = catchAsync(async (req, res) => {
 });
 
 const cleanBackground = catchAsync(async (req, res) => {
-    const scope = shopOf(req);
+    const scope = photoScopeOf(req);
     const {id, imageId} = v.imageIdSchema.parse(req.params);
     return ok(res, await aiPreviewService.cleanBackground(req, scope, id, imageId), 'Clean photo added and set as the main photo');
 });
 
 const professionalPhoto = catchAsync(async (req, res) => {
-    const scope = shopOf(req);
+    const scope = photoScopeOf(req);
     const {id, imageId} = v.imageIdSchema.parse(req.params);
     const {style, details} = v.professionalPhotoSchema.parse(req.body);
     return ok(res, await aiPreviewService.professionalPhoto(req, scope, id, imageId, style, details), 'Professional photo added and set as the main photo');
@@ -173,7 +178,7 @@ const professionalPhoto = catchAsync(async (req, res) => {
 const aiStatus = catchAsync(async (_req, res) => ok(res, {ready: aiPreviewService.aiReady}, 'AI status'));
 
 const deletePreview = catchAsync(async (req, res) => {
-    const scope = shopOf(req);
+    const scope = photoScopeOf(req);
     const {id, previewId} = v.previewIdSchema.parse(req.params);
     const {after} = await aiPreviewService.remove(scope, id, previewId);
     return ok(res, after, 'Preview removed');

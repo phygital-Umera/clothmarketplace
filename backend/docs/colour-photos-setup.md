@@ -33,13 +33,17 @@ changed. Colour photos made from the clean photo also come out on white.
 ## Professional photo with a mannequin or model (needs Cloudflare AI)
 
 On the product page, **Professional photo (AI)** makes a studio photo from the
-shop's photo, in one of three styles:
+shop's photo, in one of four styles. It is on the shop panel's product page and
+on the company admin's product page (Products → open a product → Images); the
+company admin can use it on any product of the company. AI colour photos are on
+the shop panel only.
 
 | Style | What you get |
 |---|---|
 | 3D, no mannequin | The garment with body shape, nothing else (the "ghost mannequin" look of big shopping sites) |
 | On a mannequin | The garment on a white dress-form mannequin |
 | Worn by a model | A model wearing it; sarees, lehengas and dupattas are draped properly |
+| Enhance my photo | The same garment, virtually ironed, straightened and centred on a white or light-grey studio background with a soft shadow; nothing added |
 
 The new photo becomes the main photo; the shop's photo is kept. Colour photos
 can be made from it. Because the AI draws a new picture, check small details
@@ -111,6 +115,16 @@ Open `backend/.env` and add these lines (your own values, no quotes):
 ```
 CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id
 CLOUDFLARE_AI_API_TOKEN=your-api-token
+```
+
+Optional: a second Cloudflare account (its own Account ID and token, made the
+same way) doubles the free daily allowance. When the first account has used
+today's allowance, or its token is rejected, the second one takes over
+automatically:
+
+```
+CLOUDFLARE_ACCOUNT_ID2=second-account-id
+CLOUDFLARE_AI_API_TOKEN2=second-account-token
 ```
 
 Optional: `CLOUDFLARE_AI_PRO_MODEL` (default `@cf/black-forest-labs/flux-2-klein-9b`,
