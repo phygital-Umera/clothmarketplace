@@ -49,6 +49,8 @@ model User {
   /// Customer profile: WOMAN, MAN, OTHER (optional)
   gender                 String?
   dateOfBirth            DateTime?     @db.Date
+  photoUrl               String?
+  posPin                 String?
   admin                  Admin?
   branch                 Branch?       @relation(fields: [branchId], references: [id])
   shop                   Shop?         @relation(fields: [shopId], references: [id])
@@ -1085,21 +1087,29 @@ model StockTransferItem {
 
 /// Shop running expense; cash expenses reduce the drawer
 model Expense {
-  id          String   @id @default(uuid())
-  companyId   String
-  branchId    String
+  id            String   @id @default(uuid())
+  /// Per shop: EX/26-27/0001 (unique within the shop)
+  expenseNumber String?
+  companyId     String
+  branchId      String
   /// null = a branch-level expense (rent, salaries) not charged to one shop
-  shopId      String?
-  shop        Shop?    @relation(fields: [shopId], references: [id])
-  expenseDate DateTime @default(now())
-  category    String
-  amount      Float
-  mode        String // CASH, UPI, CARD
-  notes       String?
-  createdById String
-  createdBy   User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  shopId        String?
+  shop          Shop?    @relation(fields: [shopId], references: [id])
+  expenseDate   DateTime @default(now())
+  category      String
+  head          String?
+  description   String?
+  amount        Float
+  mode          String // CASH, UPI, CARD
+  paidBy        String? // Cash from counter, UPI, Bank
+  gstAmount     Float?   @default(0)
+  photoUrl      String?
+  notes         String?
+  createdById   String
+  createdBy     User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
 
+  @@unique([shopId, expenseNumber])
   @@index([shopId, expenseDate])
   @@index([branchId, expenseDate])
 }

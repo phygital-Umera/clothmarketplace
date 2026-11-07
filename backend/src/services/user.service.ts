@@ -38,6 +38,8 @@ const SAFE_USER = {
     mustChangePassword: true,
     lastLoginAt: true,
     createdAt: true,
+    photoUrl: true,
+    posPin: true,
 } satisfies Prisma.UserSelect;
 
 type AccessCheckUser = {
@@ -257,10 +259,7 @@ class UserService {
             ]);
         }
 
-        await prisma.user.update({
-            where: {id: userId},
-            data: {password: await encryptPassword(data.newPassword), mustChangePassword: false},
-        });
+        const updateData: Prisma.UserUpdateInput = { password: await encryptPassword(data.newPassword), mustChangePassword: false }; if (data.signOutOthers) { updateData.sessionsRevokedAt = new Date(); } await prisma.user.update({ where: {id: userId}, data: updateData });
         return tokenService.generateAccessAndRefreshToken({
             id: user.id,
             fullname: user.fullname,
@@ -342,7 +341,11 @@ class UserService {
     }
 
     public async updateUser(userId: string, data: UpdateUser) {
-        return prisma.user.update({where: {id: userId}, data, select: SAFE_USER});
+        const updateData: Prisma.UserUpdateInput = {
+            ...data,
+            phoneNumber: data.phoneNumber ? data.phoneNumber : undefined,
+        };
+        return prisma.user.update({where: {id: userId}, data: updateData, select: SAFE_USER});
     }
 }
 

@@ -1,6 +1,6 @@
-import ShopExpensesPage from '@/pages/shop/ShopExpensesPage';
+import ShopExpensesPage from '@/pages/shop/accounts/ShopExpensesPage';
 import {createLazyFileRoute} from '@tanstack/react-router';
 
 export const Route = createLazyFileRoute('/_app/shop-admin/expenses')({
-  component: ShopExpensesPage,
+  component: () => <ShopExpensesPage panel="shop-admin" />,
 });

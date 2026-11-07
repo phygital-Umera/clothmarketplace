@@ -1,0 +1,15 @@
+-- AlterTable "Expense"
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "expenseNumber" TEXT;
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "head" TEXT;
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "paidBy" TEXT;
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "gstAmount" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "photoUrl" TEXT;
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "Expense_expenseNumber_key" ON "Expense"("expenseNumber");
+
+-- AlterTable "User"
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "posPin" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "photoUrl" TEXT;
+

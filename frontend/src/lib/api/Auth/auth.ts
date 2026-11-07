@@ -21,6 +21,15 @@ export type ChangePasswordValues = {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+  signOutOthers?: boolean;
+};
+
+export type UpdateProfileValues = {
+  fullname?: string;
+  address?: string;
+  phoneNumber?: string;
+  posPin?: string;
+  photoUrl?: string;
 };
 
 export type ResetPasswordValues = {
@@ -59,7 +68,7 @@ const logoutUser = () => api.post('/users/logout');
 
 const getCurrentUser = () => api.get('/users/me') as unknown as Res<unknown>;
 
-const UpdateUser = (data: {fullname?: string; address?: string}) =>
+const UpdateUser = (data: UpdateProfileValues) =>
   api.patch('/users/update', data);
 
 /** Returns new tokens: other devices are signed out, this one stays in */
