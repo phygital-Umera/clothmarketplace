@@ -156,6 +156,22 @@ const generatePreviews = catchAsync(async (req, res) => {
     return ok(res, product, message);
 });
 
+const cleanBackground = catchAsync(async (req, res) => {
+    const scope = shopOf(req);
+    const {id, imageId} = v.imageIdSchema.parse(req.params);
+    return ok(res, await aiPreviewService.cleanBackground(req, scope, id, imageId), 'Clean photo added and set as the main photo');
+});
+
+const professionalPhoto = catchAsync(async (req, res) => {
+    const scope = shopOf(req);
+    const {id, imageId} = v.imageIdSchema.parse(req.params);
+    const {style, details} = v.professionalPhotoSchema.parse(req.body);
+    return ok(res, await aiPreviewService.professionalPhoto(req, scope, id, imageId, style, details), 'Professional photo added and set as the main photo');
+});
+
+/** Whether AI photos (Cloudflare keys) are set up, so the panel can say so */
+const aiStatus = catchAsync(async (_req, res) => ok(res, {ready: aiPreviewService.aiReady}, 'AI status'));
+
 const deletePreview = catchAsync(async (req, res) => {
     const scope = shopOf(req);
     const {id, previewId} = v.previewIdSchema.parse(req.params);
@@ -173,5 +189,8 @@ export default {
     updateImage,
     deleteImage,
     generatePreviews,
+    cleanBackground,
+    professionalPhoto,
+    aiStatus,
     deletePreview,
 };

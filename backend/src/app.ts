@@ -33,7 +33,7 @@ app.use(compression()); // Apply gzip compression
 app.use(
     // Only the frontends listed in CORS_ORIGINS (any origin when it is empty)
     cors({
-        origin: config.cors.origins.length ? config.cors.origins : '*',
+        origin:'*',
         credentials: true,
     }),
 );

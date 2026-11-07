@@ -23,12 +23,49 @@ Without Cloudflare keys this built-in recolour is used. The panel labels these
 photos **Recoloured**. It works best for one-colour garments photographed on a
 plain background.
 
-## Turning on Cloudflare AI (optional, better on textured fabrics)
+## Clean background (no setup needed)
 
-With keys set, Cloudflare Workers AI (FLUX.2) makes the garment from the real
-photo. Its garment is still pasted into the original background and checked;
-if the AI result fails the check, or the free daily limit is used up, the
-built-in recolour is used instead. These photos are labelled **AI preview**.
+On the product page, **Clean background** turns a photo taken on a bed, floor
+or mat into a catalogue photo: the garment is cut out and placed in the middle
+of a plain white background with a soft shadow. The garment itself is not
+changed. Colour photos made from the clean photo also come out on white.
+
+## Professional photo with a mannequin or model (needs Cloudflare AI)
+
+On the product page, **Professional photo (AI)** makes a studio photo from the
+shop's photo, in one of three styles:
+
+| Style | What you get |
+|---|---|
+| 3D, no mannequin | The garment with body shape, nothing else (the "ghost mannequin" look of big shopping sites) |
+| On a mannequin | The garment on a white dress-form mannequin |
+| Worn by a model | A model wearing it; sarees, lehengas and dupattas are draped properly |
+
+The new photo becomes the main photo; the shop's photo is kept. Colour photos
+can be made from it. Because the AI draws a new picture, check small details
+(prints, borders, labels) before publishing.
+
+**Get the best result:** use a photo of the whole garment, and type a few words
+in **Garment details** (e.g. "turtleneck, rib knit, no zip" or "silk saree with
+gold zari border"). The colour is measured from the photo and men's / women's /
+kids' comes from the product, so set the product's gender and name correctly.
+
+**Daily limit:** the free Cloudflare plan allows 10,000 "neurons" a day, which
+is roughly **10–15 professional photos a day**. It resets at 00:00 UTC
+(5:30 AM India time). For more, upgrade to Cloudflare's Workers Paid plan
+(US$5/month, then a small charge per photo). Colour photos use the built-in
+recolour, so they do not use this allowance.
+
+This needs the keys below.
+
+## Turning on Cloudflare AI (needed for professional photos; also better colour photos on textured fabrics)
+
+With keys set, professional photos use Cloudflare Workers AI (FLUX.2 klein 9B).
+Colour photos keep using the built-in recolour so they do not use up the daily
+allowance. To use the AI for colour photos as well, add
+`CLOUDFLARE_AI_FOR_COLOURS=true` to `backend/.env` (its result is still checked,
+and the built-in recolour is used when the check fails or the allowance runs
+out); these photos are labelled **AI preview**.
 
 ### Step 1 — Create a free Cloudflare account
 
@@ -76,8 +113,9 @@ CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id
 CLOUDFLARE_AI_API_TOKEN=your-api-token
 ```
 
-Optional: `CLOUDFLARE_AI_MODEL=@cf/black-forest-labs/flux-2-klein-4b`
-(this is already the default).
+Optional: `CLOUDFLARE_AI_PRO_MODEL` (default `@cf/black-forest-labs/flux-2-klein-9b`,
+best in our tests) and `CLOUDFLARE_AI_MODEL` for colour photos (default
+`@cf/black-forest-labs/flux-2-klein-4b`).
 
 Keep `.env` private: never commit it or send the token to anyone.
 
@@ -95,7 +133,7 @@ Keep `.env` private: never commit it or send the token to anyone.
 |---|---|
 | Photos labelled "Recoloured" after adding keys | The backend was not restarted, or the keys have a typo. Restart and check Step 4. |
 | "The AI service rejected the API token" in the server log | The token lacks Workers AI permission. Create it again (Step 3). |
-| "Daily free AI limit reached" in the server log | The free tier allows roughly 80 photos a day. The built-in recolour is used until the limit resets (00:00 UTC). |
+| "Today's free AI allowance is used up" | The free plan allows roughly 10–15 professional photos a day. Wait until 5:30 AM India time, or upgrade to Workers Paid. |
 | "Not saved: The garment is not in the chosen colour" | The photo has several colours or a busy background. Use a photo of one garment on a plain background. |
 | "Could not find the garment in this photo" | Use a clearer photo: the whole garment, plain background, good light. |
 

@@ -31,6 +31,8 @@ const RULES: Record<string, Rule> = {
     suppliers: only('purchase'),
 
     products: only('products'),
+    // Whether AI photos are set up (shown on the product page)
+    'ai-status': only('products'),
     // The POS picks items from stock
     inventory: {read: ['stock', 'billing', 'products'], write: ['stock']},
     stock: only('stock'),

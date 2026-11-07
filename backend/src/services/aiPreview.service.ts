@@ -7,7 +7,7 @@ import ApiError from '@utils/ApiError';
 import {readStoredImage, storeGenerated} from '../utils/fileStore';
 import {config, logger} from '@config/index';
 import shopProductService, {ShopScope} from './shopProduct.service';
-import {Photo, checkRecolour, compositeGarment, loadPhoto, recolourGarment, segmentGarment, toJpeg} from '../utils/recolour';
+import {Photo, checkRecolour, compositeGarment, garmentColour, loadPhoto, recolourGarment, segmentGarment, studioPhoto, toJpeg} from '../utils/recolour';
 
 /*
  * AI color previews (Cloudflare Workers AI, FLUX.2 image editing).
@@ -56,6 +56,56 @@ const fromModelOutput = async (photo: Photo, base64: string) => {
         .toBuffer();
 };
 
+export const PHOTO_STYLES = ['GHOST', 'MANNEQUIN', 'MODEL'] as const;
+export type PhotoStyle = (typeof PHOTO_STYLES)[number];
+
+/** How a saree / lehenga / dupatta is worn, so the AI drapes it properly */
+const drapeHint = (kind: string) => {
+    const k = kind.toLowerCase();
+    if (/saree|sari/.test(k)) return 'Drape the saree in the traditional Nivi style with the pallu over the left shoulder, showing its border and pallu design.';
+    if (/lehenga|ghagra|chaniya/.test(k)) return 'Show the lehenga skirt with its full flare, the blouse (choli) and the dupatta draped over one shoulder.';
+    if (/dupatta|stole|shawl/.test(k)) return 'Drape it naturally over the shoulders so its border and print are visible.';
+    if (/kurta|kurti|anarkali|salwar|suit/.test(k)) return 'Show the full length of the kurta with its natural fall.';
+    return '';
+};
+
+/** Who wears it, from the product's gender */
+const wearer = (gender: string) =>
+    gender === 'MEN' ? {who: "men's", model: 'a male Indian fashion model'}
+    : gender === 'WOMEN' ? {who: "women's", model: 'a female Indian fashion model'}
+    : gender === 'BOYS' ? {who: "boys'", model: 'a young Indian boy model'}
+    : gender === 'GIRLS' ? {who: "girls'", model: 'a young Indian girl model'}
+    : gender === 'KIDS' ? {who: "kids'", model: 'an Indian child model'}
+    : {who: '', model: 'an Indian fashion model'};
+
+export type GarmentBrief = {gender: string; kind: string; colour: {name: string; hex: string}; details?: string};
+
+/**
+ * Prompt for a catalogue photo of the shop's garment, in the chosen style.
+ * The more exact the garment description (colour measured from the photo, who
+ * it is for, its type and the shop's own notes), the less the AI invents.
+ */
+const professionalPrompt = (style: PhotoStyle, g: GarmentBrief) => {
+    const {who, model} = wearer(g.gender);
+    const garment = [`${who} ${g.colour.name} (${g.colour.hex})`.trim(), g.kind, g.details ? `(${g.details})` : ''].filter(Boolean).join(' ');
+    return [
+        style === 'MODEL'
+            ? `Professional e-commerce catalogue photo: ${model} wearing the exact garment from image 0, a ${garment}. Natural standing pose, front view, the whole garment visible, neutral expression, plain matching bottom wear if the garment is a top.`
+            : style === 'MANNEQUIN'
+              ? `Professional e-commerce catalogue photo of the exact garment from image 0, a ${garment}, worn by a plain white headless dress-form mannequin, front view, the whole garment visible.`
+              : `Professional e-commerce catalogue photo of the exact garment from image 0, a ${garment}. Ghost-mannequin (invisible mannequin) shot: the garment has natural 3D body volume as if worn, front view; no person and no mannequin visible.`,
+        drapeHint(`${g.kind} ${g.details ?? ''}`),
+        `Keep the garment identical to image 0: exactly ${g.colour.name} (${g.colour.hex}), same collar or neckline, same sleeves, same fabric texture, weave or knit, same print, embroidery and border, same cuffs, hem, labels and proportions.`,
+        'Do not add zips, buttons, pockets, hoods, logos or prints that are not in image 0.',
+        'Pure white seamless studio background, soft even lighting, subtle natural shadow, sharp focus, high-end fashion catalogue quality.',
+    ]
+        .filter(Boolean)
+        .join(' ');
+};
+
+/** Size of an AI professional photo (4:5, as the store shows products; multiples of 16) */
+const PRO_SIZE = {width: 832, height: 1040};
+
 /** Built-in recolour, used when no Cloudflare AI keys are set */
 export const LOCAL_MODEL = 'built-in-recolour';
 
@@ -66,7 +116,7 @@ class AiPreviewService {
     }
 
     get model() {
-        return this.aiReady ? config.ai.imageModel : LOCAL_MODEL;
+        return this.aiReady && config.ai.colourWithAi ? config.ai.imageModel : LOCAL_MODEL;
     }
 
     /** Only for callers that need the AI itself */
@@ -80,7 +130,7 @@ class AiPreviewService {
     }
 
     /** One call to Workers AI; returns the generated image as base64 */
-    private async run(prompt: string, image: Buffer): Promise<string> {
+    private async run(prompt: string, image: Buffer, size = {width: OUTPUT_SIZE, height: OUTPUT_SIZE}, model = config.ai.imageModel): Promise<string> {
         const form = new FormData();
         form.append('prompt', prompt);
         form.append(
@@ -88,10 +138,10 @@ class AiPreviewService {
             new Blob([new Uint8Array(image)], {type: 'image/png'}),
             'source.png',
         );
-        form.append('width', String(OUTPUT_SIZE));
-        form.append('height', String(OUTPUT_SIZE));
+        form.append('width', String(size.width));
+        form.append('height', String(size.height));
 
-        const url = `https://api.cloudflare.com/client/v4/accounts/${config.ai.cloudflareAccountId}/ai/run/${this.model}`;
+        const url = `https://api.cloudflare.com/client/v4/accounts/${config.ai.cloudflareAccountId}/ai/run/${model}`;
         let res: Response;
         try {
             res = await fetch(url, {
@@ -127,7 +177,7 @@ class AiPreviewService {
                 .join('; ') || res.statusText;
         logger.warn(`Workers AI preview failed (${res.status}): ${message}`);
         if (res.status === 429 || /neuron|quota|limit/i.test(message)) {
-            throw new QuotaError('Daily free AI limit reached. Try again after 00:00 UTC');
+            throw new QuotaError("Today's free AI allowance is used up. It resets at 5:30 AM (India time); try again after that.");
         }
         if (res.status === 401 || res.status === 403) {
             throw new Error('The AI service rejected the API token; check CLOUDFLARE_AI_API_TOKEN');
@@ -197,9 +247,14 @@ class AiPreviewService {
             ]);
         }
 
+        // A clean white-background photo: work on the shop's original photo (the garment
+        // is found far more reliably there) and put every colour on white the same way
+        const original = source.cleanedFromId
+            ? await prisma.productImage.findFirst({where: {id: source.cleanedFromId, productId}, select: {url: true}})
+            : null;
         let photo: Photo;
         try {
-            photo = await loadPhoto(await readStoredImage(source.url));
+            photo = await loadPhoto(await readStoredImage(original?.url ?? source.url));
         } catch (error) {
             logger.warn(`Colour preview: cannot read image ${source.url}: ${String(error)}`);
             throw new ApiError(httpStatus.BAD_REQUEST, 'Could not read the product image');
@@ -212,7 +267,9 @@ class AiPreviewService {
             logger.warn(`Colour preview: garment detection failed: ${String(error)}`);
             throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, 'Could not find the garment in this photo. Use a photo of the garment on a plain background.');
         }
-        const modelInput = this.aiReady ? await toModelInput(photo) : null;
+        // Colour photos use the built-in recolour (free, checked); the AI's small daily
+        // allowance is kept for professional photos unless CLOUDFLARE_AI_FOR_COLOURS=true
+        const modelInput = this.aiReady && config.ai.colourWithAi ? await toModelInput(photo) : null;
         const runState = {aiOff: false};
 
         let quotaMessage: string | null = null;
@@ -247,7 +304,10 @@ class AiPreviewService {
             try {
                 const made = await this.makeColour(photo, mask, modelInput, color, runState);
                 if (!made.ok) throw new Error(made.reason);
-                const url = await storeGenerated(req, (await toJpeg(photo, made.rgb)).toString('base64'), 'previews');
+                const jpeg = original
+                    ? await studioPhoto(photo, mask, made.rgb)
+                    : await toJpeg(photo, made.rgb);
+                const url = await storeGenerated(req, jpeg.toString('base64'), 'previews');
                 await prisma.$transaction([
                     prisma.productColorPreview.update({
                         where: {id: row.id},
@@ -293,6 +353,112 @@ class AiPreviewService {
                 : []),
         ]);
         return {before: preview, after: await shopProductService.get(scope, productId)};
+    }
+
+    /**
+     * Turn a shop photo (taken on a bed, floor or mat) into a catalogue photo:
+     * the garment on a plain white background. Added as a new photo and made the
+     * main one; the original stays, and colour photos are made from it.
+     */
+    public async cleanBackground(req: Request, scope: ShopScope, productId: string, imageId: string) {
+        const product = await shopProductService.get(scope, productId);
+        const source = product.images.find((img) => img.id === imageId);
+        if (!source) throw new ApiError(httpStatus.NOT_FOUND, 'Image not found');
+        if (source.cleanedFromId) throw new ApiError(httpStatus.BAD_REQUEST, 'This photo already has a clean background');
+        if (source.aiStyle) throw new ApiError(httpStatus.BAD_REQUEST, 'This photo was made by the AI on a white background already');
+        const existing = product.images.find((img) => img.cleanedFromId === source.id);
+        if (existing) throw new ApiError(httpStatus.BAD_REQUEST, 'A clean photo of this image is already there');
+        if (product.images.length >= 8) throw new ApiError(httpStatus.BAD_REQUEST, 'A product can have at most 8 images; delete one first');
+
+        let photo: Photo;
+        try {
+            photo = await loadPhoto(await readStoredImage(source.url));
+        } catch (error) {
+            logger.warn(`Clean background: cannot read image ${source.url}: ${String(error)}`);
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Could not read the product image');
+        }
+        let jpeg: Buffer;
+        try {
+            jpeg = await studioPhoto(photo, await segmentGarment(photo));
+        } catch (error) {
+            logger.warn(`Clean background failed: ${String(error)}`);
+            throw new ApiError(
+                httpStatus.UNPROCESSABLE_ENTITY,
+                'Could not find the garment in this photo. Take the photo from above with the whole garment in view.',
+            );
+        }
+        const url = await storeGenerated(req, jpeg.toString('base64'), 'products');
+        await prisma.$transaction([
+            prisma.productImage.updateMany({where: {productId}, data: {isMain: false}}),
+            prisma.productImage.create({
+                data: {productId, url, altText: product.name, order: source.order, isMain: true, isAiGenerated: true, cleanedFromId: source.id},
+            }),
+        ]);
+        return shopProductService.get(scope, productId);
+    }
+
+    /**
+     * A professional catalogue photo made by the AI from a shop photo: the garment
+     * on an invisible 3D mannequin, on a dress-form mannequin, or worn by a model.
+     * Added as a new photo and made the main one; the shop photo stays. Colour
+     * photos can then be made from it like from any photo.
+     */
+    public async professionalPhoto(req: Request, scope: ShopScope, productId: string, imageId: string, style: PhotoStyle, details?: string) {
+        if (!this.aiReady) {
+            throw new ApiError(
+                httpStatus.SERVICE_UNAVAILABLE,
+                'Professional photos need the Cloudflare AI keys. Add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_API_TOKEN to backend/.env (steps in backend/docs/colour-photos-setup.md) and restart the backend.',
+            );
+        }
+        const product = await shopProductService.get(scope, productId);
+        const source = product.images.find((img) => img.id === imageId);
+        if (!source) throw new ApiError(httpStatus.NOT_FOUND, 'Image not found');
+        if (product.images.length >= 8) throw new ApiError(httpStatus.BAD_REQUEST, 'A product can have at most 8 images; delete one first');
+
+        // The AI works best from the clean cut-out when there is one
+        const original = source.cleanedFromId ? source : product.images.find((img) => img.cleanedFromId === source.id) ?? source;
+        let photo: Photo;
+        try {
+            photo = await loadPhoto(await readStoredImage(original.url));
+        } catch (error) {
+            logger.warn(`Professional photo: cannot read image ${original.url}: ${String(error)}`);
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Could not read the product image');
+        }
+        // Colour measured from the garment itself (the mask is cached, so this is quick after Clean background)
+        let colour = {name: 'same colour as the photo', hex: ''};
+        try {
+            colour = garmentColour(photo, await segmentGarment(photo));
+        } catch (error) {
+            logger.warn(`Professional photo: could not measure the colour: ${String(error)}`);
+        }
+        const brief: GarmentBrief = {
+            gender: product.gender,
+            kind: [product.name, product.subcategory?.name].filter(Boolean).join(', '),
+            colour,
+            details: details?.trim() || undefined,
+        };
+        let base64: string;
+        try {
+            base64 = await this.run(professionalPrompt(style, brief), await toModelInput(photo), PRO_SIZE, config.ai.proModel);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'AI generation failed';
+            throw new ApiError(error instanceof QuotaError ? httpStatus.TOO_MANY_REQUESTS : httpStatus.BAD_GATEWAY, message);
+        }
+        // Never save an empty or broken result
+        const out = sharp(Buffer.from(base64, 'base64'));
+        const stats = await out.stats().catch(() => null);
+        const spread = stats ? stats.channels.slice(0, 3).reduce((t, c) => t + c.stdev, 0) / 3 : 0;
+        if (spread < 8) throw new ApiError(httpStatus.BAD_GATEWAY, 'The AI returned an empty picture; try again');
+        const jpeg = await out.flatten({background: '#ffffff'}).jpeg({quality: 90, mozjpeg: true}).toBuffer();
+
+        const url = await storeGenerated(req, jpeg.toString('base64'), 'products');
+        await prisma.$transaction([
+            prisma.productImage.updateMany({where: {productId}, data: {isMain: false}}),
+            prisma.productImage.create({
+                data: {productId, url, altText: product.name, order: source.order, isMain: true, isAiGenerated: true, aiStyle: style},
+            }),
+        ]);
+        return shopProductService.get(scope, productId);
     }
 }
 

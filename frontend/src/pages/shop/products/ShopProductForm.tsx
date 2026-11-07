@@ -12,7 +12,7 @@ import {
 import useProductMasters from '@/components/ShopProduct/useProductMasters';
 import {PageHeader} from '@/components/ui';
 import {FormError, FormFooter, FormGroup} from '@/components/ui/FormLayout';
-import {generateShopProductPreviews} from '@/lib/api/shopProduct';
+import {cleanShopProductImage, generateShopProductPreviews} from '@/lib/api/shopProduct';
 import {
   useSaveShopProduct,
   useShopProduct,
@@ -46,6 +46,8 @@ const Form = ({product}: {product?: ShopProduct}) => {
   const [files, setFiles] = useState<File[]>([]);
   // Make a photo in each selected colour from the first photo (AI), right after saving
   const [colourPhotos, setColourPhotos] = useState(false);
+  // Put the garment of the first photo on a clean white background, right after saving
+  const [cleanPhoto, setCleanPhoto] = useState(false);
 
   const form = useForm<ShopProductValues>({
     resolver: zodResolver(shopProductSchema),
@@ -81,12 +83,25 @@ const Form = ({product}: {product?: ShopProduct}) => {
       }
       return;
     }
-    // Photos were saved with the product. Colour photos are made from the first one.
-    if (!product && colourPhotos && saved.images?.length) {
+    // Photos were saved with the product. The first one can get a clean background
+    // (it becomes the main photo); colour photos are made from that photo.
+    const firstId = saved.images?.[0]?.id;
+    let sourceId = firstId;
+    if (!product && cleanPhoto && firstId) {
+      const busy = toast.loading('Cleaning the photo background…');
+      try {
+        const res = await cleanShopProductImage(saved.id, firstId);
+        sourceId = res.data.images.find((i) => i.cleanedFromId === firstId)?.id ?? firstId;
+        toast.success(res.message, {id: busy});
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Product saved, but the background could not be cleaned'), {id: busy});
+      }
+    }
+    if (!product && colourPhotos && sourceId) {
       const colorIds = (values.colorIds ?? []).slice(0, 6);
       const busy = toast.loading(`Making photos in ${colorIds.length} colour${colorIds.length > 1 ? 's' : ''}…`);
       try {
-        const res = await generateShopProductPreviews(saved.id, {colorIds, imageId: saved.images[0].id});
+        const res = await generateShopProductPreviews(saved.id, {colorIds, imageId: sourceId});
         toast.success(res.message, {id: busy});
       } catch (error) {
         toast.error(getErrorMessage(error, 'Product saved, but the colour photos could not be made'), {id: busy});
@@ -325,6 +340,22 @@ const Form = ({product}: {product?: ShopProduct}) => {
             ) : (
               <div className="space-y-3">
                 <PendingImages files={files} onChange={setFiles} />
+                <label className="flex items-start gap-2 text-body-sm text-espresso">
+                  <input
+                    type="checkbox"
+                    checked={cleanPhoto}
+                    disabled={!files.length}
+                    onChange={(e) => setCleanPhoto(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-burgundy"
+                  />
+                  <span>
+                    Clean the background of the first photo
+                    <span className="block text-xs text-on-surface-variant">
+                      For photos taken on a bed, floor or mat: the garment is put on plain white, centred, and becomes the
+                      main photo. Your photo is kept as well.
+                    </span>
+                  </span>
+                </label>
                 <label className="flex items-start gap-2 text-body-sm text-espresso">
                   <input
                     type="checkbox"

@@ -59,6 +59,9 @@ router.route('/products/:id').get(p.getProduct).patch(p.updateProduct).delete(p.
 router.post('/products/:id/images', imageUpload.array('images', 8), p.uploadImages);
 router.route('/products/:id/images/:imageId').patch(p.updateImage).delete(p.deleteImage);
 router.post('/products/:id/previews', p.generatePreviews);
+router.post('/products/:id/images/:imageId/clean', p.cleanBackground);
+router.post('/products/:id/images/:imageId/professional', p.professionalPhoto);
+router.get('/ai-status', p.aiStatus);
 router.delete('/products/:id/previews/:previewId', p.deletePreview);
 
 // ---- 6. Inventory & Stock Adjustments ----

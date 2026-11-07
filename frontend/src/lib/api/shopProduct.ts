@@ -1,6 +1,6 @@
 import {ApiResponse} from '@/types';
 import {ListResult} from '@/types/org';
-import {ShopProduct, ShopProductParams} from '@/types/shopProduct';
+import {ShopProduct, ShopProductParams, PhotoStyle} from '@/types/shopProduct';
 import {api} from '@/utils/axios';
 
 type Res<T> = Promise<ApiResponse<T>>;
@@ -61,6 +61,17 @@ export const updateShopProductImage = (
 
 export const deleteShopProductImage = (id: string, imageId: string) =>
   api.delete(`${BASE}/${id}/images/${imageId}`) as unknown as Res<ShopProduct>;
+
+/** Clean white-background copy of a photo (takes 10–20 s on the server) */
+export const cleanShopProductImage = (id: string, imageId: string) =>
+  api.post(`${BASE}/${id}/images/${imageId}/clean`, {}, {timeout: 3 * 60 * 1000}) as unknown as Res<ShopProduct>;
+
+/** AI professional photo (garment on a 3D invisible mannequin, a dress form or a model); 10–40 s */
+export const professionalShopProductImage = (id: string, imageId: string, style: PhotoStyle, details?: string) =>
+  api.post(`${BASE}/${id}/images/${imageId}/professional`, {style, details: details || undefined}, {timeout: 3 * 60 * 1000}) as unknown as Res<ShopProduct>;
+
+/** Whether the Cloudflare AI keys are set on the server */
+export const getAiStatus = () => api.get('/shop-admin/ai-status') as unknown as Res<{ready: boolean}>;
 
 // ---- AI color previews ----
 

@@ -129,6 +129,13 @@ const generatePreviewSchema = z.object({
 
 const idSchema = z.object({id: z.string().uuid('Invalid ID parameter')});
 const imageIdSchema = idSchema.extend({imageId: z.string().uuid('Invalid image ID')});
+
+/** Style of an AI professional photo */
+const professionalPhotoSchema = z.object({
+    style: z.enum(['GHOST', 'MANNEQUIN', 'MODEL'], {errorMap: () => ({message: 'Pick a photo style'})}),
+    /** Shop's own words about the garment, e.g. "turtleneck, rib knit, no zip" */
+    details: z.string().trim().max(200, 'Keep the details under 200 characters').optional(),
+});
 const previewIdSchema = idSchema.extend({previewId: z.string().uuid('Invalid preview ID')});
 const imageUpdateSchema = z.object({
     isMain: z.boolean().optional(),
@@ -142,6 +149,7 @@ export default {
     generatePreviewSchema,
     idSchema,
     imageIdSchema,
+    professionalPhotoSchema,
     previewIdSchema,
     imageUpdateSchema,
 };

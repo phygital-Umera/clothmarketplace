@@ -328,7 +328,7 @@ class CatalogService {
                 category: {select: {name: true}},
                 subcategory: {select: {name: true}},
                 shop: {select: {id: true, name: true, branchId: true, branch: {select: {city: true}}}},
-                images: {orderBy: [{isMain: 'desc'}, {order: 'asc'}], select: {id: true, url: true, altText: true}},
+                images: {orderBy: [{isMain: 'desc'}, {order: 'asc'}], select: {id: true, url: true, altText: true, cleanedFromId: true}},
                 variants: {
                     where: {isActive: true},
                     select: {
@@ -430,7 +430,11 @@ class CatalogService {
             returnEligible: p.returnEligible,
             returnPeriodDays: p.returnPeriodDays,
             taxRate: p.taxRate,
-            images: p.images,
+            // A shop photo that has a clean white-background copy is only the source
+            // for that copy (taken on a bed or floor): customers see the clean one
+            images: p.images
+                .filter((img) => !p.images.some((other) => other.cleanedFromId === img.id))
+                .map(({cleanedFromId, ...img}) => img),
             mrp: p.mrp,
             price: variants.length ? Math.min(...variants.map((v) => v.price)) : p.sellingPrice || p.mrp,
             colors: [...new Map(variants.map((v) => [v.color, v.colorHex])).entries()].map(([name, hex]) => ({name, hex})),

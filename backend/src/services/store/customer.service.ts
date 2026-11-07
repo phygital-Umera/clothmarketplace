@@ -54,6 +54,7 @@ const CART_INCLUDE = {
                     size: true,
                     color: true,
                     colorHex: true,
+                    image: true,
                     sellingPrice: true,
                     mrp: true,
                     isActive: true,
@@ -96,7 +97,8 @@ const toLine = (i: CartRow['items'][number]) => {
         variantId: i.variant.id,
         name: p.name,
         brand: p.brand?.name ?? p.shop?.name ?? '',
-        image: p.images[0]?.url ?? null,
+        // The photo of the chosen colour when there is one (saved on the order too)
+        image: i.variant.image || p.images[0]?.url || null,
         color: i.variant.color,
         colorHex: i.variant.colorHex,
         size: i.variant.size,

@@ -48,6 +48,14 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('Cloudflare API token with Workers AI permission (AI product previews)'),
+    CLOUDFLARE_AI_FOR_COLOURS: z
+        .enum(['true', 'false'])
+        .default('false')
+        .describe('Also use Workers AI for colour photos (uses the daily allowance quickly)'),
+    CLOUDFLARE_AI_PRO_MODEL: z
+        .string()
+        .default('@cf/black-forest-labs/flux-2-klein-9b')
+        .describe('Workers AI image model for professional photos (mannequin / model)'),
     CLOUDFLARE_AI_MODEL: z
         .string()
         .default('@cf/black-forest-labs/flux-2-klein-4b')
@@ -100,6 +108,8 @@ export default {
         cloudflareAccountId: envVars.CLOUDFLARE_ACCOUNT_ID || undefined,
         cloudflareApiToken: envVars.CLOUDFLARE_AI_API_TOKEN || undefined,
         imageModel: envVars.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-2-klein-4b',
+        proModel: envVars.CLOUDFLARE_AI_PRO_MODEL || '@cf/black-forest-labs/flux-2-klein-9b',
+        colourWithAi: envVars.CLOUDFLARE_AI_FOR_COLOURS === 'true',
     },
     razorpay: {
         keyId: envVars.RAZORPAY_KEY_ID || undefined,

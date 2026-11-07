@@ -165,7 +165,7 @@ export default function ShopOrdersPage({panel}: Props) {
                 <div
                   key={idx}
                   className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-ivory-200 overflow-hidden shrink-0 border border-ivory-300"
-                  title={item.productName || item.product?.name}
+                  title={[item.productName || item.product?.name, item.color || item.variant?.color, item.size || item.variant?.size].filter(Boolean).join(' · ')}
                 >
                   {img ? (
                     <img src={img} alt="" className="h-full w-full object-cover" />
@@ -178,8 +178,19 @@ export default function ShopOrdersPage({panel}: Props) {
               );
             })}
           </div>
-          <span className="text-xs text-outline font-medium">
+          <span className="min-w-0 text-xs text-outline font-medium">
             {o.items?.length || 0} item(s)
+            {/* Colour and size of what was ordered */}
+            {o.items?.slice(0, 2).map((item, idx) => {
+              const color = item.color || item.variant?.color;
+              const size = item.size || item.variant?.size;
+              return color || size ? (
+                <span key={idx} className="block max-w-[180px] truncate text-[11px] font-normal text-espresso">
+                  {[color, size && `Size ${size}`].filter(Boolean).join(' · ')}
+                  {item.quantity > 1 ? ` × ${item.quantity}` : ''}
+                </span>
+              ) : null;
+            })}
           </span>
         </div>
       ),

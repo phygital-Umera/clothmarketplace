@@ -23,7 +23,13 @@ export interface ShopProductImage {
   altText: string | null;
   order: number;
   isMain: boolean;
+  /** Set on a clean white-background photo: the shop photo it was made from */
+  cleanedFromId?: string | null;
+  /** AI professional photo style, when the AI made this photo */
+  aiStyle?: PhotoStyle | null;
 }
+
+export type PhotoStyle = 'GHOST' | 'MANNEQUIN' | 'MODEL';
 
 export interface ColorPreview {
   id: string;

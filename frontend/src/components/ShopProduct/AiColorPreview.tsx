@@ -346,11 +346,11 @@ const AiColorPreview = ({product, editable = true}: Props) => {
         )}
 
         <p className="field-hint">
-          Made from the selected photo, up to 6 colours per run; your original
-          photo is never changed. With Cloudflare AI keys in the backend .env,
-          Cloudflare Workers AI (FLUX.2) makes them (free tier: about 80 a day).
-          Without keys, a built-in recolour is used: best for one-colour
-          garments on a plain background.
+          Made from the selected photo, up to 6 colours per run, in about a
+          second each; your original photo is never changed. Only the garment
+          is recoloured and every result is checked before it is saved. Best
+          for one-colour garments; pick a clean or professional photo as the
+          source for white-background colour photos.
         </p>
       </div>
     </div>

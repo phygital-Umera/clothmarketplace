@@ -8,8 +8,11 @@ import {
   saveShopProduct,
   updateShopProductImage,
   uploadShopProductImages,
+  cleanShopProductImage,
+  professionalShopProductImage,
+  getAiStatus,
 } from '@/lib/api/shopProduct';
-import {ShopProduct, ShopProductParams} from '@/types/shopProduct';
+import {PhotoStyle, ShopProduct, ShopProductParams} from '@/types/shopProduct';
 import {getErrorMessage} from '@/utils/axios';
 import {
   keepPreviousData,
@@ -109,8 +112,27 @@ export const useShopProductImages = (productId: string) => {
       onSuccess: done,
       onError: errorToast('Could not remove the image'),
     }),
+    clean: useMutation({
+      mutationFn: (imageId: string) => cleanShopProductImage(productId, imageId),
+      onSuccess: done,
+      onError: errorToast('Could not clean the background'),
+    }),
+    professional: useMutation({
+      mutationFn: ({imageId, style, details}: {imageId: string; style: PhotoStyle; details?: string}) =>
+        professionalShopProductImage(productId, imageId, style, details),
+      onSuccess: done,
+      onError: errorToast('Could not make the professional photo'),
+    }),
   };
 };
+
+/** Are AI photos (Cloudflare keys) set up on the server? */
+export const useAiStatus = () =>
+  useQuery({
+    queryKey: ['ai-status'],
+    queryFn: async () => (await getAiStatus()).data.ready,
+    staleTime: 60_000,
+  });
 
 export const useShopProductPreviews = (productId: string) => {
   const refresh = useRefresh();

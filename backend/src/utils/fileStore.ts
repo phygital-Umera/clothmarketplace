@@ -47,7 +47,7 @@ const extensionOf = (data: Buffer) => {
 export const storeGenerated = async (
     req: Request,
     base64: string,
-    folder: 'previews',
+    folder: 'previews' | 'products',
 ): Promise<string> => {
     const data = Buffer.from(base64, 'base64');
     const filename = `${randomUUID()}.${extensionOf(data)}`;
