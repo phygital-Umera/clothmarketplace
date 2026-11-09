@@ -19,9 +19,13 @@ import {Photo, checkRecolour, compositeGarment, garmentColour, loadPhoto, recolo
 const INPUT_MAX = 511;
 const OUTPUT_SIZE = 1024;
 const TIMEOUT_MS = 90_000;
+/** Pause before trying again after a Cloudflare server error */
+const RETRY_PAUSE_MS = 2_000;
 
 class QuotaError extends Error {}
 class TokenError extends Error {}
+/** Cloudflare's own failure (HTTP 5xx): usually gone on the next try */
+class ServerError extends Error {}
 
 const promptFor = (colorName: string, hex: string) =>
     [
@@ -484,23 +488,38 @@ class AiPreviewService {
     /**
      * One image from Workers AI, as base64. Each Cloudflare account in the .env is
      * tried in order; the next one takes over when an account is out of today's
-     * free allowance or its token is rejected.
+     * free allowance or its token is rejected. A Cloudflare server error (5xx) is
+     * tried once more on the same account, then on the next one.
      */
     private async run(prompt: string, image: Buffer, size = {width: OUTPUT_SIZE, height: OUTPUT_SIZE}, model = config.ai.imageModel): Promise<string> {
         const errors: Error[] = [];
         for (const [i, account] of config.ai.accounts.entries()) {
-            try {
-                return await this.runOn(account, prompt, image, size, model);
-            } catch (error) {
-                if (!(error instanceof QuotaError || error instanceof TokenError)) throw error;
-                errors.push(error);
-                if (i < config.ai.accounts.length - 1) {
-                    logger.warn(`Workers AI account ${i + 1}: ${error.message} Trying account ${i + 2}.`);
+            for (let attempt = 1; ; attempt++) {
+                try {
+                    return await this.runOn(account, prompt, image, size, model);
+                } catch (error) {
+                    if (error instanceof ServerError && attempt < 2) {
+                        logger.warn(`Workers AI account ${i + 1}: server error, trying again`);
+                        await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
+                        continue;
+                    }
+                    if (!(error instanceof QuotaError || error instanceof TokenError || error instanceof ServerError)) throw error;
+                    errors.push(error);
+                    if (i < config.ai.accounts.length - 1) {
+                        logger.warn(`Workers AI account ${i + 1}: ${error.message} Trying account ${i + 2}.`);
+                    }
+                    break;
                 }
             }
         }
-        // Every account failed: "used up" wins, so callers switch to the built-in recolour
-        throw errors.find((e) => e instanceof QuotaError) ?? errors[0] ?? new Error('AI preview is not configured');
+        // Every account failed. "Try again" beats "used up" when an account still has allowance;
+        // "used up" beats a bad token, so colour runs switch to the built-in recolour
+        throw (
+            errors.find((e) => e instanceof ServerError) ??
+            errors.find((e) => e instanceof QuotaError) ??
+            errors[0] ??
+            new Error('AI preview is not configured')
+        );
     }
 
     private async runOn(
@@ -560,6 +579,9 @@ class AiPreviewService {
         }
         if (res.status === 401 || res.status === 403) {
             throw new TokenError(`The AI service rejected the API token; check ${account.tokenVar}`);
+        }
+        if (res.status >= 500) {
+            throw new ServerError('The AI service had a temporary problem. Try again in a minute.');
         }
         throw new Error(`AI generation failed: ${message}`);
     }
