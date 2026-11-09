@@ -8,11 +8,12 @@ import {
 } from '@/types/creditNote';
 import {api} from '@/utils/axios';
 
-// Sales returns: shops create credit notes, the branch admin decides on
-// cash refunds and refunds above the limit. The response interceptor
-// already unwraps the axios response body.
+// Sales returns: shops create credit notes, the branch admin (or the company
+// owner running the shop) decides on cash refunds and refunds above the
+// limit. The response interceptor already unwraps the axios response body.
 type Res<T> = Promise<{statusCode: number; data: T; message: string}>;
-type Panel = 'shop-admin' | 'branch-admin';
+export type CreditNotePanel = 'shop-admin' | 'branch-admin';
+type Panel = CreditNotePanel;
 
 export const getCreditNotes = (panel: Panel, params: CreditNoteListParams) =>
   api.get(`/${panel}/credit-notes`, {params}) as unknown as Res<{
@@ -36,8 +37,12 @@ export const getReturnableBill = (bill: string) =>
 export const createCreditNote = (data: CreateCreditNotePayload) =>
   api.post('/shop-admin/credit-notes', data) as unknown as Res<CreditNote>;
 
-export const decideCreditNote = (id: string, data: DecideCreditNotePayload) =>
+export const decideCreditNote = (
+  id: string,
+  data: DecideCreditNotePayload,
+  panel: Panel = 'branch-admin',
+) =>
   api.post(
-    `/branch-admin/credit-notes/${id}/decision`,
+    `/${panel}/credit-notes/${id}/decision`,
     data,
   ) as unknown as Res<CreditNote>;

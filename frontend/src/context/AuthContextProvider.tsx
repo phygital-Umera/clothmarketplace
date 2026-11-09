@@ -1,6 +1,7 @@
 import {ReactNode, useCallback, useState} from 'react';
 import {AuthContext} from './AuthContext';
 import {Token, User} from '@/types';
+import {setOwnerShop} from '@/lib/ownerShop';
 import {QUERY_KEYS} from '@/lib/react-query/queryKeys';
 import {jwtDecode} from 'jwt-decode';
 
@@ -37,6 +38,8 @@ const AuthContextProvider = ({children}: {children: ReactNode}) => {
 
   const login = useCallback((newToken: Required<Token>) => {
     localStorage.setItem(QUERY_KEYS.TOKEN, JSON.stringify(newToken));
+    // A new sign-in starts outside any shop
+    setOwnerShop(null);
     const decoded: User = jwtDecode(newToken.accessToken);
     setToken(newToken);
     setUser(decoded);
@@ -46,6 +49,7 @@ const AuthContextProvider = ({children}: {children: ReactNode}) => {
 
   const logout = useCallback(() => {
     localStorage.removeItem(QUERY_KEYS.TOKEN);
+    setOwnerShop(null);
     setToken(null);
     setUser(null);
     setRole(null);

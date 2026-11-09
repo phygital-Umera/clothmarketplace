@@ -74,7 +74,15 @@ export const homeFor = (role?: string | null) =>
 export const landingFor = (role?: string | null): Landing =>
   roleConfig(role)?.landing ?? {to: homeFor(role)};
 
-/** Employees also open the shop screens of the modules they were given */
+/** The shop screens (/shop-admin/...) */
+export const inShopPanel = (path: string) =>
+  path === ROLES.SHOP_ADMIN.prefix ||
+  path.startsWith(`${ROLES.SHOP_ADMIN.prefix}/`);
+
+/**
+ * Employees also open the shop screens of the modules they were given;
+ * company admins open the shop screens of their own shops (shop mode)
+ */
 export const canOpen = (
   role: string | null | undefined,
   path: string,
@@ -83,6 +91,7 @@ export const canOpen = (
   const config = roleConfig(role);
   if (!config) return false;
   if (role === 'EMPLOYEE' && employeeCanOpen(path, permissions)) return true;
+  if (role === 'ADMIN' && inShopPanel(path)) return true;
   return (
     SHARED_PATHS.includes(path) ||
     path === config.prefix ||

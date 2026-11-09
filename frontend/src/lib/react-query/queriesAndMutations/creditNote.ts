@@ -1,5 +1,6 @@
 import {
   createCreditNote,
+  CreditNotePanel,
   decideCreditNote,
   getCreditNote,
   getCreditNotes,
@@ -25,7 +26,7 @@ import toast from 'react-hot-toast';
 
 export const CREDIT_NOTE_KEYS = {NOTES: 'credit_notes'};
 
-type Panel = 'shop-admin' | 'branch-admin';
+type Panel = CreditNotePanel;
 
 /** Approved returns put units back in stock, so stock views refresh too */
 const invalidate = (queryClient: QueryClient) => {
@@ -82,11 +83,12 @@ export const useCreateCreditNote = () => {
   });
 };
 
-export const useDecideCreditNote = () => {
+/** Branch admin, or the company owner running a shop ('shop-admin') */
+export const useDecideCreditNote = (panel: Panel = 'branch-admin') => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({id, data}: {id: string; data: DecideCreditNotePayload}) =>
-      decideCreditNote(id, data),
+      decideCreditNote(id, data, panel),
     onSuccess: (res) => {
       toast.success(res.message || 'Saved');
       invalidate(queryClient);

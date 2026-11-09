@@ -3,6 +3,7 @@ import CreditNoteTable from '@/components/CreditNotes/CreditNoteTable';
 import NewReturnModal from '@/components/CreditNotes/NewReturnModal';
 import ListToolbar from '@/components/Org/ListToolbar';
 import {PageHeader} from '@/components/ui';
+import {useAuthContext} from '@/context/AuthContext';
 import useListState from '@/hooks/useListState';
 import {
   useCreditNote,
@@ -22,8 +23,13 @@ const TABS: {label: string; value: CreditNoteTab | undefined}[] = [
   {label: 'Rejected', value: 'REJECTED'},
 ];
 
-/** Shop admin: returns taken at this shop's counter */
+/**
+ * Shop admin: returns taken at this shop's counter. The company owner running
+ * the shop can also decide returns waiting for approval.
+ */
 export default function ShopSalesReturnsPage() {
+  const {role} = useAuthContext();
+  const isOwner = role === 'ADMIN';
   const list = useListState();
   const [tab, setTab] = useState<CreditNoteTab | undefined>();
   const [creating, setCreating] = useState(false);
@@ -40,7 +46,11 @@ export default function ShopSalesReturnsPage() {
       <PageHeader
         breadcrumbs={[{label: 'Sales'}, {label: 'Sales returns'}]}
         title="Sales returns"
-        subtitle="Take back items from a sales bill as an exchange, store credit or refund. Cash refunds and large refunds are approved by the branch."
+        subtitle={
+          isOwner
+            ? 'Take back items from a sales bill as an exchange, store credit or refund. Your refunds are approved at once; decide returns waiting for approval here.'
+            : 'Take back items from a sales bill as an exchange, store credit or refund. Cash refunds and large refunds need approval.'
+        }
         actions={
           <button
             type="button"
@@ -84,7 +94,11 @@ export default function ShopSalesReturnsPage() {
 
         <aside className="xl:sticky xl:top-4">
           {selected ? (
-            <CreditNoteDetail note={selected} />
+            <CreditNoteDetail
+              note={selected}
+              canDecide={isOwner}
+              panel="shop-admin"
+            />
           ) : (
             <div className="panel p-6 text-body-sm text-on-surface-variant">
               Select a return to see its details.

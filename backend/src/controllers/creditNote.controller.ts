@@ -1,6 +1,8 @@
 import {Request} from 'express';
 import httpStatus from 'http-status';
+import {Role} from '@prisma/client';
 import {auditService, creditNoteService} from '@services/index';
+import {NoteScope} from '../services/creditNote.service';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {creditNoteValidation as v} from '@validations/index';
 
@@ -25,12 +27,44 @@ const branchOf = (req: Request) => {
     return {companyId, branchId};
 };
 
+/** Only the company admin working in the shop decides there; shop logins and employees cannot */
+const companyAdminShopOf = (req: Request) => {
+    if (req.user.realRole !== Role.ADMIN) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Refunds are approved by the branch admin');
+    }
+    return shopOf(req);
+};
+
 const ok = (
     res: Parameters<Parameters<typeof catchAsync>[0]>[1],
     data: unknown,
     message: string,
     status = 200,
 ) => res.status(status).json(new ApiResponse(status, data, message));
+
+/** Approve, settle as store credit, or reject a pending return within the given scope */
+const decideIn = (scopeOf: (req: Request) => NoteScope) =>
+    catchAsync(async (req, res) => {
+        const scope = scopeOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const data = v.decideCreditNoteSchema.parse(req.body);
+        const {after} = await auditService.track(
+            req,
+            {
+                action: `creditNote.${data.action.toLowerCase()}`,
+                module: 'billing',
+                targetId: id,
+                reason: data.note,
+            },
+            async () => ({after: await creditNoteService.decide(scope, req.user.id, id, data)}),
+        );
+        const message = {
+            APPROVE: 'Refund approved',
+            STORE_CREDIT: 'Settled as store credit',
+            REJECT: 'Return rejected',
+        }[data.action];
+        return ok(res, after, message);
+    });
 
 const shop = {
     list: catchAsync(async (req, res) => {
@@ -54,7 +88,12 @@ const shop = {
         const {after} = await auditService.track(
             req,
             {action: 'creditNote.create', module: 'billing', targetId: data.salesBillId},
-            async () => ({after: await creditNoteService.create(scope, req.user.id, data)}),
+            async () => ({
+                // The company admin running a shop approves their own refunds
+                after: await creditNoteService.create(scope, req.user.id, data, {
+                    selfApproved: req.user.realRole === Role.ADMIN,
+                }),
+            }),
         );
         return ok(
             res,
@@ -65,6 +104,9 @@ const shop = {
             httpStatus.CREATED,
         );
     }),
+
+    // Company admin running a shop (no branch admin above): decides its pending returns
+    decide: decideIn(companyAdminShopOf),
 };
 
 const branch = {
@@ -83,27 +125,7 @@ const branch = {
         return ok(res, await creditNoteService.get(branchOf(req), id), 'Credit note fetched');
     }),
 
-    decide: catchAsync(async (req, res) => {
-        const scope = branchOf(req);
-        const {id} = v.idSchema.parse(req.params);
-        const data = v.decideCreditNoteSchema.parse(req.body);
-        const {after} = await auditService.track(
-            req,
-            {
-                action: `creditNote.${data.action.toLowerCase()}`,
-                module: 'billing',
-                targetId: id,
-                reason: data.note,
-            },
-            async () => ({after: await creditNoteService.decide(scope, req.user.id, id, data)}),
-        );
-        const message = {
-            APPROVE: 'Refund approved',
-            STORE_CREDIT: 'Settled as store credit',
-            REJECT: 'Return rejected',
-        }[data.action];
-        return ok(res, after, message);
-    }),
+    decide: decideIn(branchOf),
 };
 
 export default {shop, branch};

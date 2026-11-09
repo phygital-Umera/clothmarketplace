@@ -1,4 +1,5 @@
 import {Token, User} from '@/types';
+import {getOwnerShop, refuseOwnerShop, setOwnerShop} from '@/lib/ownerShop';
 import {QUERY_KEYS} from '@/lib/react-query/queryKeys';
 import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
 import {jwtDecode} from 'jwt-decode';
@@ -16,6 +17,7 @@ const readToken = (): Token | null =>
 
 const endSession = () => {
   localStorage.removeItem(QUERY_KEYS.TOKEN);
+  setOwnerShop(null);
   if (!window.location.pathname.startsWith('/signin')) {
     window.location.assign('/signin');
   }
@@ -61,8 +63,18 @@ api.interceptors.request.use(async (req) => {
   if (user.role === 'EMPLOYEE' && req.url?.startsWith('/shop-admin/')) {
     req.url = `/employee/${req.url.slice('/shop-admin/'.length)}`;
   }
+
+  // A company admin working in one of their shops: the server treats the
+  // request as that shop's login
+  const shop = user.role === 'ADMIN' ? getOwnerShop(user.id) : null;
+  if (shop && req.url?.startsWith('/shop-admin/')) {
+    req.headers['X-Shop-Id'] = shop.id;
+  }
   return req;
 });
+
+// Sent by the server when the open shop can no longer be used
+const SHOP_REFUSED = 'This shop is closed or not in your company';
 
 api.interceptors.response.use(
   async (res: AxiosResponse) => {
@@ -71,6 +83,15 @@ api.interceptors.response.use(
   (error: AxiosError<unknown>) => {
     if (error.response?.status === 401) {
       endSession();
+    }
+    // Back to the shop picker
+    const sentShop = error.config?.headers?.['X-Shop-Id'];
+    if (
+      error.response?.status === 403 &&
+      sentShop &&
+      getErrorMessage(error, '').startsWith(SHOP_REFUSED)
+    ) {
+      refuseOwnerShop(String(sentShop));
     }
     return Promise.reject(error);
   },

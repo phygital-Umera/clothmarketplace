@@ -46,7 +46,8 @@ class AuditService {
                 data: {
                     actorId: entry.actor?.id,
                     actorName: entry.actor?.fullname,
-                    actorRole: entry.actor?.role,
+                    // In shop mode the company admin is recorded, not the shop role
+                    actorRole: entry.actor?.realRole ?? entry.actor?.role,
                     action: entry.action,
                     module: entry.module,
                     targetId: entry.targetId ?? undefined,

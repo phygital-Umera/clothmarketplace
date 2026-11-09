@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import ClickOutside from '../ClickOutside';
 import {useAuthContext} from '@/context/AuthContext';
+import {setOwnerShop} from '@/lib/ownerShop';
 import {roleConfig} from '@/lib/roles';
 import {logoutUser} from '@/lib/api/Auth/auth';
 import {ChevronDown, LogOut, User} from 'lucide-react';
@@ -15,6 +16,7 @@ const DropdownUser = () => {
   const handleSignOut = async () => {
     // Sign out locally even if the server is unreachable
     await logoutUser().catch(() => undefined);
+    setOwnerShop(null);
     queryClient.clear();
     logout();
   };
@@ -54,7 +56,7 @@ const DropdownUser = () => {
       </button>
 
       {dropdownOpen && (
-        <div className="absolute right-0 mt-3 w-56 border border-ivory-300 bg-white shadow-md z-50">
+        <div className="absolute right-0 z-50 mt-3 w-56 border border-ivory-300 bg-white shadow-md">
           <div className="border-b border-ivory-300 px-4 py-3">
             <p className="truncate text-body-sm font-medium text-espresso">
               {user?.fullname}
@@ -67,7 +69,7 @@ const DropdownUser = () => {
           <Link
             to={profilePath}
             onClick={() => setDropdownOpen(false)}
-            className="flex w-full items-center gap-3 px-4 py-3 text-body-sm text-espresso transition-colors hover:bg-ivory-100 hover:text-burgundy border-b border-ivory-300"
+            className="flex w-full items-center gap-3 border-b border-ivory-300 px-4 py-3 text-body-sm text-espresso transition-colors hover:bg-ivory-100 hover:text-burgundy"
           >
             <User size={16} /> My profile
           </Link>

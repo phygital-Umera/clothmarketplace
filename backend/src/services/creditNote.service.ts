@@ -148,10 +148,15 @@ class CreditNoteService {
         return {...bill, items: await this.returnableLines(prisma, bill.id)};
     };
 
+    /**
+     * selfApproved: the company admin working in the shop has no one above to
+     * ask, so a refund over the limit is approved by them on the spot.
+     */
     public create = async (
         scope: NoteScope & {shopId: string},
         actorId: string,
         data: CreateNote,
+        opts: {selfApproved?: boolean} = {},
     ) => {
         const created = await accountService.withRetry(
             () =>
@@ -218,9 +223,12 @@ class CreditNoteService {
                     const totalAmount = round2(items.reduce((t, i) => t + i.totalAmount, 0));
                     const taxAmount = round2(items.reduce((t, i) => t + i.taxAmount, 0));
                     const isRefund = data.settlement === ReturnSettlement.REFUND;
-                    const needsApproval =
+                    const overLimit =
                         isRefund &&
                         (data.refundMode === 'CASH' || totalAmount > REFUND_APPROVAL_LIMIT);
+                    // needsApproval = went to the branch queue; self-approved notes never do
+                    const needsApproval = overLimit && !opts.selfApproved;
+                    const selfApproved = overLimit && !needsApproval;
                     const noteNumber = await this.nextNumber(tx, bill.shopId);
 
                     // Take the return off what the customer still owes on this bill
@@ -284,6 +292,8 @@ class CreditNoteService {
                             // Pending notes take the branch admin's choice later
                             stockTo: needsApproval ? null : data.stockTo,
                             decidedAt: needsApproval ? null : new Date(),
+                            // Shows "Approved by …" on the note, as a branch decision does
+                            decidedById: selfApproved ? actorId : null,
                             createdById: actorId,
                             items: {create: items},
                         },
