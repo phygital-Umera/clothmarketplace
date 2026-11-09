@@ -53,6 +53,8 @@ const envVarsSchema = z.object({
         .optional()
         .describe('Optional second Cloudflare account, used when the first is out of its daily allowance'),
     CLOUDFLARE_AI_API_TOKEN2: z.string().optional().describe('API token for CLOUDFLARE_ACCOUNT_ID2'),
+    CLOUDFLARE_ACCOUNT_ID3: z.string().optional().describe('Optional third Cloudflare account, used after the second'),
+    CLOUDFLARE_AI_API_TOKEN3: z.string().optional().describe('API token for CLOUDFLARE_ACCOUNT_ID3'),
     CLOUDFLARE_AI_FOR_COLOURS: z
         .enum(['true', 'false'])
         .default('false')
@@ -114,6 +116,7 @@ export default {
         accounts: [
             {id: envVars.CLOUDFLARE_ACCOUNT_ID, token: envVars.CLOUDFLARE_AI_API_TOKEN, tokenVar: 'CLOUDFLARE_AI_API_TOKEN'},
             {id: envVars.CLOUDFLARE_ACCOUNT_ID2, token: envVars.CLOUDFLARE_AI_API_TOKEN2, tokenVar: 'CLOUDFLARE_AI_API_TOKEN2'},
+            {id: envVars.CLOUDFLARE_ACCOUNT_ID3, token: envVars.CLOUDFLARE_AI_API_TOKEN3, tokenVar: 'CLOUDFLARE_AI_API_TOKEN3'},
         ].filter((a): a is {id: string; token: string; tokenVar: string} => !!(a.id?.trim() && a.token?.trim())),
         imageModel: envVars.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-2-klein-4b',
         proModel: envVars.CLOUDFLARE_AI_PRO_MODEL || '@cf/black-forest-labs/flux-2-klein-9b',

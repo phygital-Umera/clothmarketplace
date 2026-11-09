@@ -117,14 +117,16 @@ CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id
 CLOUDFLARE_AI_API_TOKEN=your-api-token
 ```
 
-Optional: a second Cloudflare account (its own Account ID and token, made the
-same way) doubles the free daily allowance. When the first account has used
-today's allowance, or its token is rejected, the second one takes over
+Optional: a second and a third Cloudflare account (each with its own Account ID
+and token, made the same way) add their free daily allowance. When one account
+has used today's allowance, or its token is rejected, the next one takes over
 automatically:
 
 ```
 CLOUDFLARE_ACCOUNT_ID2=second-account-id
 CLOUDFLARE_AI_API_TOKEN2=second-account-token
+CLOUDFLARE_ACCOUNT_ID3=third-account-id
+CLOUDFLARE_AI_API_TOKEN3=third-account-token
 ```
 
 Optional: `CLOUDFLARE_AI_PRO_MODEL` (default `@cf/black-forest-labs/flux-2-klein-9b`,
