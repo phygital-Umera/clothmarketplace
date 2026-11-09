@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import {Prisma, Role, ShopStatus} from '@prisma/client';
+import {BranchStatus, Prisma, Role, ShopStatus} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import {ApiError, encryptPassword} from '@utils/index';
@@ -81,29 +81,37 @@ class ShopService {
         return present(shop);
     }
 
-    /** Active shops for pickers (employee form), optionally of one branch */
+    /** Active shops in active branches for pickers (employee form, owner's shop picker), optionally of one branch */
     public async options(scope: Scope, branchId?: string) {
         return prisma.shop.findMany({
             where: {
                 ...this.scopeWhere(scope),
                 ...(branchId ? {branchId} : {}),
                 status: ShopStatus.ACTIVE,
+                branch: {status: BranchStatus.ACTIVE, deletedAt: null},
             },
             select: {id: true, name: true, code: true, branchId: true},
             orderBy: {name: 'asc'},
         });
     }
 
-    /** Branch admins always use their own branch; company admins pick one */
-    private async resolveBranch(scope: Scope, requested?: string) {
+    /**
+     * Branch admins always use their own branch; company admins pick one, or
+     * get the only active branch (a new Main Branch when there is none yet)
+     */
+    private async resolveBranch(scope: Scope, actorId: string, requested?: string) {
         if (scope.branchId) return scope.branchId;
-        if (!requested) {
-            throw new ApiError(httpStatus.BAD_REQUEST, 'Branch is required', [
-                {field: 'branchId', message: 'Branch is required'},
-            ]);
+        if (requested) {
+            await branchService.assertActiveInCompany(scope.companyId!, requested);
+            return requested;
         }
-        await branchService.assertActiveInCompany(scope.companyId!, requested);
-        return requested;
+        const fallback = scope.companyId
+            ? await branchService.defaultBranchId(scope.companyId, actorId)
+            : null;
+        if (fallback) return fallback;
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Branch is required', [
+            {field: 'branchId', message: 'Branch is required'},
+        ]);
     }
 
     public async create(scope: Scope, data: CreateShop, actorId: string) {
@@ -121,9 +129,10 @@ class ShopService {
                 {field: 'adminPassword', message: 'Login Password is required'},
             ]);
         }
-        const branchId = await this.resolveBranch(scope, requested);
         if (withLogin)
             await accountService.ensureLoginIsFree(adminPhone, adminEmail, undefined, LOGIN_FIELDS);
+        // After the login check: a taken phone number must not leave a new Main Branch behind
+        const branchId = await this.resolveBranch(scope, actorId, requested);
         const password = adminPassword ? await encryptPassword(adminPassword) : undefined;
         const branch = await prisma.branch.findUniqueOrThrow({
             where: {id: branchId},

@@ -3,8 +3,10 @@ import {Column, ConfirmDialog, GenericTable} from '@/components/Forms';
 import {ShopEditor} from '@/components/Org/Editors';
 import ListToolbar, {FilterSelect} from '@/components/Org/ListToolbar';
 import {PageHeader, StatusBadge} from '@/components/ui';
+import {useAuthContext} from '@/context/AuthContext';
 import useInlineEditor from '@/hooks/useInlineEditor';
 import useListState from '@/hooks/useListState';
+import {useSwitchShop} from '@/lib/ownerShop';
 import {useCompanies} from '@/lib/react-query/queriesAndMutations/company';
 import {
   useBranchOptions,
@@ -13,14 +15,21 @@ import {
 } from '@/lib/react-query/queriesAndMutations/org';
 import {Panel, Shop} from '@/types/org';
 import {getErrorMessage} from '@/utils/axios';
-import {useSearch} from '@tanstack/react-router';
-import {CircleCheck, CirclePause, Pencil, Plus, Store} from 'lucide-react';
+import {useNavigate, useSearch} from '@tanstack/react-router';
+import {
+  CircleCheck,
+  CirclePause,
+  DoorOpen,
+  Pencil,
+  Plus,
+  Store,
+} from 'lucide-react';
 import {useState} from 'react';
 
 /**
  * Shops master on one page: the add / edit form (with the shop login) opens
- * above the list. Branch admin: own branch. Company admin: every branch.
- * Super admin: read-only overview.
+ * above the list. Branch admin: own branch. Company admin: every branch, and
+ * can open a shop to run it. Super admin: read-only overview.
  */
 const ShopList = ({panel}: {panel: Panel}) => {
   const editable = panel !== 'super-admin';
@@ -34,10 +43,23 @@ const ShopList = ({panel}: {panel: Panel}) => {
     list.params,
   );
   const branches = useBranchOptions(companyWide);
+  // A company with one branch does not need to see or filter by it
+  const showBranch =
+    panel !== 'branch-admin' &&
+    (!companyWide || (branches.data?.length ?? 0) > 1);
   // Only the super admin filters by company
   const companies = useCompanies({page: 1, limit: 100}, !editable);
   const setStatus = useSetShopStatus(panel);
   const [toggle, setToggle] = useState<Shop | null>(null);
+  const {user} = useAuthContext();
+  const switchShop = useSwitchShop();
+  const navigate = useNavigate();
+
+  const openShop = (s: Shop) => {
+    if (!user?.id) return;
+    switchShop({userId: user.id, id: s.id, name: s.name});
+    navigate({to: '/shop-admin/dashboard'});
+  };
 
   const columns: Column<Shop>[] = [
     {
@@ -59,7 +81,7 @@ const ShopList = ({panel}: {panel: Panel}) => {
           } as Column<Shop>,
         ]
       : []),
-    ...(panel !== 'branch-admin'
+    ...(showBranch
       ? [
           {
             header: 'Branch',
@@ -149,6 +171,15 @@ const ShopList = ({panel}: {panel: Panel}) => {
         rowActions={
           editable
             ? (s) => [
+                ...(companyWide && s.status === 'ACTIVE'
+                  ? [
+                      {
+                        label: 'Open shop',
+                        icon: <DoorOpen size={16} />,
+                        onClick: openShop,
+                      },
+                    ]
+                  : []),
                 {
                   label: 'Edit',
                   icon: <Pencil size={16} />,
@@ -190,7 +221,7 @@ const ShopList = ({panel}: {panel: Panel}) => {
             onSearch={list.setSearchText}
             placeholder="Search name, code or phone"
           >
-            {companyWide && (
+            {companyWide && showBranch && (
               <FilterSelect
                 label="Branches"
                 value={list.filters.branchId}

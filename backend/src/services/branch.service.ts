@@ -223,6 +223,47 @@ class BranchService {
         }
     }
 
+    /**
+     * Branch for a company admin's new shop when none was picked: the only
+     * active branch, or a new Main Branch at the company's address when the
+     * business has no branches yet. null when there are several to pick from.
+     */
+    public async defaultBranchId(companyId: string, actorId: string): Promise<string | null> {
+        const branches = await prisma.branch.findMany({
+            where: {companyId, deletedAt: null},
+            select: {id: true, status: true},
+        });
+        const active = branches.filter((b) => b.status === BranchStatus.ACTIVE);
+        if (active.length === 1) return active[0].id;
+        if (active.length > 1) return null;
+        if (branches.length) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'Activate a branch under Branches before adding a shop',
+            );
+        }
+        const company = await prisma.company.findUniqueOrThrow({
+            where: {id: companyId},
+            select: {address: true, postalCode: true, state: true, district: true, city: true},
+        });
+        // shortcut: two first-shop saves at the same instant could create two Main Branches, fine for one admin
+        const branch = await this.create(
+            companyId,
+            {
+                name: 'Main Branch',
+                address: company.address,
+                postalCode: company.postalCode,
+                state: company.state,
+                district: company.district ?? company.city,
+                city: company.city,
+                weeklyHolidays: [],
+                status: BranchStatus.ACTIVE,
+            },
+            actorId,
+        );
+        return branch.id;
+    }
+
     /** Counts used by dashboards */
     public async counts(scope: Scope) {
         const base = this.scopeWhere(scope);
