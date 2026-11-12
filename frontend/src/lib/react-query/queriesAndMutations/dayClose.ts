@@ -6,6 +6,7 @@ import {
   resolveDayCloseDifference,
 } from '@/lib/api/dayClose';
 import toast from 'react-hot-toast';
+import {CASH_BOOK_KEYS} from './cashBook';
 
 export const DAY_CLOSE_KEYS = {
   all: ['branch-day-close'] as const,
@@ -19,13 +20,16 @@ export const useDayCloseData = (date: string) =>
     select: (res) => res.data as DayCloseData,
   });
 
-export const useResolveDifference = () => {
+export const useResolveDifference = (panel = 'branch-admin') => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: resolveDayCloseDifference,
+    mutationFn: (data: Parameters<typeof resolveDayCloseDifference>[0]) =>
+      resolveDayCloseDifference(data, panel),
     onSuccess: (res: any) => {
       toast.success(res?.message || 'Day close accepted');
       qc.invalidateQueries({queryKey: DAY_CLOSE_KEYS.all});
+      // The shop's cash book shows the review state too
+      qc.invalidateQueries({queryKey: CASH_BOOK_KEYS.all});
     },
   });
 };

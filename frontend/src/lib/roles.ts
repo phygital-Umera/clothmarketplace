@@ -38,6 +38,8 @@ export const ROLES: Record<Role, RoleConfig> = {
     label: 'Company Admin',
     home: '/company-admin/dashboard',
     prefix: '/company-admin',
+    // AppLayout picks: the shop for a single-shop business, else home
+    landing: {to: '/'},
   },
   SUB_ADMIN: {
     label: 'Branch Admin',
@@ -73,6 +75,11 @@ export const homeFor = (role?: string | null) =>
 /** Where each role lands right after signing in */
 export const landingFor = (role?: string | null): Landing =>
   roleConfig(role)?.landing ?? {to: homeFor(role)};
+
+/** A small business with one shop: shop-first panel, no branch screens */
+export const singleShop = (
+  me?: {company?: {businessMode?: string} | null} | null,
+) => me?.company?.businessMode === 'SINGLE_SHOP';
 
 /** The shop screens (/shop-admin/...) */
 export const inShopPanel = (path: string) =>

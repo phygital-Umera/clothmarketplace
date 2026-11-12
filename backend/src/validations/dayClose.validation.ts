@@ -11,7 +11,8 @@ const dayQuerySchema = z.object({
 
 const resolveDifferenceSchema = z.object({
     sessionId: z.string().uuid('Select a counter day'),
-    reason: field({label: 'Reason', kind: 'text', max: 200}),
+    // Same limit as the cashier's reason at close, which the review starts from
+    reason: field({label: 'Reason', kind: 'text', max: 300}),
     action: field({label: 'Action', kind: 'text', max: 120}),
     note: text('Note', 300),
 });

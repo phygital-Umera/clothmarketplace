@@ -126,6 +126,8 @@ model Company {
   adminEmail    String
   adminPhone    String
   status        CompanyStatus @default(ACTIVE)
+  /// SINGLE_SHOP: a small business with one shop and a simple panel; the owner can switch up to BRANCHES
+  businessMode  BusinessMode  @default(BRANCHES)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
@@ -303,6 +305,11 @@ enum CompanyStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum BusinessMode {
+  SINGLE_SHOP
+  BRANCHES
 }
 
 enum AuditResult {

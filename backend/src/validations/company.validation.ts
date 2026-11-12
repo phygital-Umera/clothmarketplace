@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {CompanyStatus} from '@prisma/client';
+import {BusinessMode, CompanyStatus} from '@prisma/client';
 import {field} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
 
@@ -23,6 +23,8 @@ const companyBodySchema = z.object({
     // Sign-in password for the company admin; stored hashed on their User
     adminPassword: field({label: 'Admin Password', kind: 'password'}),
     status: z.nativeEnum(CompanyStatus).default(CompanyStatus.ACTIVE),
+    // Omitted: new companies get the database default (BRANCHES)
+    businessMode: z.nativeEnum(BusinessMode).optional(),
     // Sent as "true" by the edit form to clear the existing logo
     removeLogo: z
         .enum(['true', 'false'])

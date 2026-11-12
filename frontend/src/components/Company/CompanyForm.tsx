@@ -151,6 +151,16 @@ const CompanyForm = ({
             {value: 'INACTIVE', label: 'Inactive'},
           ]}
         />
+        <GenericDropdown
+          name="businessMode"
+          label="Business type"
+          required
+          placeholder="Select business type"
+          options={[
+            {value: 'BRANCHES', label: 'Shops & branches'},
+            {value: 'SINGLE_SHOP', label: 'Single shop'},
+          ]}
+        />
       </div>
     </Group>
   );

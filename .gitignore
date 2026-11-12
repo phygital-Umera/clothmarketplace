@@ -42,3 +42,4 @@ node_modules
 dist
 .env
 user\.env
+backend/prisma/migrations

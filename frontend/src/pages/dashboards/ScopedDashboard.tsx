@@ -1,6 +1,7 @@
 import {PageHeader, StatCard, StatusBadge} from '@/components/ui';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {useScopedDashboard} from '@/lib/react-query/queriesAndMutations/org';
+import {singleShop} from '@/lib/roles';
 import {Panel} from '@/types/org';
 import {Link} from '@tanstack/react-router';
 
@@ -30,7 +31,7 @@ const ScopedDashboard = ({panel}: {panel: Exclude<Panel, 'super-admin'>}) => {
       )}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {companyWide && (
+        {companyWide && !singleShop(me) && (
           <>
             <StatCard label="Branches" value={data?.branches} />
             <StatCard label="Active Branches" value={data?.activeBranches} />

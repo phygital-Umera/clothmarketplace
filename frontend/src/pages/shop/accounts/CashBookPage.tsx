@@ -1,6 +1,9 @@
 import {OpenCounterModal} from '@/components/Bills/CounterModals';
+import {ReviewPanel} from '@/components/DayClose/ReviewPanel';
 import {Field, PageHeader} from '@/components/ui';
 import FormDialog from '@/components/ui/FormDialog';
+import useCurrentUser from '@/hooks/useCurrentUser';
+import {useOwnerShop} from '@/lib/ownerShop';
 import {
   useAddCashEntry,
   useCashBook,
@@ -208,7 +211,7 @@ function BankDepositDialog({
 
 // ---------------------------------------------------------------- day close
 
-function DayClosePanel({panel, day}: {panel: string; day: CashBookDay}) {
+function DayClosePanel({panel, day, owner}: {panel: string; day: CashBookDay; owner?: boolean}) {
   const close = useCloseCashDay(panel);
   const session = day.session!;
   const closed = session.status === 'CLOSED';
@@ -392,7 +395,9 @@ function DayClosePanel({panel, day}: {panel: string; day: CashBookDay}) {
             {session.closedBy ? ` by ${session.closedBy}` : ''}. Bills for the day are locked.
             {session.reviewStatus === 'ACCEPTED' || !session.difference
               ? ''
-              : ' The difference is waiting for the Branch Admin.'}
+              : owner
+                ? ' Accept the difference below.'
+                : ' The difference is waiting for the Branch Admin.'}
           </p>
         ) : day.isToday ? (
           <button
@@ -419,6 +424,12 @@ export default function CashBookPage({panel = 'shop-admin'}: Props) {
 
   const session = day?.session ?? null;
   const canMoveCash = !!day?.isToday && session?.status === 'OPEN';
+  const {data: me} = useCurrentUser();
+  const ownerShop = useOwnerShop(me?.id);
+  // The owner (company admin in shop mode) accepts a cash difference here, as a branch admin would
+  const owner = me?.role === 'ADMIN';
+  const toReview =
+    owner && session?.status === 'CLOSED' && !!session.difference && session.reviewStatus !== 'ACCEPTED';
 
   return (
     <div>
@@ -571,7 +582,24 @@ export default function CashBookPage({panel = 'shop-admin'}: Props) {
         <div className="space-y-4">
           {day && session ? (
             <>
-              <DayClosePanel key={session.id} panel={panel} day={day} />
+              <DayClosePanel key={session.id} panel={panel} day={day} owner={owner} />
+              {toReview && (
+                <ReviewPanel
+                  key={`review-${session.id}`}
+                  panel={panel}
+                  date={day.date}
+                  shop={{
+                    sessionId: session.id,
+                    shopName: ownerShop?.name ?? 'This shop',
+                    closedBy: session.closedBy ?? '—',
+                    expected: session.expectedCash ?? day.expected,
+                    counted: session.closingCash ?? 0,
+                    diff: session.difference ?? 0,
+                    status: 'NEEDS_REVIEW',
+                    reason: session.differenceReason,
+                  }}
+                />
+              )}
               {day.isToday && session.status === 'CLOSED' && (
                 <button type="button" className="btn-ghost w-full" onClick={() => setDialog('open')}>
                   Open counter again

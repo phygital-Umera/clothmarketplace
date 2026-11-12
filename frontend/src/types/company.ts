@@ -1,4 +1,6 @@
 export type CompanyStatus = 'ACTIVE' | 'INACTIVE';
+/** SINGLE_SHOP: a small business with one shop and a shop-first panel */
+export type BusinessMode = 'SINGLE_SHOP' | 'BRANCHES';
 
 export interface Company {
   id: string;
@@ -17,6 +19,7 @@ export interface Company {
   adminEmail: string;
   adminPhone: string;
   status: CompanyStatus;
+  businessMode?: BusinessMode;
   /** Whether the company admin already has a sign-in password */
   hasAdminLogin?: boolean;
   createdAt: string;

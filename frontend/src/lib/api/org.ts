@@ -33,6 +33,9 @@ export const getScopedDashboard = (panel: Panel) =>
   api.get(`/${panel}/dashboard`) as unknown as Res<ScopedDashboard>;
 export const getCompanyProfile = () =>
   api.get('/company-admin/profile') as unknown as Res<Company>;
+/** Single-shop business → shops & branches (one way for the owner) */
+export const switchToBranchMode = () =>
+  api.post('/company-admin/branch-mode') as unknown as Res<Company>;
 export const getBranchProfile = () =>
   api.get('/branch-admin/profile') as unknown as Res<Branch>;
 

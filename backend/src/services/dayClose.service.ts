@@ -170,11 +170,16 @@ class DayCloseService {
     }
 
     /** Accept a counter's difference with the reason and follow-up action */
-    public async resolveDifference(scope: BranchScope, actorId: string, payload: ResolveDiff) {
+    public async resolveDifference(
+        scope: BranchScope & {shopId?: string},
+        actorId: string,
+        payload: ResolveDiff,
+    ) {
         const session = await prisma.counterSession.findFirst({
             where: {
                 id: payload.sessionId,
                 closedAt: {not: null},
+                ...(scope.shopId ? {shopId: scope.shopId} : {}),
                 shop: {branchId: scope.branchId, companyId: scope.companyId},
             },
             include: {shop: {select: {name: true}}},

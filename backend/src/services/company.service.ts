@@ -1,4 +1,4 @@
-import {AccountStatus, CompanyStatus, Prisma, Role} from '@prisma/client';
+import {AccountStatus, BusinessMode, CompanyStatus, Prisma, Role} from '@prisma/client';
 import {z} from 'zod';
 import httpStatus from 'http-status';
 import prisma from '../client';
@@ -175,9 +175,51 @@ class CompanyService {
         return {...company, hasAdminLogin: !!(await this.adminUserOf(id))};
     }
 
+    /** A single-shop business has one shop in one branch; growing needs branch mode first */
+    public async assertBranchMode(companyId: string, what: string) {
+        const company = await prisma.company.findUnique({
+            where: {id: companyId},
+            select: {businessMode: true},
+        });
+        if (company?.businessMode === BusinessMode.SINGLE_SHOP) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `Single-shop business: switch to branch mode in Company Profile to add ${what}`,
+            );
+        }
+    }
+
+    /** The owner's one-way upgrade from a single shop to shops & branches */
+    public async switchToBranchMode(companyId: string) {
+        await this.getCompanyById(companyId);
+        return prisma.company.update({
+            where: {id: companyId},
+            data: {businessMode: BusinessMode.BRANCHES},
+        });
+    }
+
+    /** Only a company with at most one shop and one branch can become single-shop */
+    private async assertCanBeSingleShop(id: string) {
+        const [shops, branches] = await Promise.all([
+            prisma.shop.count({where: {companyId: id, deletedAt: null}}),
+            prisma.branch.count({where: {companyId: id, deletedAt: null}}),
+        ]);
+        if (shops > 1 || branches > 1) {
+            const message =
+                'This company has more than one shop or branch, so it cannot be a single-shop business';
+            throw new ApiError(httpStatus.BAD_REQUEST, message, [{field: 'businessMode', message}]);
+        }
+    }
+
     public async updateCompany(id: string, data: UpdateCompany, logo?: string) {
-        await this.getCompanyById(id);
+        const current = await this.getCompanyById(id);
         const {removeLogo, adminPassword, ...rest} = data;
+        if (
+            rest.businessMode === BusinessMode.SINGLE_SHOP &&
+            current.businessMode !== BusinessMode.SINGLE_SHOP
+        ) {
+            await this.assertCanBeSingleShop(id);
+        }
         const adminUser = await this.adminUserOf(id);
         await this.ensureEmailIsFree(rest.email, id);
         await this.ensureLoginIsFree(rest.adminPhone, rest.adminEmail, adminUser?.id);

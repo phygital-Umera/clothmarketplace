@@ -14,7 +14,13 @@ export type CurrentUser = {
   companyId: string | null;
   mustChangePassword: boolean;
   lastLoginAt: string | null;
-  company: {id: string; name: string; code: string; status: string} | null;
+  company: {
+    id: string;
+    name: string;
+    code: string;
+    status: string;
+    businessMode?: 'SINGLE_SHOP' | 'BRANCHES';
+  } | null;
   branch: {id: string; name: string; code: string; status: string} | null;
   shop: {
     id: string;

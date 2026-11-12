@@ -21,10 +21,12 @@ import {
   setBranchStatus,
   setShopStatus,
   setUserStatus,
+  switchToBranchMode,
   updateBranch,
   updateEmployee,
   updateShop,
 } from '@/lib/api/org';
+import {AUTH_KEYS} from '@/lib/react-query/queryKeys';
 import {ListParams, Panel} from '@/types/org';
 import {getErrorMessage} from '@/utils/axios';
 import {
@@ -180,6 +182,20 @@ export const useUsers = (params: ListParams) =>
   });
 
 // ---- Mutations (forms show field errors inline; toasts confirm success) ---
+
+/** The menus and landing follow /users/me, so refetch it with the profile */
+export const useSwitchToBranchMode = () => {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateOrg();
+  return useMutation({
+    mutationFn: switchToBranchMode,
+    onSuccess: () => {
+      toast.success('Switched to branch mode');
+      queryClient.invalidateQueries({queryKey: [AUTH_KEYS.GET_CURRENT_USER]});
+      invalidate();
+    },
+  });
+};
 
 export const useSaveBranch = () => {
   const invalidate = useInvalidateOrg();

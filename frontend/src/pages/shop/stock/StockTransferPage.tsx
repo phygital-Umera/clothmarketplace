@@ -1,3 +1,4 @@
+import {ApprovePanel} from '@/components/StockTransfer/ApprovePanel';
 import {Field, PageHeader} from '@/components/ui';
 import FormDialog from '@/components/ui/FormDialog';
 import useCurrentUser from '@/hooks/useCurrentUser';
@@ -168,7 +169,12 @@ function NewRequest({panel}: {panel: string}) {
         <h2 id="new-request" className="font-serif text-headline-sm text-burgundy">
           New request
         </h2>
-        <span className="text-[11px] text-outline">Goes to Branch Admin for approval</span>
+        <span className="text-[11px] text-outline">
+          {/* The owner (shop mode) approves it here, under My requests */}
+          {me?.role === 'ADMIN'
+            ? 'You approve it under My requests'
+            : 'Goes to Branch Admin for approval'}
+        </span>
       </div>
 
       <div className="grid gap-3 px-4 pt-4 sm:grid-cols-2">
@@ -181,7 +187,9 @@ function NewRequest({panel}: {panel: string}) {
             onChange={(e) => setFromShopId(e.target.value)}
           >
             <option value="">
-              Any shop in {me?.branch?.name ?? 'the branch'} (branch admin picks)
+              {`Any shop in ${me?.branch?.name ?? 'the branch'} (${
+                me?.role === 'ADMIN' ? 'you pick when approving' : 'branch admin picks'
+              })`}
             </option>
             {shops?.map((s) => (
               <option key={s.id} value={s.id}>
@@ -488,6 +496,10 @@ function ReceiveDialog({panel, t, onClose}: {panel: string; t: StockTransfer; on
 function MyRequests({panel, onReceive}: {panel: string; onReceive: (t: StockTransfer) => void}) {
   const {data, isLoading} = useShopTransfers(panel, 'MINE');
   const items = data?.items.slice(0, 8) ?? [];
+  const {data: me} = useCurrentUser();
+  // The owner (shop mode) approves requests here when there is no branch admin to do it
+  const owner = me?.role === 'ADMIN';
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const sub = (t: StockTransfer) => {
     const from = t.fromShop?.name ?? 'any shop';
     if (t.status === 'DISPATCHED') return `${t.units} units from ${from} · on the way`;
@@ -504,17 +516,33 @@ function MyRequests({panel, onReceive}: {panel: string; onReceive: (t: StockTran
       {!isLoading && !items.length && <p className="px-4 py-4 text-body-sm text-outline">No requests yet.</p>}
       <ul className="divide-y divide-ivory-200">
         {items.map((t) => (
-          <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-body-sm font-medium text-espresso">{t.transferNumber}</p>
-              <p className="text-[11px] text-outline">{sub(t)}</p>
+          <li key={t.id} className="px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-body-sm font-medium text-espresso">{t.transferNumber}</p>
+                <p className="text-[11px] text-outline">{sub(t)}</p>
+              </div>
+              {t.status === 'DISPATCHED' ? (
+                <button type="button" className="btn-primary shrink-0 px-3 py-2" onClick={() => onReceive(t)}>
+                  Receive &amp; count
+                </button>
+              ) : owner && t.status === 'REQUESTED' ? (
+                <button
+                  type="button"
+                  className="btn-ghost shrink-0 px-3 py-2"
+                  aria-expanded={reviewing === t.id}
+                  onClick={() => setReviewing(reviewing === t.id ? null : t.id)}
+                >
+                  {reviewing === t.id ? 'Close' : 'Review'}
+                </button>
+              ) : (
+                <StatusPill status={t.status} />
+              )}
             </div>
-            {t.status === 'DISPATCHED' ? (
-              <button type="button" className="btn-primary shrink-0 px-3 py-2" onClick={() => onReceive(t)}>
-                Receive &amp; count
-              </button>
-            ) : (
-              <StatusPill status={t.status} />
+            {owner && t.status === 'REQUESTED' && reviewing === t.id && (
+              <div className="mt-3">
+                <ApprovePanel t={t} panel={panel} />
+              </div>
             )}
           </li>
         ))}
@@ -555,6 +583,8 @@ function History({panel}: {panel: string}) {
   const {data, isLoading} = useShopTransfers(panel, 'HISTORY', debounced || undefined);
   const myShop = data?.shopId;
   const [open, setOpen] = useState<string | null>(null);
+  const {data: me} = useCurrentUser();
+  const owner = me?.role === 'ADMIN';
 
   return (
     <section className="panel">
@@ -616,27 +646,36 @@ function History({panel}: {panel: string}) {
                   {open === t.id && (
                     <tr className="bg-ivory-50">
                       <td colSpan={6} className="px-4 py-3">
-                        <ul className="space-y-1 text-body-sm">
-                          {t.items.map((i) => (
-                            <li key={i.id} className="flex flex-wrap justify-between gap-2">
-                              <span>
-                                {i.productName} · {i.size} / {i.color}
-                              </span>
-                              <span className="text-outline">
-                                asked {i.requestedQty}
-                                {i.approvedQty !== null ? ` · approved ${i.approvedQty}` : ''}
-                                {i.dispatchedQty !== null ? ` · sent ${i.dispatchedQty}` : ''}
-                                {i.receivedQty !== null ? ` · received ${i.receivedQty}` : ''}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        {(t.rejectReason || t.receiveNote || t.note) && (
-                          <p className="mt-2 text-[11px] text-outline">
-                            {t.note ? `Note: ${t.note}. ` : ''}
-                            {t.rejectReason ? `Rejected: ${t.rejectReason}. ` : ''}
-                            {t.receiveNote ? `Receiving note: ${t.receiveNote}.` : ''}
-                          </p>
+                        {/* Includes requests asked from this shop: the owner can decide them here */}
+                        {owner && t.status === 'REQUESTED' ? (
+                          <div className="max-w-xl">
+                            <ApprovePanel t={t} panel={panel} />
+                          </div>
+                        ) : (
+                          <>
+                            <ul className="space-y-1 text-body-sm">
+                              {t.items.map((i) => (
+                                <li key={i.id} className="flex flex-wrap justify-between gap-2">
+                                  <span>
+                                    {i.productName} · {i.size} / {i.color}
+                                  </span>
+                                  <span className="text-outline">
+                                    asked {i.requestedQty}
+                                    {i.approvedQty !== null ? ` · approved ${i.approvedQty}` : ''}
+                                    {i.dispatchedQty !== null ? ` · sent ${i.dispatchedQty}` : ''}
+                                    {i.receivedQty !== null ? ` · received ${i.receivedQty}` : ''}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                            {(t.rejectReason || t.receiveNote || t.note) && (
+                              <p className="mt-2 text-[11px] text-outline">
+                                {t.note ? `Note: ${t.note}. ` : ''}
+                                {t.rejectReason ? `Rejected: ${t.rejectReason}. ` : ''}
+                                {t.receiveNote ? `Receiving note: ${t.receiveNote}.` : ''}
+                              </p>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>
