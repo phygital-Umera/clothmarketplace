@@ -24,11 +24,12 @@ This is the living list of what we are fixing, in order: what is done, what is i
 
 | | |
 |---|---|
-| **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Not pushed. |
-| **Doing now** | Nothing. Phase 1 is done (13 of 13, each reviewed and committed on its own). |
+| **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Phase 2: `fix/p2-security` (from `fix/p1-stock-and-store`). Not pushed. |
+| **Doing now** | Phase 2 is done (12 of 12; P2-02, 05, 08, 10, 11 and 12 by the other session, the rest here) and reviewed. Of the review's 6 findings, 3 are fixed (3d4b2d7, 9c3bc35, 1e01dab); the other session is fixing 2 in its own items (P2-11 return quantity, P2-02 opening balance); 1 waits for your decision (employees cancelling or editing a confirmed bill, inbox ❓). |
+| **Before deploying Phase 2** | 1) Each server makes its own migration for P2-03 (3 new columns on `SalesBill` and `PurchaseBill`, D-15). 2) Production now needs `CORS_ORIGINS` (P2-12) and `HOSTED_BACKEND_URL` (P2-05); every admin-app build needs `VITE_SERVER_URL` (P2-10). 3) After P2-06b every signed-in user signs in once more when their access token expires. |
 | **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
 | **W-02 (single-shop mode, D-17)** | Committed in e4edc0b: `Company.businessMode`, the one-way switch to branch mode, and the owner accepting day-close differences and approving stock transfers in shop mode (P3-06). Its migration `20261113090000_company_business_mode` stays out of git (D-15): each server makes its own. |
-| **Next up** | 1) Your checks: try the changed screens in the browser (product form opening stock, Stock page, Stock Adjustment, Suppliers, debit note, barcode labels, Credit/Udhaar, My Profile photo, expenses photo, store with a branch switched off; also the POS bill types and the single-shop mode). 2) P0-13, your step. 3) Phase 2. 4) The credit-days lines for the bill API (inbox) before Phase 4. |
+| **Next up** | 1) Your checks in the browser: the Phase 1 screens (product form opening stock, Stock page, Stock Adjustment, Suppliers, debit note, barcode labels, Credit/Udhaar, My Profile photo, expenses photo, store with a branch switched off), the POS bill types and single-shop mode, and Phase 2 (an employee's "Ask to delete" and the shop admin's "Keep bill" on Sales and Purchase Bills; the forced password change; the My Profile POS PIN; sub-categories in the branch and company offer form). 2) P0-13, your step. 3) The inbox questions marked ❓. 4) Phase 3 when you say go. 5) The credit-days lines for the bill API (inbox) before Phase 4. |
 
 ---
 
@@ -138,18 +139,18 @@ None right now. Add new questions here with ❓.
 
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
-| P2-01 | `/shop-admin` also accepts the super admin (sees and changes all orders, all employees, any stock) and the branch admin (edits company masters) | Allow only shop admins and the company admin in shop mode; first check branch pages that call it | `backend/src/routes/shopAdmin.routes.ts:184` | Super admin token on `/shop-admin/orders` → 403 | D-08 | ⬜ |
-| P2-02 | A shop sees other shops' suppliers and purchase bills, barcode-label bills and Stock page items | Filter by `shopId` | `supplier.service.ts:39-45, 272-279`, `barcodeLabel.service.ts:23-26, 109-110`, `stock.service.ts:145` | Shop A can't see shop B's bills | – | ⬜ |
-| P2-03 | An employee with billing edit can delete a confirmed bill without approval | Per D-16 | `bill.routes.ts:20`, `bill.service.ts:1036-1054` | Employee delete → 403 (or approval) | D-16 | ⬜ |
-| P2-04 | Branch product edit rights follow the creator's current branch | Use the product's shop's branch | `product.service.ts:22, 58` | Move an employee; product rights stay | – | ⬜ |
-| P2-05 | `HOSTED_BACKEND_URL` silently defaults to an external upload server | Add to the config schema, no default | `backend/src/utils/s3upload.ts:5`, `config/config.ts` | Unset → clear error at startup | – | ⬜ |
-| P2-06 | `posPin` returned in user data and not hashed; password rules; `/refresh` rate limit; refresh tokens not hashed (older review) | Hash and stop returning the PIN; rules; limit; hash tokens | `user.service.ts:42`, `auth.*` | See `review/06-authn-payments-audit.md` | – | ⬜ |
-| P2-07 | `mustChangePassword` is never enforced in the admin app (older review) | Send to a change-password page after login | `frontend` auth flow | First login forces a change | – | ⬜ |
-| P2-08 | XSS cleaning is off (TODO) | Turn it on, or remove it and rely on output escaping | `backend/src/app.ts:28-29` | – | – | ⬜ |
-| P2-09 | 20 controllers write without an audit entry; Main Branch creation not audited | Add `auditService.track` | orders, stock, promotions, suppliers, pricing, expenses, credit limit, branch | Each write shows in the audit table | – | ⬜ |
-| P2-10 | Admin panel falls back to `localhost:5692` when `VITE_SERVER_URL` is missing | Fail the build | `frontend/src/utils/axios.ts:8, 12` | Build without the variable fails | – | ⬜ |
-| P2-11 | A debit note trusts the unit cost sent by the browser | Take the unit cost from the purchase bill line, like the GST rate (P0-10) | `purchaseReturn.service.ts` `createPurchaseReturn` | Tamper the cost in the request → ignored | – | ⬜ |
-| P2-12 | With `CORS_ORIGINS` empty, any origin is allowed again | Refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | Production start without it fails with a clear message | – | ⬜ |
+| P2-01 | `/shop-admin` also accepts the super admin (sees and changes all orders, all employees, any stock) and the branch admin (edits company masters) | Allow only shop admins and the company admin in shop mode; first check branch pages that call it | `backend/src/routes/shopAdmin.routes.ts:184` | Super admin token on `/shop-admin/orders` → 403 | D-08 | ✅ 5ce6cc4 |
+| P2-02 | A shop sees other shops' suppliers and purchase bills, barcode-label bills and Stock page items | Filter by `shopId` | `supplier.service.ts:39-45, 272-279`, `barcodeLabel.service.ts:23-26, 109-110`, `stock.service.ts:145` | Shop A can't see shop B's bills | – | ✅ 24fed05 |
+| P2-03 | An employee with billing edit can delete a confirmed bill without approval | Per D-16 | `bill.routes.ts:20`, `bill.service.ts:1036-1054` | Employee delete → 403 (or approval) | D-16 | ✅ ca4d1da |
+| P2-04 | Branch product edit rights follow the creator's current branch | Use the product's shop's branch | `product.service.ts:22, 58` | Move an employee; product rights stay | – | ✅ 40d964b |
+| P2-05 | `HOSTED_BACKEND_URL` silently defaults to an external upload server | Add to the config schema, no default | `backend/src/utils/s3upload.ts:5`, `config/config.ts` | Unset → clear error at startup | – | ✅ c14ab3d |
+| P2-06 | `posPin` returned in user data and not hashed; password rules; `/refresh` rate limit; refresh tokens not hashed (older review) | Hash and stop returning the PIN; rules; limit; hash tokens | `user.service.ts:42`, `auth.*` | See `review/06-authn-payments-audit.md` | – | ✅ c091bc5, 11442c7, 5bf38ad |
+| P2-07 | `mustChangePassword` is never enforced in the admin app (older review) | Send to a change-password page after login | `frontend` auth flow | First login forces a change | – | ✅ cf6011e |
+| P2-08 | XSS cleaning is off (TODO) | Turn it on, or remove it and rely on output escaping | `backend/src/app.ts:28-29` | – | – | ✅ 2575906 (removed) |
+| P2-09 | 20 controllers write without an audit entry; Main Branch creation not audited | Add `auditService.track` | orders, stock, promotions, suppliers, pricing, expenses, credit limit, branch | Each write shows in the audit table | – | ✅ d4a3b55 |
+| P2-10 | Admin panel falls back to `localhost:5692` when `VITE_SERVER_URL` is missing | Fail the build | `frontend/src/utils/axios.ts:8, 12` | Build without the variable fails | – | ✅ 079d2c9 |
+| P2-11 | A debit note trusts the unit cost sent by the browser | Take the unit cost from the purchase bill line, like the GST rate (P0-10) | `purchaseReturn.service.ts` `createPurchaseReturn` | Tamper the cost in the request → ignored | – | ✅ c2b93bc |
+| P2-12 | With `CORS_ORIGINS` empty, any origin is allowed again | Refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | Production start without it fails with a clear message | – | ✅ 74ce8aa |
 
 ### Phase 3: make roles and stock clear
 
@@ -269,6 +270,20 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (code check of `roles-products-stock.md`) | Any login that can reach shop products can delete one (no role check); the company path lets only the company admin delete | `shopAdmin.routes.ts:66`, `shopProduct.service.ts:459` | ⬜ |
 | 2026-11-12 (code check of `roles-products-stock.md`) | Staff can be added five ways, not four | `companyAdmin.routes.ts:32`, `branchAdmin.routes.ts:47, 143, 145`, `shopAdmin.routes.ts:40`, `staffCash.routes.ts:11` | → P3-08 |
 | 2026-11-12 (code check of `roles-products-stock.md`) | The Approvals menu promises "Discounts, credit, refunds and cancellations", but only refunds exist (the other counts are fixed at 0); "Move stock between your shops" is still in the menu | `Sidebar/index.tsx:243, 295`, `branchApproval.service.ts:101` | → P3-07 |
+| 2026-11-12 (P2-01, also in the review) | The branch Debit note page always fails: it calls the shop API (`PANEL = 'shop-admin'`), and there is no branch purchase-return API. Hide the menu item or give the branch its own read-only API | `pages/shop/returns/PurchaseReturnPage.tsx:25`, `Sidebar/index.tsx:316`, `routes/branchAdmin.routes.ts` | ⬜ |
+| 2026-11-12 (P2-01) | The offer form's category list asks `/<panel>/categories`, which the company and branch APIs don't have (only `/categories/options`), so it is empty there | `components/Promotions/OfferFormModal.tsx:56`, `lib/api/ecommerce.ts:72` | ⬜ |
+| 2026-11-12 (P2-03, review) | An employee can still cancel or edit a confirmed bill (both change stock at once) without approval; D-16 covers delete only. So an employee can cancel yesterday's sale (stock comes back, it leaves the totals) and then ask to delete it. Should cancel and edit of a confirmed bill also wait for the shop admin? | `bill.controller.ts:151, 243`, `bill.service.ts` | ❓ |
+| 2026-11-12 (P2-03) | The shop admin is not notified of a delete request; they see "Delete asked" on the bill and a filter | `BillsPage.tsx` | ⬜ |
+| 2026-11-12 (P2-07) | Only staff approved from a staff request must change their password. Passwords an admin sets for someone else (company admin, branch admin, shop login, employee) don't set the flag. Should they? (A shop login is often shared, and the owner may want to keep knowing it) | `staff.service.ts:326`, `employee.service.ts`, `company.service.ts`, `branch.service.ts`, `shop.service.ts` | ❓ |
+| 2026-11-12 (P2-06) | The POS PIN is saved but nothing checks it | `user.service.ts`, POS | ⬜ |
+| 2026-11-12 (P2-06) | One refresh token per user: signing in on a second device signs the first out at its next refresh. Reuse detection (revoke all on a reused token) needs a per-device table first | `token.service.ts`, `schema.prisma` | ⬜ |
+| 2026-11-12 (P2-02) | The opening balance of a supplier added by the branch admin (no shop) is seen only by the branch, not by its shops. Should shops see and pay it? | `supplier.service.ts` | ❓ |
+| 2026-11-12 (P2-11) | A debit note without a purchase bill still uses the cost and rate sent by the browser (there is nothing to look them up in) | `purchaseReturn.service.ts` `createPurchaseReturn` | ⬜ |
+| 2026-11-12 (P2-11, review) | The return quantity is not capped at the bill line's quantity minus earlier returns, a line can be sent twice, and a deleted or draft bill is accepted: returning 1000 of a 10-piece line marks the bill paid and stock down | `purchaseReturn.service.ts:195-225` | 🟡 other session |
+| 2026-11-12 (P2-02, review) | The supplier list still sends another shop's supplier opening balance to a shop | `supplier.service.ts` | 🟡 other session |
+| 2026-11-12 (P2-10) | The store app also needs `VITE_SERVER_URL` but has no build check; a missing value crashes at runtime | `user/src/lib/api.ts` | ⬜ |
+| 2026-11-12 (P2-02) | Barcode labels: `resolveScope` falls back to the company's first branch when the user has none (no longer reachable from `/shop-admin` after P2-01) | `barcodeLabel.controller.ts` | ⬜ |
+| 2026-11-12 (P2-08) | `sendVerificationEmail` puts the user name into HTML and the link without escaping; nothing calls it today | `email.service.ts` | ⬜ |
 
 ---
 
@@ -276,6 +291,24 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | Phase 2 review fix: the refresh limit is per account (30 per 15 minutes), not per IP, so shoppers sharing an IP are not signed out | 1e01dab |
+| 2026-11-12 | Phase 2 review fix: a POS PIN is never stored in an audit row (keys ending in "pin" are removed like passwords) | 9c3bc35 |
+| 2026-11-12 | Phase 2 review fix: the "Delete asked" filter also works on sales bills | 3d4b2d7 |
+| 2026-11-12 | Independent review of the Phase 2 commits: 6 findings (3 fixed here, 2 for the other session, 1 decision) | – |
+| 2026-11-12 | P2-09: one hook audits every staff write that has no audit row of its own (method and route, target id, request body without credentials; refusals kept, bad input not); the automatic Main Branch gets a `branch.create` row (checked: no double rows, passwords not stored, customers not audited) | d4a3b55 |
+| 2026-11-12 | P2-07: a user whose password was set by someone else sees only the change-password page, and the API refuses everything else with 403 until it is changed (checked with a temporary shop login) | cf6011e |
+| 2026-11-12 | P2-06c: POS PIN must be 4 to 6 digits, is stored as a bcrypt hash and never returned (`hasPosPin` only) | 5bf38ad |
+| 2026-11-12 | P2-06b: refresh tokens stored as SHA-256 with a jti; `/users/refresh` limited to 100 per IP per 15 minutes (checked: rotation, reuse refused, 429) | 11442c7 |
+| 2026-11-12 | P2-06a: passwords need 8 to 128 characters with a letter and a number when set (API, admin app, super admin CLI); sign-in only caps the length; bcrypt rounds never below 10 | c091bc5 |
+| 2026-11-12 | P2-02 (other session): a shop sees and pays only its own purchase bills in the supplier payable and ledger, debit notes per shop; suppliers stay shared in the branch; barcode-label bills, items, reprints and product pick per shop (18 API checks) | 24fed05 |
+| 2026-11-12 | P2-11 (other session): debit note unit cost and rate come from the purchase bill line; a line not on the bill gives 400, another shop's bill 404 (5 API checks) | c2b93bc |
+| 2026-11-12 | P2-10 (other session): the admin app refuses to start or build without `VITE_SERVER_URL`; no localhost fallback | 079d2c9 |
+| 2026-11-12 | P2-05 (other session): `HOSTED_BACKEND_URL` in the config schema with no default, required in production; empty in development stores photos in `public/uploads` | c14ab3d |
+| 2026-11-12 | P2-04: a branch admin's product rights follow the product's shop, not where its creator is now (a product with no shop keeps the creator's branch until P3-01) | 40d964b |
+| 2026-11-12 | P2-03: an employee's delete of a confirmed bill becomes "Ask to delete" with a reason; the shop admin or owner deletes it or keeps it (D-16; sales and purchase bills; 15 checks) | ca4d1da |
+| 2026-11-12 | P2-08 (other session): the unused XSS input filter is removed instead of turned on (it would fail every request on Express 5 and store `<` as `&lt;`); output is escaped where shown | 2575906 |
+| 2026-11-12 | P2-01: `/shop-admin` only for the shop login and the owner in shop mode (D-08); the branch and company offer forms read sub-categories from their own panel (14 role checks) | 5ce6cc4 |
+| 2026-11-12 | P2-12 (other session): a production start without `CORS_ORIGINS` is refused with a clear message | 74ce8aa |
 | 2026-11-12 | W-02 committed (single-shop business mode, D-17; owner approves transfers and day-close differences, P3-06) | e4edc0b |
 | 2026-11-12 | W-01 committed (POS bill types, buyer GSTIN, salesman, payment reference, printed invoice) | f895a06 |
 | 2026-11-12 | Demo seed reuses the standard sizes and colours (your fix) | d0e0cb1 |
