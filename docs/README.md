@@ -12,6 +12,9 @@ Start here. Read the files in this order if you are new.
 | 6 | [frontend/02-components-retail-and-shared.md](frontend/02-components-retail-and-shared.md) | Current components and the shared UI kit |
 | 7 | [frontend/03-components-legacy-catering.md](frontend/03-components-legacy-catering.md) | Old catering-app leftovers (unused) |
 | 8 | [storefront.md](storefront.md) | Customer shopping app (`user/`) |
+| 9 | [roles-products-stock.md](roles-products-stock.md) | Who manages what, which products show where (incl. the store), where stock lives, and suggested fixes |
+| 10 | [hard-coded-values.md](hard-coded-values.md) | Fake demo data, fixed tax/business rules and environment values in the code that need fixing |
+| 11 | [fix-plan.md](fix-plan.md) | **Living tracker**: every fix in order with status, decisions, improvements, and a log of what is done |
 
 ## The project in one paragraph
 Three apps share one backend: **backend/** (Express + Prisma API), **frontend/** (admin and shop-staff app) and **user/** (customer storefront). Shops sell in person (POS billing) and online; stock, credit and orders are tracked per company → branch → shop.

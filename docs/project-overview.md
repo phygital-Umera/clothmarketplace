@@ -48,14 +48,16 @@ The database role list (`Role` in `backend/prisma/schema.prisma`) has six values
 
 | Role | Database value | Admin-panel area (`frontend/src/routes/_app/`) | What they do (summary) |
 |---|---|---|---|
-| Super admin | `SUPER_ADMIN` | `super-admin/` | Owns the platform: companies, brands, categories, branches; sees all orders |
-| Company admin | `ADMIN` | `company-admin/` | Runs one company: branches, shops, brands, products, employees, inventory, promotions, orders |
-| Branch admin | `SUB_ADMIN` | `branch-admin/` | Runs one branch: shops, staff, stock, bills, approvals, expenses, day close, reports, barcode labels |
-| Shop admin | `SHOP_ADMIN` | `shop-admin/` | Runs one shop: products, categories/sizes/colours, new bill (POS), purchase bills, returns, credit, cash book, expenses, staff, reports |
-| Shop staff | `EMPLOYEE` | `employee/` | Day-to-day shop work (dashboard); login is tied to a shop |
+| Super admin | `SUPER_ADMIN` | `super-admin/` | Owns the platform: companies, global brands and categories; views branches, shops and all orders |
+| Company admin | `ADMIN` | `company-admin/` | Runs one company: branches, shops, brands, products, employees, inventory, promotions, orders. "Sell in my shop" opens one of their shops as its shop admin (shop mode) |
+| Branch admin | `SUB_ADMIN` | `branch-admin/` | Runs one branch: shops, staff, stock, approvals, expenses, day close, reports, barcode labels; bills are view-only |
+| Shop admin | `SHOP_ADMIN` | `shop-admin/` | Runs one shop: products, new bill (POS), purchase bills, returns, credit, cash book, expenses, staff, reports. Categories/sizes/colours edited here apply to the whole company |
+| Shop staff | `EMPLOYEE` | `employee/` | Shop screens allowed by their module access (up to 10 modules, view or edit); login is tied to a shop |
 | Customer | `USER` | none (uses the `user/` storefront) | Shops online. The storefront refuses staff logins, and the `/store` customer routes accept only `USER` |
 
 Note: in code the "company admin" is `ADMIN` (`checkCompanyAdmin`) and the "branch admin" is `SUB_ADMIN` (`checkBranchAdmin`).
+
+For the full "who can do what" matrix, product visibility and stock rules, see [roles-products-stock.md](roles-products-stock.md).
 
 ## 4. Feature list (high level)
 
