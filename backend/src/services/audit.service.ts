@@ -21,7 +21,7 @@ export type AuditEntry = {
 };
 
 // Anything that looks like a credential never reaches the audit table
-const SECRET_KEY = /pass(word)?|token|secret|verifyCode|otp|apiKey|^key$|extendKey/i;
+const SECRET_KEY = /pass(word)?|token|secret|verifyCode|otp|apiKey|^key$|extendKey|pin$/i;
 
 const redact = (value: unknown): Prisma.InputJsonValue | undefined => {
     if (value === undefined || value === null) return undefined;
