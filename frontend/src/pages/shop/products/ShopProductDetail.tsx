@@ -122,7 +122,7 @@ const ShopProductDetail = () => {
                     : null}
                 </Detail>
                 <Detail label="Stock">
-                  <StockBadge qty={p.stockQuantity} />
+                  <StockBadge qty={p.stock} />
                 </Detail>
                 <Detail label="GST">{`${p.taxRate}%`}</Detail>
                 <Detail label="Sizes" wide>

@@ -36,7 +36,11 @@ export const shopProductSchema = z
       kind: 'price',
       required: false,
     }),
-    stockQuantity: field({label: 'Stock Quantity', kind: 'quantity'}),
+    // New products only: pieces per "sizeId_colorId"; blank = 0
+    openingStock: z.record(
+      z.string(),
+      field({label: 'Opening Stock', kind: 'quantity', required: false}),
+    ),
     status: z.enum(['DRAFT', 'PUBLISHED', 'UNPUBLISHED']),
     gender: z.string(),
     taxRate: z.coerce.number(),
@@ -75,7 +79,7 @@ export const EMPTY_SHOP_PRODUCT: ShopProductValues = {
   colorIds: [],
   mrp: '',
   sellingPrice: '',
-  stockQuantity: '',
+  openingStock: {},
   status: 'DRAFT',
   gender: 'UNISEX',
   taxRate: 5,
@@ -103,7 +107,8 @@ export const fromShopProduct = (p: ShopProduct): ShopProductValues => ({
   mrp: p.mrp,
   // A discount equal to the price means "no discount"
   sellingPrice: p.sellingPrice < p.mrp ? p.sellingPrice : '',
-  stockQuantity: p.stockQuantity,
+  // Stock changes through purchase bills and stock adjustments, not this form
+  openingStock: {},
   status:
     p.status === 'PUBLISHED' || p.status === 'UNPUBLISHED' ? p.status : 'DRAFT',
   gender: p.gender,
@@ -120,18 +125,40 @@ export const fromShopProduct = (p: ShopProduct): ShopProductValues => ({
   tagsText: p.tags.join(', '),
 });
 
-/** Form values -> API body (tags as a list, blank SKU left to the backend, blank subcategory = none) */
+/** Form key of one size + colour cell in the opening stock grid */
+export const openingStockKey = (sizeId: string, colorId: string) =>
+  `${sizeId}_${colorId}`;
+
+/**
+ * Form values -> API body (tags as a list, blank SKU left to the backend,
+ * blank subcategory = none, opening stock only for the picked sizes and colours)
+ */
 export const toShopProductBody = ({
   tagsText,
   sku,
   subcategoryId,
+  openingStock,
   ...rest
-}: ShopProductOutput) => ({
-  ...rest,
-  sku: sku || undefined,
-  subcategoryId: subcategoryId || null,
-  tags: (tagsText ?? '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean),
-});
+}: ShopProductOutput) => {
+  const opening = Object.entries(openingStock)
+    .map(([key, quantity]) => {
+      const [sizeId, colorId] = key.split('_');
+      return {sizeId, colorId, quantity: quantity ?? 0};
+    })
+    .filter(
+      (o) =>
+        o.quantity > 0 &&
+        rest.sizeIds.includes(o.sizeId) &&
+        rest.colorIds.includes(o.colorId),
+    );
+  return {
+    ...rest,
+    sku: sku || undefined,
+    subcategoryId: subcategoryId || null,
+    tags: (tagsText ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+    ...(opening.length ? {openingStock: opening} : {}),
+  };
+};

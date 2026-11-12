@@ -61,7 +61,6 @@ const productFields = {
             ),
     ),
     sellingPrice: field({label: 'Discount Price', kind: 'price', required: false}),
-    stockQuantity: field({label: 'Stock Quantity', kind: 'quantity'}),
     status: z.enum(SHOP_STATUSES).default(ProductStatus.DRAFT),
     gender: z.nativeEnum(GenderTarget).default(GenderTarget.UNISEX),
     tags: z.array(z.string().trim().min(1).max(30)).max(15, 'At most 15 tags').default([]),
@@ -90,7 +89,24 @@ const priceRule = (v: {mrp?: number; sellingPrice?: number}, ctx: z.RefinementCt
     }
 };
 
-const createShopProductSchema = z.object(productFields).superRefine(priceRule);
+// New products only: pieces on hand per size + colour. Later stock comes from
+// purchase bills and stock adjustments, so updates never take a stock number.
+const openingStock = z
+    .array(
+        z.object({
+            sizeId: z.string().uuid('Select a valid Size'),
+            colorId: z.string().uuid('Select a valid Color'),
+            quantity: z.coerce
+                .number({invalid_type_error: 'Enter a valid Opening Stock'})
+                .int('Opening Stock must be a whole number')
+                .min(0, 'Opening Stock cannot be negative')
+                .max(100_000, 'Opening Stock can be at most 100000'),
+        }),
+    )
+    .max(900)
+    .default([]);
+
+const createShopProductSchema = z.object({...productFields, openingStock}).superRefine(priceRule);
 
 // Partial without defaults, so an update never resets fields that were not sent
 const updateShopProductSchema = z
@@ -109,7 +125,7 @@ const updateShopProductSchema = z
 const optionalUuid = z.preprocess(emptyToUndefined, z.string().uuid().optional());
 
 const shopProductListSchema = listQuerySchema(
-    ['name', 'sku', 'mrp', 'sellingPrice', 'stockQuantity', 'createdAt'] as const,
+    ['name', 'sku', 'mrp', 'sellingPrice', 'stock', 'createdAt'] as const,
     'createdAt',
 ).extend({
     status: z.preprocess(emptyToUndefined, z.nativeEnum(ProductStatus).optional()),

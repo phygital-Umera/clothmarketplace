@@ -148,10 +148,10 @@ const ShopProductList = () => {
     },
     {
       header: 'Stock',
-      key: 'stockQuantity',
+      key: 'stock',
       sortable: true,
       align: 'right',
-      render: (p) => <StockBadge qty={p.stockQuantity} />,
+      render: (p) => <StockBadge qty={p.stock} />,
     },
     {
       header: 'Status',

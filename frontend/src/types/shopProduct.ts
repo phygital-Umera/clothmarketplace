@@ -60,7 +60,8 @@ export interface ShopProduct {
   mrp: number;
   sellingPrice: number;
   taxRate: number;
-  stockQuantity: number;
+  /** Live stock of the active variants in the shop's branch (what the POS and the store sell from) */
+  stock: number;
   gender: Gender;
   tags: string[];
   productType: string | null;
