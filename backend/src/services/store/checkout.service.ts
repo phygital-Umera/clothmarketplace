@@ -8,6 +8,7 @@ import {config} from '@config/index';
 import {notify} from '../notification.service';
 import inventoryService from '../inventory.service';
 import customerService, {DELIVERY_OPTIONS} from './customer.service';
+import {dayKey} from '../../utils/day';
 
 /*
  * Checkout: the bag becomes one order per shop (each shop ships from its own
@@ -60,7 +61,7 @@ const razorpayCreateOrder = async (amountPaise: number, receipt: string, notes: 
 };
 
 const orderNumber = () =>
-    `ORD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    `ORD-${dayKey().replace(/-/g, '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
 class CheckoutService {
     public paymentConfig() {

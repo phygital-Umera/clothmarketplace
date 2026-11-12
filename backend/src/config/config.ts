@@ -4,6 +4,17 @@ dotenv.config();
 const envVarsSchema = z.object({
     NODE_ENV: z.enum(['production', 'development', 'test']),
     PORT: z.coerce.number().default(3000),
+    TZ: z
+        .string()
+        .default('Asia/Kolkata')
+        .refine((tz) => {
+            try {
+                return !!new Intl.DateTimeFormat('en', {timeZone: tz});
+            } catch {
+                return false;
+            }
+        }, 'TZ is not a known time zone')
+        .describe('time zone for calendar days: bill dates, day close, number series'),
     JWT_SECRET: z.string().describe('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: z.coerce
         .number()
@@ -84,6 +95,8 @@ const parseEnvVars = () => {
 };
 
 const envVars = parseEnvVars();
+// A shop's day is an Indian day, not the host's (servers usually run on UTC)
+process.env.TZ = envVars.TZ;
 
 export default {
     env: envVars.NODE_ENV,

@@ -17,6 +17,7 @@ import accountService from './account.service';
 import inventoryService from './inventory.service';
 import billService, {paymentStatusOf} from './bill.service';
 import {syncCustomerFromBill} from './customerLedger';
+import {dayKey} from '../utils/day';
 
 type Tx = Prisma.TransactionClient;
 type CreateNote = z.infer<typeof creditNoteValidation.createCreditNoteSchema>;
@@ -112,7 +113,7 @@ class CreditNoteService {
     }
 
     private async nextNumber(tx: Tx, shopId: string) {
-        const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const day = dayKey().replace(/-/g, '');
         return accountService.nextCode(tx, `CN-${day}-`, 4, async (p) => {
             const rows = await tx.creditNote.findMany({
                 where: {shopId, noteNumber: {startsWith: p}},

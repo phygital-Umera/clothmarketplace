@@ -7,10 +7,11 @@ import {config} from '@config/index';
 import {field} from '../../validations/custom.validation';
 import userService from '../user.service';
 import {notify} from '../notification.service';
+import {dateOnly, dayKey} from '../../utils/day';
 
 /* The customer's own account on the store: profile, help messages, password reset */
 
-const today = () => new Date(new Date().toISOString().slice(0, 10));
+const today = () => dateOnly(dayKey());
 
 export const profileSchema = z.object({
     fullname: field({label: 'Full Name', kind: 'name'}),

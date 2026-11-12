@@ -16,6 +16,7 @@ import accountService from './account.service';
 import inventoryService, {StockChange} from './inventory.service';
 import {ShopScope} from './shopProduct.service';
 import {syncCustomerFromBill} from './customerLedger';
+import {dayKey} from '../utils/day';
 
 type Tx = Prisma.TransactionClient;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
@@ -157,7 +158,7 @@ class BillService {
         shop: {id: string; code: string; billPrefix: string | null},
     ) {
         const shopId = shop.id;
-        const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const day = dayKey().replace(/-/g, '');
         const prefix =
             kind === 'SALES'
                 ? `${shop.billPrefix || shop.code}/${financialYear()}/`

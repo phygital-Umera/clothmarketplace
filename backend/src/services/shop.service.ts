@@ -7,6 +7,7 @@ import {listArgs, searchWhere, toListResult} from '../utils/list';
 import {orgValidation} from '@validations/index';
 import accountService, {Scope} from './account.service';
 import branchService from './branch.service';
+import {dayKey} from '../utils/day';
 
 type CreateShop = z.infer<typeof orgValidation.createShopSchema>;
 // status is only set through setStatus (the form cannot change it)
@@ -272,7 +273,7 @@ class ShopService {
         const ids = shops.map((s) => s.id);
         const now = new Date();
         const month = new Date(now.getFullYear(), now.getMonth(), 1);
-        const billPrefix = `SB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-`;
+        const billPrefix = `SB-${dayKey(now).replace(/-/g, '')}-`;
         const branch = scope.branchId
             ? await prisma.branch.findUnique({
                   where: {id: scope.branchId},

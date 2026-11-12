@@ -3,6 +3,7 @@ import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
 import { MovementType, StockSourceType } from '@prisma/client';
 import { CreateAdjustmentInput, GetAdjustmentsQuery } from '../validations/stockAdjustment.validation';
+import { dayKey } from '../utils/day';
 
 export type Scope = {
   companyId: string;
@@ -137,13 +138,13 @@ class StockAdjustmentService {
     `);
 
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = dayKey(now);
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = dayKey(yesterday);
 
     const history = rows.map((r) => {
       const d = new Date(r.createdAt);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = dayKey(d);
       let displayDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
       if (dateStr === todayStr) {
