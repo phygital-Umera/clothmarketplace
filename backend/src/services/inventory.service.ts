@@ -77,7 +77,15 @@ export interface ManualAdjustInput {
     approvalStatus?: string;
     performedById: string;
     /** Variants already checked to be the caller's; label is for messages, e.g. "Kurti (M)" */
-    lines: {variantId: string; productId: string; label: string; type: ManualAdjustType; quantity: number}[];
+    lines: {
+        variantId: string;
+        productId: string;
+        label: string;
+        type: ManualAdjustType;
+        quantity: number;
+        /** CORRECTION only: the count the screen showed when counting started (see recordAdjustments) */
+        expected?: number;
+    }[];
 }
 
 class InventoryService {
@@ -200,8 +208,17 @@ class InventoryService {
                 const [row] = await tx.$queryRaw<{physicalQty: number}[]>`
                     SELECT "physicalQty" FROM "Inventory"
                     WHERE "branchId" = ${branchId} AND "variantId" = ${line.variantId} FOR UPDATE`;
-                const diff = line.quantity - (row?.physicalQty ?? 0);
+                const physical = row?.physicalQty ?? 0;
+                // Counted against what the screen showed: apply only the difference, so sales made
+                // after the count was opened are not undone. Without it the count is set as is.
+                const diff = line.quantity - (line.expected ?? physical);
                 if (!diff) continue;
+                if (physical + diff < 0) {
+                    throw new ApiError(
+                        httpStatus.CONFLICT,
+                        `The stock of ${line.label} changed since the count was opened (now ${physical}). Reload and count it again.`,
+                    );
+                }
                 type = diff > 0 ? 'INCREASE' : 'DECREASE';
                 qty = Math.abs(diff);
             }

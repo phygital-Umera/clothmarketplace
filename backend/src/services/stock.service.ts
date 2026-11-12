@@ -368,9 +368,10 @@ class StockService {
       );
 
       let discrepanciesCount = 0;
-      for (const item of payload.items) {
+      // A line that matches what the screen showed changes nothing (uncounted rows come in that way)
+      for (const item of payload.items.filter((i) => i.countedQty !== i.systemQty)) {
         const v = byId.get(item.variantId)!;
-        // Sets the count to what was counted; a line that matches the system records nothing
+        // Applies counted − shown, so sales made after the count was opened still count
         const done = await inventoryService.recordAdjustments(tx, {
           branchId,
           shopId: scope.shopId,
@@ -385,6 +386,7 @@ class StockService {
               label: `"${v.product.name}" (${v.size})`,
               type: 'CORRECTION',
               quantity: item.countedQty,
+              expected: item.systemQty,
             },
           ],
         });
