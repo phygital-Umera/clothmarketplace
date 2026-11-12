@@ -115,8 +115,12 @@ const stringRule = (kind: FieldKind, label: string, max: number) => {
     case 'gstin':
       return base.toUpperCase().regex(PATTERNS.gstin, invalid);
     case 'password':
-      // No strength rules: any non-empty password is accepted
-      return base.max(128, `${label} must be at most 128 characters`);
+      // At least 8 characters with a letter and a number (same as the server)
+      return base
+        .min(8, `${label} must be at least 8 characters`)
+        .max(128, `${label} must be at most 128 characters`)
+        .regex(/[A-Za-z]/, `${label} must contain a letter`)
+        .regex(/\d/, `${label} must contain a number`);
     default:
       return base.max(max, `${label} must be at most ${max} characters`);
   }

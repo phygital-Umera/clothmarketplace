@@ -8,7 +8,11 @@ const loginUserSchema = z
     .object({
         email: z.string().trim().max(254).optional(),
         username: z.string().trim().max(254).optional(),
-        password: z.string({required_error: 'Password is required'}).min(1, 'Password is required'),
+        // Max only: an over-long password is never hashed on a login attempt
+        password: z
+            .string({required_error: 'Password is required'})
+            .min(1, 'Password is required')
+            .max(128, 'Password must be at most 128 characters'),
     })
     .refine((v) => v.email || v.username, {
         message: 'Email or phone number is required',
