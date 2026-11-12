@@ -82,6 +82,9 @@ export interface Product {
   sku: string;
   categoryId: string;
   category: {id: string; name: string};
+  /** The shop that sells it; null = not in any shop (can't be sold, D-01) */
+  shopId: string | null;
+  shop: {id: string; name: string; branchId: string} | null;
   brandId: string | null;
   brand: {id: string; name: string} | null;
   shortDesc: string | null;

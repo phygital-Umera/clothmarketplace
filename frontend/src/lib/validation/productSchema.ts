@@ -25,6 +25,7 @@ export const productSchema = z
   .object({
     name: field({label: 'Product Name', kind: 'text', max: 120}),
     categoryId: z.string().min(1, 'Category is required'),
+    shopId: z.string().min(1, 'Shop is required'),
     brandId: z.string().optional(),
     gender: z.string(),
     productType: text('Product Type', 60),
@@ -89,6 +90,7 @@ export type ProductOutput = z.output<typeof productSchema>;
 export const EMPTY_PRODUCT: ProductValues = {
   name: '',
   categoryId: '',
+  shopId: '',
   brandId: '',
   gender: 'UNISEX',
   productType: '',

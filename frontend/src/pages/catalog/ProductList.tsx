@@ -3,6 +3,7 @@ import ListToolbar, {FilterSelect} from '@/components/Org/ListToolbar';
 import {PageHeader} from '@/components/ui';
 import useListState from '@/hooks/useListState';
 import {useCompanies} from '@/lib/react-query/queriesAndMutations/company';
+import {useShopOptions} from '@/lib/react-query/queriesAndMutations/org';
 import {
   useCategoryOptions,
   useDeleteProduct,
@@ -51,6 +52,11 @@ const ProductList = ({panel}: {panel: CatalogPanel}) => {
   );
   const categories = useCategoryOptions(panel);
   const companies = useCompanies({page: 1, limit: 100}, isSuper);
+  const shops = useShopOptions(
+    panel === 'branch-admin' ? 'branch-admin' : 'company-admin',
+    undefined,
+    panel === 'company-admin' || panel === 'branch-admin',
+  );
   const setStatus = useSetProductStatus(panel);
   const remove = useDeleteProduct();
   const [pending, setPending] = useState<Pending>(null);
@@ -96,6 +102,19 @@ const ProductList = ({panel}: {panel: CatalogPanel}) => {
           } as Column<Product>,
         ]
       : []),
+    {
+      header: 'Shop',
+      hideBelow: 'md',
+      render: (p) =>
+        p.shop?.name ?? (
+          <span
+            className="text-amber-700"
+            title="Can't be sold until it has a shop"
+          >
+            Not in any shop
+          </span>
+        ),
+    },
     {header: 'Category', hideBelow: 'lg', render: (p) => p.category.name},
     {
       header: 'Price',
@@ -233,6 +252,17 @@ const ProductList = ({panel}: {panel: CatalogPanel}) => {
                   value: c.id,
                   label: c.name,
                 }))}
+              />
+            )}
+            {!isSuper && (
+              <FilterSelect
+                label="Shops"
+                value={list.filters.shopId}
+                onChange={(shopId) => list.setFilter({shopId})}
+                options={[
+                  {value: 'none', label: 'Not in any shop'},
+                  ...(shops.data ?? []),
+                ]}
               />
             )}
             <FilterSelect

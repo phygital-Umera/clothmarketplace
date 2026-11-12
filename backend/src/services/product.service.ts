@@ -115,6 +115,7 @@ class ProductService {
             categoryId: query.categoryId,
             brandId: query.brandId,
             gender: query.gender,
+            ...(query.shopId ? {shopId: query.shopId === 'none' ? null : query.shopId} : {}),
             ...(query.search
                 ? {
                       OR: [
@@ -147,6 +148,25 @@ class ProductService {
         return present(actor, product);
     }
 
+    /** One of the caller's shops (a branch admin: a shop of their branch) */
+    private async ownShop(actor: Actor, shopId: string) {
+        const shop = await prisma.shop.findFirst({
+            where: {
+                id: shopId,
+                companyId: actor.companyId ?? '__none__',
+                deletedAt: null,
+                ...(actor.role === Role.SUB_ADMIN ? {branchId: actor.branchId ?? '__none__'} : {}),
+            },
+            select: {id: true},
+        });
+        if (!shop) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Pick one of your shops', [
+                {field: 'shopId', message: 'Pick one of your shops'},
+            ]);
+        }
+        return shop.id;
+    }
+
     private async editable(actor: Actor, id: string) {
         const product = await this.get(actor, id);
         if (!product.canEdit)
@@ -163,6 +183,7 @@ class ProductService {
         }
         const companyId = actor.companyId;
         await categoryBrandService.assertUsable(companyId, data.categoryId, data.brandId);
+        const shopId = await this.ownShop(actor, data.shopId);
         const company = await prisma.company.findUniqueOrThrow({
             where: {id: companyId},
             select: {code: true},
@@ -195,6 +216,7 @@ class ProductService {
                             ...fields,
                             tags: fields.tags.map((t) => t.toLowerCase()),
                             companyId,
+                            shopId,
                             sku,
                             slug,
                             // New products are drafts until they are complete and published
@@ -227,13 +249,21 @@ class ProductService {
     public async update(actor: Actor, id: string, data: UpdateProduct) {
         const before = await this.editable(actor, id);
         await categoryBrandService.assertUsable(before.companyId, data.categoryId, data.brandId);
-        const {variants, ...fields} = data;
+        const {variants, shopId, ...fields} = data;
+        // A shop is set once: stock and bills already belong to it
+        if (shopId && before.shopId && shopId !== before.shopId) {
+            throw new ApiError(httpStatus.BAD_REQUEST, "A product's shop can't be changed", [
+                {field: 'shopId', message: "A product's shop can't be changed"},
+            ]);
+        }
+        const newShopId = shopId && !before.shopId ? await this.ownShop(actor, shopId) : undefined;
 
         await prisma.$transaction(async (tx) => {
             await tx.product.update({
                 where: {id},
                 data: {
                     ...fields,
+                    ...(newShopId ? {shopId: newShopId} : {}),
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
                 },
             });
