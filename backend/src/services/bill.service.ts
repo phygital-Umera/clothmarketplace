@@ -1198,6 +1198,7 @@ class BillService {
             deletedAt: null,
             status: query.status,
             ...dateRange(query.from, query.to),
+            ...(query.deleteRequested ? {deleteRequestedAt: {not: null}} : {}),
             ...(!scope.shopId && branch.shopId ? {shopId: branch.shopId} : {}),
             ...(branch.paymentMethod ? {paymentMethod: branch.paymentMethod} : {}),
             ...(branch.flag === 'EDITED' ? {editCount: {gt: 0}} : {}),
