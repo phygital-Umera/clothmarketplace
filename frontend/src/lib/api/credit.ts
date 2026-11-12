@@ -32,7 +32,7 @@ export const getCustomerStatement = (panel: string = 'shop-admin', customerId: s
 export const getNextReceiptNumber = (panel: string = 'shop-admin') =>
   api
     .get<{receiptNumber: string; success: boolean}>(`/${panel}/credit/next-receipt`)
-    .then((res: any) => res?.receiptNumber ?? res?.data?.receiptNumber ?? 'RC/26-27/0044');
+    .then((res: any) => res?.receiptNumber ?? res?.data?.receiptNumber ?? '');
 
 export const recordCustomerPayment = (
   panel: string = 'shop-admin',
