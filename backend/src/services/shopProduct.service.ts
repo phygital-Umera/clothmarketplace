@@ -266,18 +266,20 @@ class ShopProductService {
                 shop: {select: {branchId: true}},
                 sizes: {select: {sizeId: true, size: {select: {name: true}}}},
                 colors: {select: {colorId: true, color: {select: {name: true, hexCode: true}}}},
-                variants: {select: {id: true, size: true, color: true}},
+                variants: {select: {id: true, size: true, color: true, isActive: true}},
             },
         });
         const keep = new Set<string>();
         const byPair = new Map<string, string>();
         for (const {sizeId, size} of product.sizes) {
             for (const {colorId, color} of product.colors) {
-                const existing = product.variants.find(
+                // After a rename two variants can share a name: the active one wins
+                const same = product.variants.filter(
                     (v) =>
                         v.size.toLowerCase() === size.name.toLowerCase() &&
                         v.color.toLowerCase() === color.name.toLowerCase(),
                 );
+                const existing = same.find((v) => v.isActive) ?? same[0];
                 if (existing) {
                     keep.add(existing.id);
                     byPair.set(`${sizeId}:${colorId}`, existing.id);
