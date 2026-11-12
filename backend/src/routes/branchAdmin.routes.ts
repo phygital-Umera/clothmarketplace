@@ -160,19 +160,14 @@ router.get('/credit-notes/summary', creditNoteController.branch.summary);
 router.get('/credit-notes/:id', creditNoteController.branch.get);
 router.post('/credit-notes/:id/decision', creditNoteController.branch.decide);
 
-// Branch Orders
+// Branch Orders: view only; the selling shop changes them (D-03)
 router.get('/orders/dashboard', e.orderDashboard);
 router.route('/orders').get(e.listOrders);
 router.route('/orders/:id').get(e.getOrder);
-router.patch('/orders/:id/status', e.updateOrderStatus);
-router.patch('/orders/:id/shipping', e.updateOrderShipping);
-router.patch('/orders/:id/payment', e.updateOrderPayment);
-router.post('/orders/:id/cancel-review', e.reviewCancellation);
 router.get('/orders/:id/invoice', e.getOrderInvoice);
 
 // Branch Returns
 router.get('/returns', e.listReturns);
-router.patch('/returns/:id', e.updateReturnStatus);
 
 // Promotions & Offers
 mountPromotions(router);
