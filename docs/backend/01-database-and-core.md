@@ -61,7 +61,7 @@ Copy `backend/.env.example` to `backend/.env` and fill it in. Never commit `.env
 | `TRUST_PROXY` | No | Number of proxies in front of the API. Empty means direct clients. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM` | No | Sending email. |
 | `SUPERADMIN_EMAIL`, `SUPERADMIN_PHONE`, `SUPERADMIN_PASSWORD`, `SUPERADMIN_NAME` | No | Defaults for `create:superadmin` (CLI flags win). |
-| `IS_OFFLINE`, `HOSTED_BACKEND_URL`, `ONLINE_BACKEND_URL` | No | File hosting. Code reads `HOSTED_BACKEND_URL` (default `https://upload.phygitaltech.in/`). |
+| `HOSTED_BACKEND_URL` | Production | File server for uploaded photos (`config.hostedUploadUrl`). Empty in development: photos are stored in `public/uploads`. `IS_OFFLINE` and `ONLINE_BACKEND_URL` are not read by the code. |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN` | No | AI product photos (Cloudflare Workers AI). |
 | `CLOUDFLARE_AI_MODEL` | No | Colour preview model (default `@cf/black-forest-labs/flux-2-klein-4b`). |
 | `CLOUDFLARE_AI_PRO_MODEL` | No | Professional photo model (default `flux-2-klein-9b`). Read by config, not listed in `.env.example`. |

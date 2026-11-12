@@ -1,8 +1,10 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
+import {config} from '@config/index';
 
-const HOSTED_BACKEND_URL = process.env.HOSTED_BACKEND_URL || 'https://upload.phygitaltech.in/';
+// Not set: return null and the caller stores the file in public/uploads (fileStore.ts)
+const HOSTED_BACKEND_URL = config.hostedUploadUrl;
 
 interface UploadResponse {
     link: string;
@@ -14,7 +16,7 @@ interface UploadResponse {
  */
 export async function uploadFileToHostedServer(filePath: string): Promise<UploadResponse | null> {
     try {
-        if (!filePath) return null;
+        if (!filePath || !HOSTED_BACKEND_URL) return null;
 
         const form = new FormData();
         form.append('file', fs.createReadStream(filePath));
@@ -43,6 +45,7 @@ export async function uploadBase64ToHostedServer(
     filename: string,
 ): Promise<UploadResponse | null> {
     try {
+        if (!HOSTED_BACKEND_URL) return null;
         const buffer = Buffer.from(base64, 'base64');
 
         const form = new FormData();

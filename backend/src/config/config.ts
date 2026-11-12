@@ -51,6 +51,10 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('base URL of the customer store, used in its password reset emails'),
+    HOSTED_BACKEND_URL: z
+        .union([z.string().trim().url('HOSTED_BACKEND_URL must be a full address, e.g. https://files.example.com'), z.literal('')])
+        .optional()
+        .describe('file server that keeps uploaded photos; empty stores them in public/uploads'),
     TRUST_PROXY: z
         .string()
         .optional()
@@ -88,6 +92,14 @@ const envVarsSchema = z.object({
             code: z.ZodIssueCode.custom,
             path: ['CORS_ORIGINS'],
             message: 'CORS_ORIGINS is required in production: list the frontend addresses, comma-separated',
+        });
+    }
+    // Production names its own file server; nothing is sent to a server nobody chose
+    if (env.NODE_ENV === 'production' && !env.HOSTED_BACKEND_URL) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['HOSTED_BACKEND_URL'],
+            message: 'HOSTED_BACKEND_URL is required in production: the file server that keeps uploaded photos',
         });
     }
 });
@@ -133,6 +145,8 @@ export default {
     },
     frontendUrl: envVars.FRONTEND_URL?.replace(/\/$/, ''),
     storeUrl: envVars.STORE_URL?.replace(/\/$/, ''),
+    // Empty: uploads are stored in public/uploads and served by this API
+    hostedUploadUrl: envVars.HOSTED_BACKEND_URL?.replace(/\/+$/, '') || undefined,
     // Only trust X-Forwarded-For when a known proxy sits in front; otherwise
     // clients could fake their IP and dodge the login rate limit
     trustProxy: envVars.TRUST_PROXY ? Number(envVars.TRUST_PROXY) : false,
