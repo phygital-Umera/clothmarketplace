@@ -126,7 +126,7 @@ class PurchaseReturnService {
           inStockQty,
           returnQty: 0,
           unitCost: item.unitCost,
-          taxRate: item.taxRate || 5,
+          taxRate: item.taxRate,
         });
       }
 
@@ -194,13 +194,24 @@ class PurchaseReturnService {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Please enter return quantity for at least one item');
     }
 
+    const bill = data.purchaseBillId
+      ? await prisma.purchaseBill.findFirst({
+          where: { id: data.purchaseBillId, shopId: scope.shopId },
+          include: { items: { select: { id: true, taxRate: true } } },
+        })
+      : null;
+    // GST rate of the purchase bill line (0% stays 0%); the sent rate only for lines without one
+    const billRates = new Map(bill?.items.map((i) => [i.id, i.taxRate]));
+    const rateOf = (item: (typeof activeItems)[number]) =>
+      billRates.get(item.purchaseBillItemId ?? '') ?? item.taxRate;
+
     let returnValue = 0;
     let taxAmount = 0;
     let totalQuantity = 0;
 
     for (const item of activeItems) {
       const lineCost = item.returnQty * item.unitCost;
-      const lineTax = (lineCost * (item.taxRate || 5)) / 100;
+      const lineTax = (lineCost * rateOf(item)) / 100;
       returnValue += lineCost;
       taxAmount += lineTax;
       totalQuantity += item.returnQty;
@@ -210,19 +221,12 @@ class PurchaseReturnService {
     taxAmount = Math.round(taxAmount * 100) / 100;
     const totalAmount = Math.round((returnValue + taxAmount) * 100) / 100;
 
-    // Fetch purchase bill if provided
     let payableBefore = 0;
     let payableAfter = 0;
-    let bill = null;
 
-    if (data.purchaseBillId) {
-      bill = await prisma.purchaseBill.findFirst({
-        where: { id: data.purchaseBillId, shopId: scope.shopId },
-      });
-      if (bill) {
-        payableBefore = bill.balanceDue;
-        payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
-      }
+    if (bill) {
+      payableBefore = bill.balanceDue;
+      payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
     }
 
     const returnDate = data.returnDate ? new Date(data.returnDate) : new Date();
@@ -262,7 +266,7 @@ class PurchaseReturnService {
               inStockQty: item.inStockQty,
               returnQty: item.returnQty,
               unitCost: item.unitCost,
-              taxRate: item.taxRate || 5,
+              taxRate: rateOf(item),
               totalCost: Math.round(item.returnQty * item.unitCost * 100) / 100,
               reason: item.reason || null,
             })),

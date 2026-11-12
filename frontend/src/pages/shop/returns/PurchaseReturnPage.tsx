@@ -139,7 +139,7 @@ export default function PurchaseReturnPage() {
     for (const item of items) {
       if (item.returnQty > 0) {
         const lineCost = item.returnQty * item.unitCost;
-        const lineTax = (lineCost * (item.taxRate || 5)) / 100;
+        const lineTax = (lineCost * item.taxRate) / 100;
         retVal += lineCost;
         taxVal += lineTax;
         qty += item.returnQty;
