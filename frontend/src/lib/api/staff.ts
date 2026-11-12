@@ -4,7 +4,6 @@ import {
   Shift,
   StaffList,
   StaffRequest,
-  StaffRequestPayload,
 } from '@/types/staff';
 
 type Res<T> = {statusCode: number; data: T; message: string};
@@ -25,9 +24,6 @@ export const markAttendance = (panel: string, id: string, status: AttendanceStat
 
 export const getStaffRequests = (panel: string) =>
   api.get(`/${panel}/staff-requests`).then((res: any) => res as Res<StaffRequest[]>);
-
-export const createStaffRequest = (panel: string, data: StaffRequestPayload) =>
-  api.post(`/${panel}/staff-requests`, data).then((res: any) => res as Res<StaffRequest>);
 
 // ---- Branch admin: approve / reject new staff ----
 

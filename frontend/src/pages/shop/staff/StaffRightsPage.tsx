@@ -1,23 +1,12 @@
-import {Field, PageHeader} from '@/components/ui';
-import FormDialog from '@/components/ui/FormDialog';
-import useCurrentUser from '@/hooks/useCurrentUser';
+import {PageHeader} from '@/components/ui';
 import {
-  useCreateStaffRequest,
   useMarkAttendance,
   useStaff,
   useStaffRequests,
   useUpdateStaffRights,
   useUpdateStaffShift,
 } from '@/lib/react-query/queriesAndMutations/staff';
-import {
-  AttendanceStatus,
-  SHIFT_LABEL,
-  Shift,
-  STAFF_ROLES,
-  StaffMember,
-  StaffRequestPayload,
-  StaffRight,
-} from '@/types/staff';
+import {AttendanceStatus, SHIFT_LABEL, Shift, StaffMember} from '@/types/staff';
 import {getErrorMessage} from '@/utils/axios';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
@@ -123,175 +112,6 @@ function TodayCell({member, panel}: {member: StaffMember; panel: string}) {
   );
 }
 
-const EMPTY_REQUEST: StaffRequestPayload = {
-  fullname: '',
-  phoneNumber: '',
-  email: '',
-  employeeRole: 'Sales associate',
-  shift: 'FULL_DAY',
-  permissions: ['billing.edit'],
-  note: '',
-};
-
-function RequestStaffDialog({
-  open,
-  onClose,
-  panel,
-  rights,
-}: {
-  open: boolean;
-  onClose: () => void;
-  panel: string;
-  rights: StaffRight[];
-}) {
-  const create = useCreateStaffRequest(panel);
-  const [form, setForm] = useState<StaffRequestPayload>(EMPTY_REQUEST);
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (open) {
-      setForm(EMPTY_REQUEST);
-      setError('');
-      setFieldErrors({});
-    }
-  }, [open]);
-
-  const set = <K extends keyof StaffRequestPayload>(k: K, v: StaffRequestPayload[K]) =>
-    setForm((f) => ({...f, [k]: v}));
-
-  const submit = () => {
-    const errs: Record<string, string> = {};
-    if (form.fullname.trim().length < 2) errs.fullname = 'Enter the full name';
-    if (!/^[6-9]\d{9}$/.test(form.phoneNumber.trim())) errs.phoneNumber = 'Enter a valid 10-digit mobile number';
-    setFieldErrors(errs);
-    if (Object.keys(errs).length) return;
-    setError('');
-    create.mutate(
-      {...form, email: form.email?.trim() || undefined, note: form.note?.trim() || undefined},
-      {
-        onSuccess: onClose,
-        onError: (err: any) => {
-          const list = err?.response?.data?.errors as Array<{field: string; message: string}> | undefined;
-          if (list?.length) setFieldErrors(Object.fromEntries(list.map((e) => [e.field, e.message])));
-          setError(getErrorMessage(err, 'Could not send the request'));
-        },
-      },
-    );
-  };
-
-  return (
-    <FormDialog
-      open={open}
-      title="Request new staff"
-      onClose={onClose}
-      onSubmit={submit}
-      saving={create.isPending}
-      error={error}
-      saveLabel="Send to Branch Admin"
-    >
-      <p className="text-body-sm text-on-surface-variant">
-        The Branch Admin approves the request and creates the login.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Full name" htmlFor="sr-name" required error={fieldErrors.fullname}>
-          <input
-            id="sr-name"
-            className="field-input"
-            value={form.fullname}
-            onChange={(e) => set('fullname', e.target.value)}
-            aria-invalid={!!fieldErrors.fullname}
-          />
-        </Field>
-        <Field label="Mobile" htmlFor="sr-phone" required error={fieldErrors.phoneNumber}>
-          <input
-            id="sr-phone"
-            className="field-input"
-            inputMode="numeric"
-            maxLength={10}
-            value={form.phoneNumber}
-            onChange={(e) => set('phoneNumber', e.target.value.replace(/\D/g, ''))}
-            aria-invalid={!!fieldErrors.phoneNumber}
-          />
-        </Field>
-        <Field label="Email" htmlFor="sr-email" error={fieldErrors.email}>
-          <input
-            id="sr-email"
-            type="email"
-            className="field-input"
-            value={form.email}
-            onChange={(e) => set('email', e.target.value)}
-          />
-        </Field>
-        <Field label="Role" htmlFor="sr-role" required>
-          <select
-            id="sr-role"
-            className="field-input"
-            value={form.employeeRole}
-            onChange={(e) => set('employeeRole', e.target.value)}
-          >
-            {STAFF_ROLES.filter((r) => r !== 'Shop manager').map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Shift" htmlFor="sr-shift" required>
-          <select
-            id="sr-shift"
-            className="field-input"
-            value={form.shift}
-            onChange={(e) => set('shift', e.target.value as Shift)}
-          >
-            {(Object.keys(SHIFT_LABEL) as Shift[]).map((s) => (
-              <option key={s} value={s}>
-                {SHIFT_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <fieldset>
-        <legend className="field-label">Rights</legend>
-        <div className="flex flex-wrap gap-2">
-          {rights.map((r) => {
-            const on = form.permissions.includes(r.key);
-            return (
-              <label
-                key={r.key}
-                className={`flex cursor-pointer items-center gap-2 border px-3 py-1.5 text-body-sm ${
-                  on ? 'border-burgundy bg-blush/30 text-burgundy' : 'border-ivory-300 text-espresso'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-[#6B1E2E]"
-                  checked={on}
-                  onChange={() =>
-                    set(
-                      'permissions',
-                      on ? form.permissions.filter((p) => p !== r.key) : [...form.permissions, r.key],
-                    )
-                  }
-                />
-                {r.label}
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
-      <Field label="Note for Branch Admin" htmlFor="sr-note">
-        <textarea
-          id="sr-note"
-          rows={2}
-          className="field-input"
-          value={form.note}
-          onChange={(e) => set('note', e.target.value)}
-        />
-      </Field>
-    </FormDialog>
-  );
-}
-
 const REQUEST_PILL: Record<string, string> = {
   PENDING: PILL.amber,
   APPROVED: PILL.green,
@@ -303,11 +123,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
   const {data: requests} = useStaffRequests(panel);
   const updateRights = useUpdateStaffRights(panel);
   const updateShift = useUpdateStaffShift(panel);
-  const [requestOpen, setRequestOpen] = useState(false);
   const rights = data?.rights ?? [];
-  const {data: me} = useCurrentUser();
-  // The owner (shop mode) adds staff directly; a shop login asks the branch admin
-  const owner = me?.role === 'ADMIN';
 
   const toggle = (member: StaffMember, key: string) => {
     const permissions = member.permissions.includes(key)
@@ -323,15 +139,10 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
         title="Staff & rights"
         subtitle="Your team's shifts and today's activity. A tick gives that module with edit access; set View-only access on the Employees page."
         actions={
-          owner ? (
-            <Link to="/shop-admin/employees" className="btn-ghost">
-              Add staff
-            </Link>
-          ) : (
-            <button type="button" className="btn-ghost" onClick={() => setRequestOpen(true)}>
-              Request new staff
-            </button>
-          )
+          // New staff get their login on the Employees page, straight away
+          <Link to="/shop-admin/employees" className="btn-ghost">
+            Add staff
+          </Link>
         }
       />
 
@@ -344,8 +155,9 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
                 <th scope="col" className="px-3 py-3">Role</th>
                 <th scope="col" className="px-3 py-3">Shift</th>
                 <th scope="col" className="px-3 py-3">Today</th>
+                {/* Ten modules: long names wrap onto two lines so the table fits */}
                 {rights.map((r) => (
-                  <th key={r.key} scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+                  <th key={r.key} scope="col" className="w-16 px-1.5 py-3 text-center leading-tight">
                     {r.label}
                   </th>
                 ))}
@@ -372,7 +184,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
               {data && !data.items.length && (
                 <tr>
                   <td colSpan={4 + rights.length} className="px-4 py-10 text-center text-outline">
-                    No staff in this shop yet. {owner ? 'Add staff' : 'Request new staff'} to get started.
+                    No staff in this shop yet. Add staff to get started.
                   </td>
                 </tr>
               )}
@@ -384,8 +196,8 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
                         {initials(s.fullname)}
                       </span>
                       <div className="min-w-0">
-                        <p className="font-medium leading-tight">{s.fullname}</p>
-                        <p className="text-[11px] text-outline">{s.employeeCode ?? '—'}</p>
+                        <p className="whitespace-nowrap font-medium leading-tight">{s.fullname}</p>
+                        <p className="whitespace-nowrap text-[11px] text-outline">{s.employeeCode ?? '—'}</p>
                       </div>
                     </div>
                   </td>
@@ -412,7 +224,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
                     <TodayCell member={s} panel={panel} />
                   </td>
                   {rights.map((r) => (
-                    <td key={r.key} className="px-3 py-3 text-center">
+                    <td key={r.key} className="px-1.5 py-3 text-center">
                       <input
                         type="checkbox"
                         aria-label={`${r.label} for ${s.fullname}`}
@@ -440,7 +252,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
       {!!requests?.length && (
         <section className="panel mt-6">
           <h2 className="border-b border-ivory-300 px-4 py-3 font-serif text-headline-sm text-burgundy">
-            Staff requests
+            Earlier staff requests
           </h2>
           <ul className="divide-y divide-ivory-200">
             {requests.map((r) => (
@@ -465,13 +277,6 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
           </ul>
         </section>
       )}
-
-      <RequestStaffDialog
-        open={requestOpen}
-        onClose={() => setRequestOpen(false)}
-        panel={panel}
-        rights={rights}
-      />
     </div>
   );
 }

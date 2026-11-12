@@ -196,7 +196,8 @@ export const SHOP_FIELDS = Object.keys(EMPTY_SHOP);
 
 const employeeFields = {
   fullname: field({label: 'Full Name', kind: 'name'}),
-  email: field({label: 'Email', kind: 'email'}),
+  // Optional: staff sign in with their phone number
+  email: field({label: 'Email', kind: 'email', required: false}),
   phoneNumber: field({label: 'Phone Number', kind: 'phone'}),
   branchId: z.string().optional(),
   shopId: z.string().optional(),

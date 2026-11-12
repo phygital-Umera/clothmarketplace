@@ -99,6 +99,8 @@ export const getBranchPnlReport = (panel: ReportPanel, from?: string, to?: strin
 // --- STAFF ---
 export type BranchStaffMember = {
   id: string;
+  /** Set on a pending request, which the branch approves or rejects */
+  requestId: string | null;
   name: string;
   empCode: string;
   phone: string;
@@ -125,18 +127,6 @@ export type StaffOverviewData = {
 
 export const getBranchStaffOverview = (params?: {tab?: string; shop?: string; search?: string}) =>
   (api.get('/branch-admin/staff-overview', {params}) as unknown as Promise<Res<StaffOverviewData>>);
-
-export const inviteBranchStaff = (data: {
-  fullname: string;
-  phoneNumber: string;
-  email?: string;
-  shopId: string;
-  employeeRole: string;
-  shift: string;
-  permissions: string[];
-  note?: string;
-}) =>
-  (api.post('/branch-admin/staff-overview/invite', data) as unknown as Promise<Res<{success: boolean; message: string}>>);
 
 // --- SHOP ASSIGNMENT ---
 export type ShopStaffMember = {

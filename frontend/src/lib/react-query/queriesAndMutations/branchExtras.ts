@@ -5,7 +5,6 @@ import {
   getBranchApprovals,
   getBranchPnlReport,
   getBranchStaffOverview,
-  inviteBranchStaff,
   getBranchShopAssignment,
   moveBranchEmployee,
   getBranchProfileSetup,
@@ -83,20 +82,6 @@ export const useBranchStaffOverview = (params?: {tab?: string; shop?: string; se
       return (await getBranchStaffOverview(params)).data;
     },
   });
-
-export const useInviteBranchStaff = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: inviteBranchStaff,
-    onSuccess: (res: any) => {
-      toast.success(res?.message || 'Staff invitation sent successfully');
-      qc.invalidateQueries({queryKey: ['branch-staff-overview']});
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Failed to send invitation');
-    },
-  });
-};
 
 // Shop Assignment
 export const useBranchShopAssignment = () =>
