@@ -697,9 +697,23 @@ class MasterService {
             },
             id,
         );
-        const after = await prisma.color.update({
-            where: {id},
-            data: {...data, ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {})},
+        const after = await prisma.$transaction(async (tx) => {
+            const row = await tx.color.update({
+                where: {id},
+                data: {...data, ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {})},
+            });
+            // Variants are matched by name: the products using this colour follow the
+            // rename, so saving them later keeps the same variants and their stock
+            if (row.name !== before.name || row.hexCode !== before.hexCode) {
+                await tx.productVariant.updateMany({
+                    where: {
+                        color: {equals: before.name, mode: 'insensitive'},
+                        product: {colors: {some: {colorId: id}}},
+                    },
+                    data: {color: row.name, colorHex: row.hexCode},
+                });
+            }
+            return row;
         });
         return {before, after};
     }
@@ -786,7 +800,21 @@ class MasterService {
         if (data.name && data.name.toLowerCase() !== before.name.toLowerCase()) {
             await this.assertSizeNameFree(scope, data.name, id);
         }
-        const after = await prisma.size.update({where: {id}, data});
+        const after = await prisma.$transaction(async (tx) => {
+            const row = await tx.size.update({where: {id}, data});
+            // Variants are matched by name: the products using this size follow the
+            // rename, so saving them later keeps the same variants and their stock
+            if (row.name !== before.name) {
+                await tx.productVariant.updateMany({
+                    where: {
+                        size: {equals: before.name, mode: 'insensitive'},
+                        product: {sizes: {some: {sizeId: id}}},
+                    },
+                    data: {size: row.name},
+                });
+            }
+            return row;
+        });
         return {before, after};
     }
 
