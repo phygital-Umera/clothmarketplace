@@ -24,12 +24,13 @@ This is the living list of what we are fixing, in order: what is done, what is i
 
 | | |
 |---|---|
-| **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Phase 2: `fix/p2-security` (from `fix/p1-stock-and-store`). Not pushed. |
-| **Doing now** | Phase 2 is done (12 of 12; P2-02, 05, 08, 10, 11 and 12 by the other session, the rest here) and reviewed. Of the review's 6 findings, 5 are fixed (3d4b2d7, 9c3bc35, 1e01dab here; a46f4ce, 88da1bc by the other session) and 1 waits for your decision (employees cancelling or editing a confirmed bill, inbox ❓). |
+| **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Phase 2: `fix/p2-security` (from `fix/p1-stock-and-store`). Phase 3: `fix/p3-roles-and-stock` (from `fix/p2-security`). Not pushed. |
+| **Doing now** | Phase 3 is done (10 of 10; P3-03, 05, 07, 09 and the P3-08 screens by the other session, the rest here). An independent review of the Phase 3 commits is running. Phase 2 is done and reviewed (one decision left in the inbox). |
+| **Before deploying Phase 3** | Each server makes its own migration for P3-02 (`Size.shopId`, `Color.shopId`, `Shop.mastersCopiedAt`, D-15). Nothing else to run: each shop copies its sizes and colours the first time it opens them. |
 | **Before deploying Phase 2** | 1) Each server makes its own migration for P2-03 (3 new columns on `SalesBill` and `PurchaseBill`, D-15). 2) Production now needs `CORS_ORIGINS` (P2-12) and `HOSTED_BACKEND_URL` (P2-05); every admin-app build needs `VITE_SERVER_URL` (P2-10). 3) After P2-06b every signed-in user signs in once more when their access token expires. |
 | **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
 | **W-02 (single-shop mode, D-17)** | Committed in e4edc0b: `Company.businessMode`, the one-way switch to branch mode, and the owner accepting day-close differences and approving stock transfers in shop mode (P3-06). Its migration `20261113090000_company_business_mode` stays out of git (D-15): each server makes its own. |
-| **Next up** | 1) Your checks in the browser: the Phase 1 screens (product form opening stock, Stock page, Stock Adjustment, Suppliers, debit note, barcode labels, Credit/Udhaar, My Profile photo, expenses photo, store with a branch switched off), the POS bill types and single-shop mode, and Phase 2 (an employee's "Ask to delete" and the shop admin's "Keep bill" on Sales and Purchase Bills; the forced password change; the My Profile POS PIN; sub-categories in the branch and company offer form). 2) P0-13, your step. 3) The inbox questions marked ❓. 4) Phase 3 when you say go. 5) The credit-days lines for the bill API (inbox) before Phase 4. |
+| **Next up** | 1) Your checks in the browser: the Phase 1 screens (product form opening stock, Stock page, Stock Adjustment, Suppliers, debit note, barcode labels, Credit/Udhaar, My Profile photo, expenses photo, store with a branch switched off), the POS bill types and single-shop mode, and Phase 2 (an employee's "Ask to delete" and the shop admin's "Keep bill" on Sales and Purchase Bills; the forced password change; the My Profile POS PIN; sub-categories in the branch and company offer form). Phase 3 (a company or branch product needs a Shop; the branch price list is view only; each shop's own sizes and colours, and categories changed only by the owner; online orders handled only by the shop; one Stock adjust; the menus; adding staff on the Employees page with all 10 modules). 2) P0-13, your step. 3) The inbox questions marked ❓. 4) Phase 4 when you say go. 5) The credit-days lines for the bill API (inbox) before Phase 4. |
 
 ---
 
@@ -156,16 +157,16 @@ None right now. Add new questions here with ❓.
 
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
-| P3-01 | Company and branch create products that can never be sold | Per D-01: a required shop picker; show existing ones as "Not in any shop" | `product.service.ts:150-205`, company and branch product pages, `Sidebar:177` | No unsellable product can be created | D-01 | ⬜ |
-| P3-02 | Categories, sizes and colours are edited in a shop but apply company-wide | Per D-02: sizes and colours per shop (a new shop gets the standard list; add from the product form); categories stay company-wide | `master.service.ts:20-27`, `shopAdmin.routes.ts:45-59`, menus | A shop can't rename "XL" for everyone | D-02 | ⬜ |
-| P3-03 | Online orders can be changed at four levels | Per D-03 | order routes in the company, branch and shop routers | Only the owner level sees action buttons | D-03 | ⬜ |
-| P3-04 | Prices set in three places | Shop only; branch page per D-13 | `branchPricing.service.ts`, `product.service.ts` | – | D-13 | ⬜ |
-| P3-05 | Three stock-adjust code paths | Merge into one path through `applyStockChanges` | `inventory.service.ts`, `stock.service.ts`, `stockAdjustment.service.ts` | Concurrent sale + adjust: no lost update | P1-03, P1-07 | ⬜ |
+| P3-01 | Company and branch create products that can never be sold | Per D-01: a required shop picker; show existing ones as "Not in any shop" | `product.service.ts:150-205`, company and branch product pages, `Sidebar:177` | No unsellable product can be created | D-01 | ✅ 55a5aff |
+| P3-02 | Categories, sizes and colours are edited in a shop but apply company-wide | Per D-02: sizes and colours per shop (a new shop gets the standard list; add from the product form); categories stay company-wide | `master.service.ts:20-27`, `shopAdmin.routes.ts:45-59`, menus | A shop can't rename "XL" for everyone | D-02 | ✅ d013cc2 |
+| P3-03 | Online orders can be changed at four levels | Per D-03 | order routes in the company, branch and shop routers | Only the owner level sees action buttons | D-03 | ✅ 43c5262, 3a635a2 |
+| P3-04 | Prices set in three places | Shop only; branch page per D-13 | `branchPricing.service.ts`, `product.service.ts` | – | D-13 | ✅ 746dc45 |
+| P3-05 | Three stock-adjust code paths | Merge into one path through `applyStockChanges` | `inventory.service.ts`, `stock.service.ts`, `stockAdjustment.service.ts` | Concurrent sale + adjust: no lost update | P1-03, P1-07 | ✅ 3a5d33c |
 | P3-06 | The company admin can't approve stock transfers; Main Branch requests get stuck | Owner approves when there is no branch admin (shop mode, like refunds) | `stockTransfer.service.ts`, `shopAdmin.routes.ts`, transfer page | Request in Main Branch → owner approves | – | ✅ e4edc0b (W-02, D-17) |
-| P3-07 | Menu text promises missing features; branch "Purchase Return" always fails; pages with no menu entry | Fix the wording; hide or route correctly | `Sidebar/index.tsx:218, 237, 289, 309, 521`, `PurchaseReturnPage.tsx:24` | Every menu item opens and works | – | ⬜ |
-| P3-08 | Five staff-onboarding paths (a direct `POST /employees` in the company, branch and shop panels, the branch invite, the shop request); the branch invite shows 10 modules but saves 6 | One path; one module list | `staff.service.ts:224`, `config/permissions.ts:124-131`, `BranchStaffPage.tsx:15` | Ticked modules are saved | – | ⬜ |
-| P3-09 | Two branch refund-approval endpoints, one not audited | Keep the audited one | `branchAdmin.routes.ts:134, 159` | – | – | ⬜ |
-| P3-10 | Renaming a size or colour, then saving a product, switches off variants and their stock | Match variants by master id, not name | `shopProduct.service.ts:215-248` | Rename "XL"; stock stays | – | ⬜ |
+| P3-07 | Menu text promises missing features; branch "Purchase Return" always fails; pages with no menu entry | Fix the wording; hide or route correctly | `Sidebar/index.tsx:218, 237, 289, 309, 521`, `PurchaseReturnPage.tsx:24` | Every menu item opens and works | – | ✅ e8b2394 |
+| P3-08 | Five staff-onboarding paths (a direct `POST /employees` in the company, branch and shop panels, the branch invite, the shop request); the branch invite shows 10 modules but saves 6 | One path; one module list | `staff.service.ts:224`, `config/permissions.ts:124-131`, `BranchStaffPage.tsx:15` | Ticked modules are saved | – | ✅ f8897c0, 73c607b, 7da5eb7 |
+| P3-09 | Two branch refund-approval endpoints, one not audited | Keep the audited one | `branchAdmin.routes.ts:134, 159` | – | – | ✅ 426f7e3 |
+| P3-10 | Renaming a size or colour, then saving a product, switches off variants and their stock | Match variants by master id, not name | `shopProduct.service.ts:215-248` | Rename "XL"; stock stays | – | ✅ fa39318 |
 
 ### Phase 4: tax, documents and settings
 
@@ -274,7 +275,7 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (P2-01) | The offer form's category list asks `/<panel>/categories`, which the company and branch APIs don't have (only `/categories/options`), so it is empty there | `components/Promotions/OfferFormModal.tsx:56`, `lib/api/ecommerce.ts:72` | ⬜ |
 | 2026-11-12 (P2-03, review) | An employee can still cancel or edit a confirmed bill (both change stock at once) without approval; D-16 covers delete only. So an employee can cancel yesterday's sale (stock comes back, it leaves the totals) and then ask to delete it. Should cancel and edit of a confirmed bill also wait for the shop admin? | `bill.controller.ts:151, 243`, `bill.service.ts` | ❓ |
 | 2026-11-12 (P2-03) | The shop admin is not notified of a delete request; they see "Delete asked" on the bill and a filter | `BillsPage.tsx` | ⬜ |
-| 2026-11-12 (P2-07) | Only staff approved from a staff request must change their password. Passwords an admin sets for someone else (company admin, branch admin, shop login, employee) don't set the flag. Should they? (A shop login is often shared, and the owner may want to keep knowing it) | `staff.service.ts:326`, `employee.service.ts`, `company.service.ts`, `branch.service.ts`, `shop.service.ts` | ❓ |
+| 2026-11-12 (P2-07) | Employees must now change a password their admin set (7da5eb7). Passwords set for the company admin, a branch admin or a shop login still don't set the flag. Should they? (A shop login is often shared, and the owner may want to keep knowing it) | `staff.service.ts:326`, `employee.service.ts`, `company.service.ts`, `branch.service.ts`, `shop.service.ts` | ❓ |
 | 2026-11-12 (P2-06) | The POS PIN is saved but nothing checks it | `user.service.ts`, POS | ⬜ |
 | 2026-11-12 (P2-06) | One refresh token per user: signing in on a second device signs the first out at its next refresh. Reuse detection (revoke all on a reused token) needs a per-device table first | `token.service.ts`, `schema.prisma` | ⬜ |
 | 2026-11-12 (P2-02) | The opening balance of a supplier added by the branch admin (no shop) is seen only by the branch, not by its shops. Should shops see and pay it? | `supplier.service.ts` | ❓ |
@@ -284,6 +285,17 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (P2-10) | The store app also needs `VITE_SERVER_URL` but has no build check; a missing value crashes at runtime | `user/src/lib/api.ts` | ⬜ |
 | 2026-11-12 (P2-02) | Barcode labels: `resolveScope` falls back to the company's first branch when the user has none (no longer reachable from `/shop-admin` after P2-01) | `barcodeLabel.controller.ts` | ⬜ |
 | 2026-11-12 (P2-08) | `sendVerificationEmail` puts the user name into HTML and the link without escaping; nothing calls it today | `email.service.ts` | ⬜ |
+| 2026-11-12 (P3-02) | D-02 said categories are "edited in the company panel; to confirm". Done as: only the owner (company admin in shop mode) changes categories and sub-categories; shop logins and staff only read them. Is that right, or should they move to a company-panel page? | `shopAdmin.routes.ts`, `CategoryMaster.tsx` | ❓ |
+| 2026-11-12 (P3-02) | A shop's sizes and colours are copies: later changes to the platform's standard list by the super admin no longer reach shops that already copied it | `master.service.ts` `ensureShopMasters` | ⬜ |
+| 2026-11-12 (P3-04) | The company and branch product form sets the price only for a new product or variant; afterwards prices change in the shop (shop mode for the owner) | `product.service.ts` | ⬜ note |
+| 2026-11-12 (P3-05, other session) | A count correction may now go below online reservations (`allowBelowReserved`); a plain decrease from the Inventory screen can no longer take reserved stock (before, it checked physical stock only) | `inventory.service.ts` | ⬜ note |
+| 2026-11-12 (P3-05, other session) | Manual adjusts from the Stock page and Inventory now carry ADJ numbers and show in the Stock Adjustment history; `Product.stockQuantity` is kept in step by these paths; purchase returns still bypass `applyStockChanges` | `stock.service.ts`, `purchaseReturn.service.ts` | → P5-04 |
+| 2026-11-12 (P3-05, other session) | A count correction on a variant that never had stock has no row to lock, so two first counts at the same moment could both add (rare) | `inventory.service.ts` | ⬜ |
+| 2026-11-12 (P3-05, other session) | `/inventory/adjust` and `/inventory/batch-adjust` have no zod schema at the route (type and whole-number checks are in the service); `resolveBranchId` still falls back to the company's first branch | `ecommerce.controller.ts`, `stock.service.ts` | ⬜ |
+| 2026-11-12 (P3-03, other session) | An employee with only `orders.view` still sees the order buttons; the server refuses with 403. Hiding them needs the frontend to read the employee's rights | `ShopOrdersPage.tsx` | ⬜ |
+| 2026-11-12 (P3-07, other session) | `/shop-admin/profile` and `/shop-admin/my-profile` both show My Profile while the header uses `/my-profile`; harmless duplicates with no menu entry | `frontend/src/routes/_app/shop-admin` | ⬜ |
+| 2026-11-12 (P3-07, other session) | The shop API still has the promotions routes, with no shop screen (promotions are company-wide) | `shopAdmin.routes.ts` `mountPromotions` | ⬜ |
+| 2026-11-12 (P3-08) | Staff requests made before P3-08 can still be approved or rejected by the branch; no new ones can be made | `staff.service.ts` | ⬜ note |
 
 ---
 
@@ -291,6 +303,18 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | P3-08 follow-up (found by the other session): new employees and an admin's password reset for an employee must be changed at the next sign-in (the old request path did this; direct creation did not) | 7da5eb7 |
+| 2026-11-12 | P3-08 (screens, other session): the branch adds staff with the employee form (direct, all 10 modules); the shop's "Request new staff" is gone; old pending requests can still be decided | 73c607b |
+| 2026-11-12 | P3-08 (API): one way to add staff (POST /<panel>/employees); the branch invite and the shop's new staff requests are removed; Staff & rights shows all 10 modules; staff email optional (6 API checks) | f8897c0 |
+| 2026-11-12 | P3-10: renaming a size or colour carries to the variants of the products using it, so saving them keeps the same variants and stock (checked: rename, save, stock 5 stays) | fa39318 |
+| 2026-11-12 | P3-02: sizes and colours belong to each shop (copied on first use, products moved to the copies, once per shop); shop products and transfer copies use the shop's own rows; categories and sub-categories changed only by the owner (15 checks) | d013cc2 |
+| 2026-11-12 | P3-07 (other session): menu text matches the pages; the branch Purchase Return item and the branch Stock, Stock Adjustment and Promotions and shop Promotions screens (no menu entry) removed; checked in Chrome as the branch admin | e8b2394 |
+| 2026-11-12 | P3-09 (other session): one branch refund decision (the audited credit-note one); the Approvals page uses it and asks for a reason on Reject | 426f7e3 |
+| 2026-11-12 | P3-03 follow-up (other session): branch and company order write routes removed; lists, order view, invoice and returns list stay | 3a635a2 |
+| 2026-11-12 | P3-04: prices are set by the shop; the branch price list is view only (save and bulk removed); the company/branch form can't change saved prices; a shop's price change is dated (8 checks) | 746dc45 |
+| 2026-11-12 | P3-05 (other session): every manual stock change (Stock page, physical count, Inventory adjust and batch, Stock Adjustment) goes through one path with an ADJ number in one transaction; removing more than available is refused (40 concurrent changes: no lost update) | 3a5d33c |
+| 2026-11-12 | P3-03 (other session): online orders are changed only by the selling shop (shop login, owner in shop mode, employees with orders.edit); branch, company and super admin only view (12 API checks) | 43c5262 |
+| 2026-11-12 | P3-01: company and branch products need a Shop (set once); the list shows the shop and a "Not in any shop" filter (8 API checks) | 55a5aff |
 | 2026-11-12 | Phase 2 review fix (other session): the supplier list sends a shop the opening balance only of suppliers it added (0 otherwise); the branch still sees all | 88da1bc |
 | 2026-11-12 | Phase 2 review fix (other session): a debit note line is capped at the bought quantity less earlier confirmed notes, the same line twice is refused, only a confirmed, non-deleted bill is accepted (bill row locked during the note); product and variant come from the bill line (8 API checks) | a46f4ce |
 | 2026-11-12 | Phase 2 review fix: the refresh limit is per account (30 per 15 minutes), not per IP, so shoppers sharing an IP are not signed out | 1e01dab |
