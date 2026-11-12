@@ -26,7 +26,6 @@ These were found by reading the code. Nothing has been changed.
 - XSS cleaning middleware is imported but commented out in `backend/src/app.ts`.
 - CORS is hard-coded to `*`; `CORS_ORIGINS` is read but not enforced.
 - `CLOUDFLARE_AI_PRO_MODEL`, `CLOUDFLARE_AI_FOR_COLOURS`, `ASSET_BASE_URL` are used but missing from `backend/.env.example`.
-- `backend/public/backup-test.html` has a hard-coded dev-tunnel URL.
 
 **Backend logic**
 - In the shop router, `GET /customers` is answered by the bill controller, so the customer controller's `list` is unreachable there.

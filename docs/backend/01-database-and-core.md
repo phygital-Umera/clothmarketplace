@@ -468,7 +468,7 @@ These came from the one-time role rename. The current role names are the ones in
 | `backend/docs/colour-photos-setup.md` | Explains colour photos: local garment cut-out, recolour of the garment only, checks before saving, clean white background, and the optional Cloudflare AI "professional photo" styles. |
 | `backend/prisma/schema.prisma` | The database schema (section 3). |
 | `backend/prisma/migrations/*` | Migration history (section 4). |
-| `backend/public/` | Static files served at the site root. `public/uploads/products/demo` holds 45 files: demo product photos plus `manifest.json` (which photos belong to which product colour) and `CREDITS.md`. `public/temp` is created at runtime for multer. `public/backup-test.html` is a standalone test page (dark UI) for the `/backup` and `/backup/restore` API; its base URL is a hard-coded dev tunnel, so change it before use. |
+| `backend/public/` | Static files served at the site root. `public/uploads/products/demo` holds 45 files: demo product photos plus `manifest.json` (which photos belong to which product colour) and `CREDITS.md`. `public/temp` is created at runtime for multer. |
 
 ### Per-file table for `src/` root files
 
