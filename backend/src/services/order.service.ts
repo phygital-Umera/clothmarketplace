@@ -579,8 +579,8 @@ class OrderService {
             if (data.paymentStatus === PaymentStatus.REFUNDED && order.paymentStatus !== PaymentStatus.REFUNDED) {
                 await notify(tx, order.customerId, {
                     type: 'PAYMENT',
-                    title: 'Refund processed',
-                    body: `₹${order.totalAmount.toLocaleString('en-IN')} for order ${order.orderNumber} has been refunded. Banks take 5–7 working days to show it.`,
+                    title: 'Refund approved',
+                    body: `Your refund of ₹${order.totalAmount.toLocaleString('en-IN')} for order ${order.orderNumber} is approved. It usually reaches your account in 5–7 working days.`,
                     link: `/account/orders/${order.id}`,
                 });
             }
@@ -648,7 +648,7 @@ class OrderService {
                     tx,
                     order,
                     OrderStatus.CANCELLED,
-                    nextPaymentStatus === PaymentStatus.REFUNDED ? 'Your payment will be refunded in 5–7 working days.' : undefined,
+                    nextPaymentStatus === PaymentStatus.REFUNDED ? 'Your refund is approved. It usually reaches your account in 5–7 working days.' : undefined,
                 );
 
                 return updated;
@@ -860,7 +860,7 @@ class OrderService {
                 {when: changed('REJECTED'), title: 'Return not approved', body: `We could not accept the return for order ${no}${data.notes ? `: ${data.notes}` : '.'}`},
                 {when: changed('RECEIVED'), title: 'Return received', body: `We have received the items from order ${no} and are checking them.`},
                 {when: changed('COMPLETED') && item.resolution === 'EXCHANGE', title: 'Exchange shipped', body: `Your exchange for order ${no}${item.exchangeFor ? ` (${item.exchangeFor})` : ''} is on its way.`},
-                {when: data.refundStatus === 'PROCESSED' && item.refundStatus !== 'PROCESSED', title: 'Refund processed', body: `${amount} for your return from order ${no} has been refunded. Banks take 5–7 working days to show it.`},
+                {when: data.refundStatus === 'PROCESSED' && item.refundStatus !== 'PROCESSED', title: 'Refund approved', body: `Your refund of ${amount} for your return from order ${no} is approved. It usually reaches your account in 5–7 working days.`},
             ];
             for (const m of messages.filter((x) => x.when)) {
                 await notify(tx, item.customerId, {type: 'RETURN', title: m.title, body: m.body, link});
