@@ -22,6 +22,8 @@ import {
   Barcode as BarcodeIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useCurrentUser from '@/hooks/useCurrentUser';
+import {useOwnerShop} from '@/lib/ownerShop';
 
 interface BarcodeLabelsPageProps {
   panel?: 'shop-admin' | 'branch-admin';
@@ -95,6 +97,10 @@ const BarcodeSvg: React.FC<{
 export default function BarcodeLabelsPage({
   panel = 'shop-admin',
 }: BarcodeLabelsPageProps) {
+  const {data: me} = useCurrentUser();
+  const ownerShop = useOwnerShop(me?.id);
+  // Shop login, then the shop a company admin opened, then the company (branch panel)
+  const shopName = me?.shop?.name ?? ownerShop?.name ?? me?.company?.name ?? '';
 
   // Tabs: FROM_PURCHASE_BILL | PICK_PRODUCTS | REPRINT
   const [activeTab, setActiveTab] = useState<'FROM_PURCHASE_BILL' | 'PICK_PRODUCTS' | 'REPRINT'>(
@@ -358,7 +364,7 @@ export default function BarcodeLabelsPage({
                     <div class="label-container">
                       ${
                         labelSetup.showShopName
-                          ? `<div class="shop-name">MATOSHRI FASHIONS</div>`
+                          ? `<div class="shop-name">${escapeHtml(shopName)}</div>`
                           : ''
                       }
                       ${
@@ -808,7 +814,7 @@ export default function BarcodeLabelsPage({
               <div className="w-[200px] rounded border border-stone-300 bg-white p-2.5 shadow-sm flex flex-col justify-between text-center select-none">
                 {labelSetup.showShopName && (
                   <p className="font-extrabold uppercase tracking-wider text-[8.5px] text-stone-900 leading-tight">
-                    MATOSHRI FASHIONS
+                    {shopName}
                   </p>
                 )}
 
