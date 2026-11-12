@@ -34,7 +34,7 @@ const REASON_OPTIONS = [
 export default function PurchaseReturnPage() {
 
   // Form State
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('Tiruppur Knits - 33');
+  const [selectedSupplier, setSelectedSupplier] = useState<string>('');
   const [selectedBillId, setSelectedBillId] = useState<string>('');
   const [returnDate, setReturnDate] = useState<string>(() => {
     const today = new Date();
@@ -57,6 +57,12 @@ export default function PurchaseReturnPage() {
   const {data: suppliers = []} = useReturnSuppliers(PANEL);
   const {data: bills = [], isLoading: billsLoading} = useBillsBySupplier(PANEL, selectedSupplier);
   const {data: earlierReturns = []} = useEarlierReturns(PANEL);
+
+  // Start on the first real supplier once they load
+  useEffect(() => {
+    if (!selectedSupplier && suppliers.length > 0)
+      setSelectedSupplier(suppliers[0].name);
+  }, [suppliers, selectedSupplier]);
 
   // Auto-select first bill when bills load or supplier changes
   useEffect(() => {
@@ -164,9 +170,15 @@ export default function PurchaseReturnPage() {
       return;
     }
 
+    const supplierName = selectedSupplier || activeBill?.supplierName;
+    if (!supplierName) {
+      toast.error('Pick a supplier');
+      return;
+    }
+
     try {
       const payload = {
-        supplierName: selectedSupplier || activeBill?.supplierName || 'Supplier',
+        supplierName,
         purchaseBillId: activeBill ? activeBill.id : undefined,
         returnDate,
         status: 'CONFIRMED' as const,
@@ -247,7 +259,7 @@ export default function PurchaseReturnPage() {
                     </option>
                   ))
                 ) : (
-                  <option value="Tiruppur Knits - 33">Tiruppur Knits - 33</option>
+                  <option value="">No suppliers yet</option>
                 )}
               </select>
             </div>
@@ -269,7 +281,9 @@ export default function PurchaseReturnPage() {
                     </option>
                   ))
                 ) : (
-                  <option value="">PB/26-27/0040 · Tiruppur Knits - 33</option>
+                  <option value="">
+                    {billsLoading ? 'Loading…' : 'No purchase bills'}
+                  </option>
                 )}
               </select>
             </div>
