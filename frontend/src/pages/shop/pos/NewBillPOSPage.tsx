@@ -582,7 +582,7 @@ export default function NewBillPOSPage() {
               </span>
             </div>
             <h1 className="font-serif text-2xl font-bold tracking-tight text-burgundy mt-0.5">
-              Bill {dashboard?.shop?.code ? `${dashboard.shop.code}/26-27/00232` : 'WW/26-27/00232'}
+              New bill
             </h1>
           </div>
 
