@@ -25,7 +25,7 @@ This is the living list of what we are fixing, in order: what is done, what is i
 | | |
 |---|---|
 | **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Phase 2: `fix/p2-security` (from `fix/p1-stock-and-store`). Phase 3: `fix/p3-roles-and-stock` (from `fix/p2-security`). Not pushed. |
-| **Doing now** | Phase 3 is done (10 of 10; P3-03, 05, 07, 09 and the P3-08 screens by the other session, the rest here). An independent review of the Phase 3 commits is running. Phase 2 is done and reviewed (one decision left in the inbox). |
+| **Doing now** | Nothing. Phase 3 is done (10 of 10; P3-03, 05, 07, 09 and the P3-08 screens by the other session, the rest here) and reviewed: all 7 review findings are fixed (5b4bc49, 42ed048 here; 8288dfb, bb67997 by the other session). Phase 2 is done and reviewed. |
 | **Before deploying Phase 3** | Each server makes its own migration for P3-02 (`Size.shopId`, `Color.shopId`, `Shop.mastersCopiedAt`, D-15). Nothing else to run: each shop copies its sizes and colours the first time it opens them. |
 | **Before deploying Phase 2** | 1) Each server makes its own migration for P2-03 (3 new columns on `SalesBill` and `PurchaseBill`, D-15). 2) Production now needs `CORS_ORIGINS` (P2-12) and `HOSTED_BACKEND_URL` (P2-05); every admin-app build needs `VITE_SERVER_URL` (P2-10). 3) After P2-06b every signed-in user signs in once more when their access token expires. |
 | **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
@@ -287,6 +287,8 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (P2-08) | `sendVerificationEmail` puts the user name into HTML and the link without escaping; nothing calls it today | `email.service.ts` | ⬜ |
 | 2026-11-12 (P3-02) | D-02 said categories are "edited in the company panel; to confirm". Done as: only the owner (company admin in shop mode) changes categories and sub-categories; shop logins and staff only read them. Is that right, or should they move to a company-panel page? | `shopAdmin.routes.ts`, `CategoryMaster.tsx` | ❓ |
 | 2026-11-12 (P3-02) | A shop's sizes and colours are copies: later changes to the platform's standard list by the super admin no longer reach shops that already copied it | `master.service.ts` `ensureShopMasters` | ⬜ |
+| 2026-11-12 (P3-05, review) | Not tested: a real 500-line physical count on a hosted database (the demo shop has 2 variants); the 60 s transaction and the 500-line cap should cover it | `stock.service.ts`, `inventory.service.ts` | ⬜ check |
+| 2026-11-12 (P3-01, review) | Products made in the company or branch panel get the shop's sizes x colours on the shop's next save (the shop form makes every size with every colour), so a product with only M/Red and L/Blue gains M/Blue and L/Red with no stock | `shopProduct.service.ts` `syncVariants` | ⬜ |
 | 2026-11-12 (P3-04) | The company and branch product form sets the price only for a new product or variant; afterwards prices change in the shop (shop mode for the owner) | `product.service.ts` | ⬜ note |
 | 2026-11-12 (P3-05, other session) | A count correction may now go below online reservations (`allowBelowReserved`); a plain decrease from the Inventory screen can no longer take reserved stock (before, it checked physical stock only) | `inventory.service.ts` | ⬜ note |
 | 2026-11-12 (P3-05, other session) | Manual adjusts from the Stock page and Inventory now carry ADJ numbers and show in the Stock Adjustment history; `Product.stockQuantity` is kept in step by these paths; purchase returns still bypass `applyStockChanges` | `stock.service.ts`, `purchaseReturn.service.ts` | → P5-04 |
@@ -303,6 +305,11 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | Phase 3 review fix (other session): big counts and batch adjusts save within the time limit (60 s transaction, 500-item cap, ADJ numbers worked out once per save) | bb67997 |
+| 2026-11-12 | Phase 3 review fix: when two variants share a name after a rename, the active one is kept | 42ed048 |
+| 2026-11-12 | Phase 3 review fixes: a transfer into a shop copies its sizes and colours first (no links to another shop's rows); the first copy keeps one AI preview per product, image and colour (it could fail for good); company/branch products are linked to their shop's sizes and colours by name; re-adding a saved variant can't change its price (5 checks, and 37 earlier checks still pass) | 5b4bc49 |
+| 2026-11-12 | Phase 3 review fix (other session): a physical count no longer undoes sales made after it was opened (unchanged lines skipped, counted − shown applied, 409 when impossible) | 8288dfb |
+| 2026-11-12 | Independent review of the Phase 3 commits: 7 findings, all fixed (2 by the other session) | – |
 | 2026-11-12 | P3-08 follow-up (found by the other session): new employees and an admin's password reset for an employee must be changed at the next sign-in (the old request path did this; direct creation did not) | 7da5eb7 |
 | 2026-11-12 | P3-08 (screens, other session): the branch adds staff with the employee form (direct, all 10 modules); the shop's "Request new staff" is gone; old pending requests can still be decided | 73c607b |
 | 2026-11-12 | P3-08 (API): one way to add staff (POST /<panel>/employees); the branch invite and the shop's new staff requests are removed; Staff & rights shows all 10 modules; staff email optional (6 API checks) | f8897c0 |
