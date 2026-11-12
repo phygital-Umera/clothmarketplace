@@ -120,7 +120,7 @@ class SupplierService {
           state: r.state,
           address: r.address,
           paymentTerms: r.paymentTerms,
-          openingBalance: r.openingBalance,
+          openingBalance: ownsOpening(scope, r) ? r.openingBalance : 0,
           payable,
           isOverdue: !!dueDate && payable > 0 && dueDate.getTime() < Date.now(),
           nextDue: dueDate && payable > 0 ? `Due ${fmtShort(dueDate)}` : r.paymentTerms,
