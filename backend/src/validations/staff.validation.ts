@@ -34,21 +34,6 @@ const attendanceSchema = z.object({
     note: text('Note', 200),
 });
 
-const createStaffRequestSchema = z.object({
-    fullname: field({label: 'Full Name', kind: 'name'}),
-    phoneNumber: field({label: 'Phone Number', kind: 'phone'}),
-    email: field({label: 'Email', kind: 'email', required: false}),
-    employeeRole: z.enum(STAFF_ROLES, {errorMap: () => ({message: 'Select a role'})}),
-    shift,
-    permissions: z.array(z.enum(EMPLOYEE_PERMISSIONS)).max(50).default([]),
-    note: text('Note', 300),
-});
-
-// Branch admin adds staff to one of its shops (created on approval)
-const branchInviteSchema = createStaffRequestSchema.extend({
-    shopId: z.string({required_error: 'Select a shop'}).uuid('Select a shop'),
-});
-
 const staffRequestListSchema = z.object({
     status: z.preprocess(
         emptyToUndefined,
@@ -83,8 +68,6 @@ export default {
     updateRightsSchema,
     updateShiftSchema,
     attendanceSchema,
-    createStaffRequestSchema,
-    branchInviteSchema,
     staffRequestListSchema,
     decideStaffRequestSchema,
     idSchema,

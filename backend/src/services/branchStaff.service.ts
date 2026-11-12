@@ -1,10 +1,7 @@
-import httpStatus from 'http-status';
 import {AccountStatus, Prisma, Role, ShopStatus} from '@prisma/client';
 import prisma from '../client';
-import ApiError from '@utils/ApiError';
 import {dateOnly, dayKey} from '../utils/day';
 import {BranchScope} from './customerDue.service';
-import staffService from './staff.service';
 
 export type BranchStaffRow = {
     id: string;
@@ -159,47 +156,6 @@ class BranchStaffService {
             },
             totalCount: all.length,
             items,
-        };
-    }
-
-    /** Branch admin adds staff to a shop: a request it can approve right away */
-    public async inviteStaff(
-        scope: BranchScope,
-        actorId: string,
-        payload: {
-            fullname: string;
-            phoneNumber: string;
-            email?: string;
-            shopId: string;
-            employeeRole: string;
-            shift: string;
-            permissions: string[];
-            note?: string;
-        },
-    ) {
-        const shop = await prisma.shop.findFirst({
-            where: {
-                id: payload.shopId,
-                branchId: scope.branchId,
-                companyId: scope.companyId,
-                deletedAt: null,
-            },
-            select: {id: true},
-        });
-        if (!shop) {
-            throw new ApiError(httpStatus.BAD_REQUEST, 'Select a shop of this branch', [
-                {field: 'shopId', message: 'Select a shop of this branch'},
-            ]);
-        }
-        const request = await staffService.createRequest(
-            {companyId: scope.companyId, shopId: shop.id},
-            actorId,
-            payload as any,
-        );
-        return {
-            success: true,
-            request,
-            message: `${payload.fullname} added to pending staff. Approve to create the login.`,
         };
     }
 }

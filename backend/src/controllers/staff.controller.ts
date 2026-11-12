@@ -1,4 +1,3 @@
-import httpStatus from 'http-status';
 import {auditService, staffService} from '@services/index';
 import {catchAsync} from '@utils/index';
 import {staffValidation as v} from '@validations/index';
@@ -52,16 +51,6 @@ const shop = {
         ok(res, await staffService.listShopRequests(shopOf(req)), 'Staff requests fetched successfully'),
     ),
 
-    createRequest: catchAsync(async (req, res) => {
-        const scope = shopOf(req);
-        const data = v.createStaffRequestSchema.parse(req.body);
-        const {after} = await auditService.track(
-            req,
-            {action: 'staff.request', module: 'staff'},
-            async () => ({after: await staffService.createRequest(scope, req.user.id, data)}),
-        );
-        return ok(res, after, 'Request sent to the Branch Admin', httpStatus.CREATED);
-    }),
 };
 
 const branch = {

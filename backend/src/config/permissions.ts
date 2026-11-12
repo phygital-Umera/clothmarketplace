@@ -57,16 +57,16 @@ export type Permission = (typeof PERMISSIONS)[number];
  * given to employees.
  */
 export const SHOP_MODULES = [
-    {key: 'dashboard', label: 'Dashboard'},
-    {key: 'billing', label: 'Billing (POS, sales bills, returns)'},
-    {key: 'orders', label: 'Online orders & returns'},
-    {key: 'customers', label: 'Customers & credit'},
-    {key: 'purchase', label: 'Purchase & suppliers'},
-    {key: 'products', label: 'Products'},
-    {key: 'stock', label: 'Stock, transfers & barcodes'},
-    {key: 'accounts', label: 'Cash book & expenses'},
-    {key: 'reports', label: 'Reports'},
-    {key: 'masters', label: 'Masters (categories, colors, sizes)'},
+    {key: 'dashboard', label: 'Dashboard', short: 'Dashboard'},
+    {key: 'billing', label: 'Billing (POS, sales bills, returns)', short: 'Billing'},
+    {key: 'orders', label: 'Online orders & returns', short: 'Online orders'},
+    {key: 'customers', label: 'Customers & credit', short: 'Customers'},
+    {key: 'purchase', label: 'Purchase & suppliers', short: 'Purchase'},
+    {key: 'products', label: 'Products', short: 'Products'},
+    {key: 'stock', label: 'Stock, transfers & barcodes', short: 'Stock'},
+    {key: 'accounts', label: 'Cash book & expenses', short: 'Cash book'},
+    {key: 'reports', label: 'Reports', short: 'Reports'},
+    {key: 'masters', label: 'Masters (categories, colors, sizes)', short: 'Masters'},
 ] as const;
 export type ShopModule = (typeof SHOP_MODULES)[number]['key'];
 
@@ -118,16 +118,12 @@ export const EMPLOYEE_PERMISSIONS = [
 ] as const;
 
 /**
- * The rights shown as columns on the shop's Staff & rights page: a tick gives
- * that module with edit access (same strings as the Employees form).
+ * The rights shown as columns on the shop's Staff & rights page: every shop
+ * module (one list with the Employees form, P3-08); a tick gives that module
+ * with edit access.
  */
-export const STAFF_RIGHTS = [
-    {key: 'billing.edit', label: 'Billing'},
-    {key: 'customers.edit', label: 'Customers'},
-    {key: 'purchase.edit', label: 'Purchase'},
-    {key: 'products.edit', label: 'Products'},
-    {key: 'stock.edit', label: 'Stock'},
-    {key: 'accounts.edit', label: 'Cash book'},
-] as const satisfies ReadonlyArray<{key: EmployeePermission; label: string}>;
+export const STAFF_RIGHTS: ReadonlyArray<{key: EmployeePermission; label: string}> = SHOP_MODULES.map(
+    (m) => ({key: `${m.key}.edit` as EmployeePermission, label: m.short}),
+);
 
 export type EmployeePermission = (typeof EMPLOYEE_PERMISSIONS)[number];

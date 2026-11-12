@@ -141,7 +141,6 @@ router.get('/reports/pnl', branchReportsController.getPnl);
 
 // Setup: Staff Overview
 router.get('/staff-overview', branchStaffController.list);
-router.post('/staff-overview/invite', branchStaffController.invite);
 router.get('/staff-requests', staffController.branch.listRequests);
 router.post('/staff-requests/:id/decision', staffController.branch.decideRequest);
 

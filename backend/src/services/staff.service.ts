@@ -6,14 +6,12 @@ import ApiError from '@utils/ApiError';
 import {STAFF_RIGHTS} from '../config/permissions';
 import {dateOnly, dayKey} from '../utils/day';
 import {staffValidation} from '@validations/index';
-import accountService from './account.service';
 import billService from './bill.service';
 import employeeService from './employee.service';
 import {BranchScope} from './customerDue.service';
 import {ShopScope} from './shopProduct.service';
 
 type Attendance = z.infer<typeof staffValidation.attendanceSchema>;
-type CreateRequest = z.infer<typeof staffValidation.createStaffRequestSchema>;
 type DecideRequest = z.infer<typeof staffValidation.decideStaffRequestSchema>;
 
 const RIGHT_KEYS: string[] = STAFF_RIGHTS.map((r) => r.key);
@@ -208,51 +206,7 @@ class StaffService {
         }
     };
 
-    // ---- New staff requests ----
-
-    public createRequest = async (scope: ShopScope, actorId: string, data: CreateRequest) => {
-        const shop = await billService.shopContext(scope);
-        await accountService.ensureLoginIsFree(data.phoneNumber, data.email);
-        const pending = await prisma.staffRequest.findFirst({
-            where: {phoneNumber: data.phoneNumber, status: 'PENDING'},
-        });
-        if (pending) {
-            throw new ApiError(httpStatus.CONFLICT, 'A request for this phone number is already pending', [
-                {field: 'phoneNumber', message: 'Already requested'},
-            ]);
-        }
-        const permissions = data.permissions.filter((p) => RIGHT_KEYS.includes(p));
-        return accountService.withRetry(async () => {
-            const requestNumber = await accountService.nextCode(
-                prisma,
-                'SR-',
-                4,
-                async (prefix) =>
-                    (
-                        await prisma.staffRequest.findMany({
-                            where: {requestNumber: {startsWith: prefix}},
-                            select: {requestNumber: true},
-                        })
-                    ).map((r) => r.requestNumber),
-            );
-            return prisma.staffRequest.create({
-                data: {
-                    requestNumber,
-                    companyId: shop.companyId,
-                    branchId: shop.branchId,
-                    shopId: shop.id,
-                    fullname: data.fullname,
-                    phoneNumber: data.phoneNumber,
-                    email: data.email,
-                    employeeRole: data.employeeRole,
-                    shift: data.shift,
-                    permissions,
-                    note: data.note,
-                    createdById: actorId,
-                },
-            });
-        }, 'requestNumber');
-    };
+    // ---- Staff requests made before P3-08 (new staff are added directly) ----
 
     public listShopRequests = async (scope: ShopScope) => {
         const shop = await billService.shopContext(scope);
