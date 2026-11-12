@@ -45,7 +45,7 @@ type Payment = {mode: string; amount: number};
  * posts nothing, and a failed stock check rolls the whole bill back.
  */
 
-type Kind = 'PURCHASE' | 'SALES';
+export type Kind = 'PURCHASE' | 'SALES';
 
 const KIND = {
     PURCHASE: {
@@ -697,9 +697,15 @@ class BillService {
         return this.getPurchase(scope, id);
     };
 
-    public deletePurchase = async (scope: ShopScope, actorId: string, id: string) => {
+    public deletePurchase = async (
+        scope: ShopScope,
+        actorId: string,
+        id: string,
+        onlyDraft = false,
+    ) => {
         await prisma.$transaction(async (tx) => {
-            await this.lock(tx, 'PURCHASE', scope, id, Object.values(BillStatus));
+            const allowed = onlyDraft ? [BillStatus.DRAFT] : Object.values(BillStatus);
+            await this.lock(tx, 'PURCHASE', scope, id, allowed);
             const before = await tx.purchaseBill.findUniqueOrThrow({
                 where: {id},
                 include: {items: true},
@@ -1034,9 +1040,15 @@ class BillService {
         return this.getSales(scope, id);
     };
 
-    public deleteSales = async (scope: ShopScope, actorId: string, id: string) => {
+    public deleteSales = async (
+        scope: ShopScope,
+        actorId: string,
+        id: string,
+        onlyDraft = false,
+    ) => {
         await prisma.$transaction(async (tx) => {
-            await this.lock(tx, 'SALES', scope, id, Object.values(BillStatus));
+            const allowed = onlyDraft ? [BillStatus.DRAFT] : Object.values(BillStatus);
+            await this.lock(tx, 'SALES', scope, id, allowed);
             await this.assertNoReturns(tx, id);
             const before = await tx.salesBill.findUniqueOrThrow({
                 where: {id},
@@ -1052,6 +1064,69 @@ class BillService {
             await tx.salesBill.update({where: {id}, data: {deletedAt: new Date()}});
             await syncCustomerFromBill(tx, before, null);
         });
+    };
+
+    // -------------------------------------------------------------
+    // DELETE REQUESTS (D-16): an employee may delete drafts only; for a
+    // posted bill they ask, and the shop admin or owner deletes it or keeps it
+    // -------------------------------------------------------------
+
+    /** Status of a bill of this shop, to choose between delete and request */
+    public statusOf = async (kind: Kind, scope: ShopScope, id: string) => {
+        const where = {id, shopId: scope.shopId, deletedAt: null};
+        const select = {status: true};
+        const bill =
+            kind === 'PURCHASE'
+                ? await prisma.purchaseBill.findFirst({where, select})
+                : await prisma.salesBill.findFirst({where, select});
+        if (!bill) throw new ApiError(httpStatus.NOT_FOUND, `${KIND[kind].label} not found`);
+        return bill.status;
+    };
+
+    public requestDelete = async (
+        kind: Kind,
+        scope: ShopScope,
+        actorId: string,
+        id: string,
+        reason: string,
+    ) => {
+        const where = {
+            id,
+            shopId: scope.shopId,
+            deletedAt: null,
+            status: {in: [BillStatus.CONFIRMED, BillStatus.CANCELLED]},
+            deleteRequestedAt: null,
+        };
+        const data = {
+            deleteRequestedAt: new Date(),
+            deleteRequestedById: actorId,
+            deleteRequestReason: reason,
+        };
+        const {count} =
+            kind === 'PURCHASE'
+                ? await prisma.purchaseBill.updateMany({where, data})
+                : await prisma.salesBill.updateMany({where, data});
+        if (!count) {
+            throw new ApiError(
+                httpStatus.CONFLICT,
+                'This bill is already waiting for approval, or it has changed. Reload and try again.',
+            );
+        }
+    };
+
+    /** Turn down an employee's delete request: the bill stays as it is */
+    public keepBill = async (kind: Kind, scope: ShopScope, id: string) => {
+        const where = {id, shopId: scope.shopId, deletedAt: null, deleteRequestedAt: {not: null}};
+        const data = {
+            deleteRequestedAt: null,
+            deleteRequestedById: null,
+            deleteRequestReason: null,
+        };
+        const {count} =
+            kind === 'PURCHASE'
+                ? await prisma.purchaseBill.updateMany({where, data})
+                : await prisma.salesBill.updateMany({where, data});
+        if (!count) throw new ApiError(httpStatus.NOT_FOUND, 'No one asked to delete this bill');
     };
 
     // -------------------------------------------------------------
@@ -1360,6 +1435,7 @@ class BillService {
                               : query.paymentStatus,
                   }
                 : {}),
+            ...(query.deleteRequested ? {deleteRequestedAt: {not: null}} : {}),
             ...(query.from || query.to
                 ? {
                       billDate: {

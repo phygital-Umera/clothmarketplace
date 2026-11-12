@@ -1,9 +1,11 @@
 import {Request} from 'express';
 import httpStatus from 'http-status';
+import {BillStatus, Role} from '@prisma/client';
 import {auditService, billService} from '@services/index';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import {billValidation as v} from '@validations/index';
 import {ShopScope} from '../services/shopProduct.service';
+import {Kind} from '../services/bill.service';
 
 /*
  * Shop purchase & sales bills. Stock is updated automatically by the
@@ -23,6 +25,65 @@ const ok = (
     message: string,
     status = 200,
 ) => res.status(status).json(new ApiResponse(status, data, message));
+
+/**
+ * D-16: an employee deletes drafts only. Their delete of a posted bill asks
+ * the shop admin or owner, who approves it by deleting the bill, or keeps it.
+ */
+const removeBill = (kind: Kind) => {
+    const name = kind === 'PURCHASE' ? 'purchaseBill' : 'salesBill';
+    const label = kind === 'PURCHASE' ? 'Purchase bill' : 'Sales bill';
+    const remove = kind === 'PURCHASE' ? billService.deletePurchase : billService.deleteSales;
+    return catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const employee = req.user.role === Role.EMPLOYEE;
+        if (employee && (await billService.statusOf(kind, scope, id)) !== BillStatus.DRAFT) {
+            const {reason} = v.deleteRequestSchema.parse(req.body ?? {});
+            await auditService.track(
+                req,
+                {action: `${name}.deleteRequest`, module: 'billing', targetId: id, reason},
+                async () => {
+                    await billService.requestDelete(kind, scope, req.user.id, id, reason);
+                    return {};
+                },
+            );
+            return ok(
+                res,
+                {requested: true},
+                'Sent to the shop admin to approve',
+                httpStatus.ACCEPTED,
+            );
+        }
+        await auditService.track(
+            req,
+            {action: `${name}.delete`, module: 'billing', targetId: id},
+            async () => {
+                // Employees: drafts only, even if the bill was confirmed meanwhile
+                await remove(scope, req.user.id, id, employee);
+                return {};
+            },
+        );
+        return ok(res, {}, `${label} deleted`);
+    });
+};
+
+/** The shop admin or owner keeps a bill an employee asked to delete */
+const keepBill = (kind: Kind) =>
+    catchAsync(async (req, res) => {
+        const scope = shopOf(req);
+        const {id} = v.idSchema.parse(req.params);
+        const name = kind === 'PURCHASE' ? 'purchaseBill' : 'salesBill';
+        await auditService.track(
+            req,
+            {action: `${name}.keep`, module: 'billing', targetId: id},
+            async () => {
+                await billService.keepBill(kind, scope, id);
+                return {};
+            },
+        );
+        return ok(res, {}, 'Bill kept; the delete request is turned down');
+    });
 
 const purchase = {
     findByNumber: catchAsync(async (req, res) => {
@@ -99,19 +160,8 @@ const purchase = {
         return ok(res, after, 'Purchase bill cancelled and stock reversed');
     }),
 
-    remove: catchAsync(async (req, res) => {
-        const scope = shopOf(req);
-        const {id} = v.idSchema.parse(req.params);
-        await auditService.track(
-            req,
-            {action: 'purchaseBill.delete', module: 'billing', targetId: id},
-            async () => {
-                await billService.deletePurchase(scope, req.user.id, id);
-                return {};
-            },
-        );
-        return ok(res, {}, 'Purchase bill deleted');
-    }),
+    remove: removeBill('PURCHASE'),
+    keep: keepBill('PURCHASE'),
     payment: catchAsync(async (req, res) => {
         const scope = shopOf(req);
         const {id} = v.idSchema.parse(req.params);
@@ -202,19 +252,8 @@ const sales = {
         return ok(res, after, 'Sales bill cancelled and stock restored');
     }),
 
-    remove: catchAsync(async (req, res) => {
-        const scope = shopOf(req);
-        const {id} = v.idSchema.parse(req.params);
-        await auditService.track(
-            req,
-            {action: 'salesBill.delete', module: 'billing', targetId: id},
-            async () => {
-                await billService.deleteSales(scope, req.user.id, id);
-                return {};
-            },
-        );
-        return ok(res, {}, 'Sales bill deleted');
-    }),
+    remove: removeBill('SALES'),
+    keep: keepBill('SALES'),
     payment: catchAsync(async (req, res) => {
         const scope = shopOf(req);
         const {id} = v.idSchema.parse(req.params);

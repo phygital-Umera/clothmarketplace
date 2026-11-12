@@ -69,6 +69,9 @@ export interface Bill {
   version: number;
   cancelledAt?: string | null;
   cancelReason?: string | null;
+  /** An employee asked to delete this bill; the shop admin deletes or keeps it */
+  deleteRequestedAt?: string | null;
+  deleteRequestReason?: string | null;
   createdAt: string;
   createdBy?: {id: string; fullname: string};
   items?: BillItem[];
@@ -114,6 +117,8 @@ export interface BillListParams {
   to?: string;
   /** DUE = part credit or credit */
   paymentStatus?: PaymentStatus | 'DUE';
+  /** Only bills an employee asked to delete */
+  deleteRequested?: 'true';
 }
 
 /** Branch admin: sales bills of every shop in the branch */

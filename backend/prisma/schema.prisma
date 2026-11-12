@@ -728,6 +728,10 @@ model PurchaseBill {
   cancelledAt       DateTime?
   cancelReason      String?
   deletedAt         DateTime?
+  /// An employee asked to delete this bill (D-16); the shop admin or owner deletes it or keeps it
+  deleteRequestedAt   DateTime?
+  deleteRequestedById String?
+  deleteRequestReason String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -806,6 +810,10 @@ model SalesBill {
   cancelledAt   DateTime?
   cancelReason  String?
   deletedAt     DateTime?
+  /// An employee asked to delete this bill (D-16); the shop admin or owner deletes it or keeps it
+  deleteRequestedAt   DateTime?
+  deleteRequestedById String?
+  deleteRequestReason String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 

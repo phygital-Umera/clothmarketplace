@@ -7,6 +7,7 @@ import {
   getBillByNumber,
   getBills,
   getBranchSalesSummary,
+  keepBill,
   recordBillPayment,
   searchCustomers,
   updateBill,
@@ -116,8 +117,15 @@ export const useCancelBill = (panel: string, kind: BillKind) =>
 
 export const useDeleteBill = (panel: string, kind: BillKind) =>
   useBillMutation(
-    (id: string) => deleteBill(panel, kind, id),
+    ({id, reason}: {id: string; reason?: string}) =>
+      deleteBill(panel, kind, id, reason),
     'Failed to delete bill',
+  );
+
+export const useKeepBill = (panel: string, kind: BillKind) =>
+  useBillMutation(
+    (id: string) => keepBill(panel, kind, id),
+    'Failed to keep bill',
   );
 
 export const useRecordPayment = (panel: string, kind: BillKind) =>
