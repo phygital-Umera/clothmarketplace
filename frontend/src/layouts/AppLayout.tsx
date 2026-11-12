@@ -79,6 +79,32 @@ const AppLayout = () => {
     );
   }
 
+  // A password someone else chose is replaced before anything else; the
+  // server refuses every other request until then
+  if (me.mustChangePassword) {
+    if (pathname !== '/change-password') {
+      return <Navigate to="/change-password" />;
+    }
+    return (
+      <Centered>
+        <div className="w-full max-w-xl">
+          <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            Your password was set by someone else. Choose your own password to
+            continue.
+          </p>
+          <Outlet />
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-4 text-xs text-outline underline"
+          >
+            Sign out
+          </button>
+        </div>
+      </Centered>
+    );
+  }
+
   if (pathname === '/') {
     // A single-shop owner starts in their shop (the picker opens the only one)
     const to =
