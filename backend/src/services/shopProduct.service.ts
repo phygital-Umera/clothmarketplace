@@ -435,6 +435,8 @@ class ShopProductService {
                 data: {
                     ...fields,
                     sellingPrice: merged.sellingPrice,
+                    // Shown in the branch's "Changed this week" price list
+                    ...(merged.sellingPrice !== before.sellingPrice ? {priceChangedAt: new Date()} : {}),
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
                 },
             });

@@ -192,6 +192,8 @@ const ProductForm = ({
                 kind="price"
                 prefix="₹"
                 required
+                disabled={!!product}
+                hint={product ? 'Changed in the shop' : undefined}
               />
               <GenericInputField
                 name="sellingPrice"
@@ -199,12 +201,14 @@ const ProductForm = ({
                 kind="price"
                 prefix="₹"
                 required
+                disabled={!!product}
+                hint={product ? 'Changed in the shop' : undefined}
               />
             </div>
           </FormGroup>
 
           <FormGroup title="Variants">
-            <VariantEditor disabled={readOnly} />
+            <VariantEditor disabled={readOnly} lockSavedPrices={!!product} />
           </FormGroup>
 
           <FormGroup title="Clothing details">

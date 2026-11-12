@@ -57,9 +57,8 @@ mountCatalog(router, {manageProducts: true});
 router.get('/subcategories', masterController.listSubcategories);
 
 // Products & Price List (Branch Pricing)
+// View only (D-13): prices are set by each shop
 router.get('/products-pricing', branchPricingController.list);
-router.post('/products-pricing/save', branchPricingController.savePrices);
-router.post('/products-pricing/bulk', branchPricingController.scheduleBulkPrice);
 
 // Branch Inventory
 router.get('/inventory/dashboard', e.inventoryDashboard);

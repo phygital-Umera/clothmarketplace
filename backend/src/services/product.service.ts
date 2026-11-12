@@ -257,6 +257,20 @@ class ProductService {
             ]);
         }
         const newShopId = shopId && !before.shopId ? await this.ownShop(actor, shopId) : undefined;
+        // D-13: prices are changed by the shop; this form sets them only for a new product or variant
+        const same = (a?: number | null, b?: number | null) => (a ?? null) === (b ?? null);
+        const priceChanged =
+            (fields.mrp !== undefined && fields.mrp !== before.mrp) ||
+            (fields.sellingPrice !== undefined && fields.sellingPrice !== before.sellingPrice) ||
+            variants?.some((v) => {
+                const old = v.id && before.variants.find((b) => b.id === v.id);
+                return !!old && (!same(v.mrp, old.mrp) || !same(v.sellingPrice, old.sellingPrice));
+            });
+        if (priceChanged) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Prices are changed in the shop', [
+                {field: 'sellingPrice', message: 'Prices are changed in the shop'},
+            ]);
+        }
 
         await prisma.$transaction(async (tx) => {
             await tx.product.update({

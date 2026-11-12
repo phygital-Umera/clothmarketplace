@@ -33,19 +33,6 @@ export const getBranchProductPrices = (params?: {
   categoryId?: string;
   tab?: PriceTab;
 }) =>
-  (api.get('/branch-admin/products-pricing', {params}) as unknown as Promise<Res<ProductPricingResult>>);
-
-export const saveBranchPrices = (prices: Record<string, number>) =>
-  (api.post('/branch-admin/products-pricing/save', {
-      prices,
-    }) as unknown as Promise<Res<{success: boolean; message: string}>>);
-
-export type BulkPriceInput = {
-  /** Empty = every product of the branch */
-  categoryId?: string;
-  changeType: 'PERCENT_OFF_MRP' | 'FLAT_OFF_MRP';
-  value: number;
-};
-
-export const applyBulkPrice = (data: BulkPriceInput) =>
-  (api.post('/branch-admin/products-pricing/bulk', data) as unknown as Promise<Res<{success: boolean; message: string}>>);
+  api.get('/branch-admin/products-pricing', {params}) as unknown as Promise<
+    Res<ProductPricingResult>
+  >;
