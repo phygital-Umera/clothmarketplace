@@ -223,10 +223,28 @@ class InventoryService {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Branch is required for inventory operations');
     }
 
-    /** Variant ids are public on the storefront, so every stock write must check the variant is the caller's */
-    private assertOwnVariants(scope: Scope, variants: {product: {companyId: string}}[]) {
+    /**
+     * Variant ids are public on the storefront, so every stock write must check the variant is
+     * the caller's: a shop only its own products; a branch its shops' and shop-less catalog products
+     */
+    private assertOwnVariants(
+        scope: Scope,
+        variants: {
+            product: {companyId: string; shopId: string | null; shop: {branchId: string} | null};
+        }[],
+    ) {
         if (scope.companyId && variants.some((v) => v.product.companyId !== scope.companyId)) {
             throw new ApiError(httpStatus.FORBIDDEN, 'Variant does not belong to your company');
+        }
+        if (scope.shopId && variants.some((v) => v.product.shopId !== scope.shopId)) {
+            throw new ApiError(httpStatus.FORBIDDEN, 'Variant does not belong to your shop');
+        }
+        if (
+            !scope.shopId &&
+            scope.branchId &&
+            variants.some((v) => v.product.shop && v.product.shop.branchId !== scope.branchId)
+        ) {
+            throw new ApiError(httpStatus.FORBIDDEN, 'Variant does not belong to your branch');
         }
     }
 
@@ -718,7 +736,16 @@ class InventoryService {
         const variant = await prisma.productVariant.findUnique({
             where: {id: input.variantId},
             include: {
-                product: {select: {id: true, name: true, sku: true, companyId: true}},
+                product: {
+                    select: {
+                        id: true,
+                        name: true,
+                        sku: true,
+                        companyId: true,
+                        shopId: true,
+                        shop: {select: {branchId: true}},
+                    },
+                },
             },
         });
 
@@ -856,7 +883,16 @@ class InventoryService {
         const variants = await prisma.productVariant.findMany({
             where: {id: {in: variantIds}},
             include: {
-                product: {select: {id: true, name: true, sku: true, companyId: true, shop: {select: {branchId: true}}}},
+                product: {
+                    select: {
+                        id: true,
+                        name: true,
+                        sku: true,
+                        companyId: true,
+                        shopId: true,
+                        shop: {select: {branchId: true}},
+                    },
+                },
             },
         });
 
@@ -960,7 +996,11 @@ class InventoryService {
     public updateThreshold = async (scope: Scope, input: UpdateThresholdInput) => {
         const variant = await prisma.productVariant.findUnique({
             where: {id: input.variantId},
-            select: {product: {select: {companyId: true}}},
+            select: {
+                product: {
+                    select: {companyId: true, shopId: true, shop: {select: {branchId: true}}},
+                },
+            },
         });
         if (!variant) {
             throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');

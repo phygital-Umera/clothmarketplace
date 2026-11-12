@@ -67,13 +67,15 @@ class StockAdjustmentService {
         COALESCE(i."damagedQty", 0)::int as "damagedQty"
       FROM "ProductVariant" v
       JOIN "Product" p ON p."id" = v."productId"
+      LEFT JOIN "Shop" s ON s."id" = p."shopId"
       LEFT JOIN "Inventory" i ON i."variantId" = v."id" AND i."branchId" = $1
       WHERE p."companyId" = $2
+        AND CASE WHEN $3::text IS NULL THEN p."shopId" IS NULL OR s."branchId" = $1 ELSE p."shopId" = $3 END
       ORDER BY 
         CASE WHEN v."variantSku" = 'PRD0110-MAR-M' THEN 1 ELSE 2 END ASC,
         p."name" ASC, v."size" ASC
       LIMIT 50
-    `, branchId, scope.companyId);
+    `, branchId, scope.companyId, scope.shopId ?? null);
 
     return {
       variants: rows.map((r) => ({
@@ -209,9 +211,18 @@ class StockAdjustmentService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    // Only the company's own products can be adjusted
+    // Only the caller's own products: a shop its own, a branch its shops' and shop-less catalog ones
     const variant = await prisma.productVariant.findFirst({
-      where: { id: input.variantId, product: { companyId: scope.companyId, deletedAt: null } },
+      where: {
+        id: input.variantId,
+        product: {
+          companyId: scope.companyId,
+          deletedAt: null,
+          ...(scope.shopId
+            ? { shopId: scope.shopId }
+            : { OR: [{ shopId: null }, { shop: { branchId } }] }),
+        },
+      },
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
 
