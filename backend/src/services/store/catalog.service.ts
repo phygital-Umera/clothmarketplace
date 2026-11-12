@@ -7,7 +7,7 @@ import ApiError from '@utils/ApiError';
 /*
  * Customer storefront catalog (public, no sign-in).
  *
- * Only PUBLISHED products of an ACTIVE shop of an ACTIVE company are shown.
+ * Only PUBLISHED products of an ACTIVE shop, branch and company are shown (LISTED).
  * Stock is the shop's branch inventory (physical - reserved) of each variant.
  * The catalog is small enough to filter, facet and sort in memory after one
  * query, which keeps the facet counts exact.
@@ -53,10 +53,11 @@ export const productQuerySchema = z.object({
 });
 export type ProductQuery = z.infer<typeof productQuerySchema>;
 
-const LISTED: Prisma.ProductWhereInput = {
+/** What the store lists; also the only products a customer can bag, wishlist or order */
+export const LISTED: Prisma.ProductWhereInput = {
     status: ProductStatus.PUBLISHED,
     deletedAt: null,
-    shop: {status: 'ACTIVE', deletedAt: null},
+    shop: {status: 'ACTIVE', deletedAt: null, branch: {status: 'ACTIVE', deletedAt: null}},
     company: {status: 'ACTIVE', deletedAt: null},
 };
 
