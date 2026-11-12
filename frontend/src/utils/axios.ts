@@ -4,12 +4,13 @@ import {QUERY_KEYS} from '@/lib/react-query/queryKeys';
 import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
 import {jwtDecode} from 'jwt-decode';
 
+// Required: vite.config.ts refuses to start or build without it
 export const unAuthenticatedApi: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL || 'http://localhost:5692/api/v1',
+  baseURL: import.meta.env.VITE_SERVER_URL,
 });
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL || 'http://localhost:5692/api/v1',
+  baseURL: import.meta.env.VITE_SERVER_URL,
 });
 
 const readToken = (): Token | null =>
