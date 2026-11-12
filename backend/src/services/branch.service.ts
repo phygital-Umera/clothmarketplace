@@ -6,6 +6,7 @@ import {ApiError, encryptPassword} from '@utils/index';
 import {listArgs, searchWhere, toListResult} from '../utils/list';
 import {orgValidation} from '@validations/index';
 import accountService, {Scope} from './account.service';
+import auditService from './audit.service';
 
 type CreateBranch = z.infer<typeof orgValidation.createBranchSchema>;
 // status is only set through setStatus (the form cannot change it)
@@ -261,6 +262,16 @@ class BranchService {
             },
             actorId,
         );
+        // A side effect of adding the first shop, so it gets its own audit row
+        await auditService.log({
+            actorId,
+            action: 'branch.create',
+            module: 'branches',
+            targetId: branch.id,
+            companyId,
+            reason: 'Main Branch made for the first shop',
+            after: branch,
+        });
         return branch.id;
     }
 

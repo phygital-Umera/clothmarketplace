@@ -6,7 +6,7 @@ import httpStatus from 'http-status';
 import cookieParser from 'cookie-parser';
 
 import {config, morgan, swaggerRouter} from '@config/index';
-import {notFoundHandler, errorConverter, errorHandler} from '@middlewares/index';
+import {auditWrites, notFoundHandler, errorConverter, errorHandler} from '@middlewares/index';
 import routes from '@routes/index';
 import {ApiResponse} from '@utils/index';
 
@@ -42,7 +42,7 @@ if (config.env !== 'test') {
 // Rate limiting: see routes/user.routes.ts (login, register, password reset)
 
 // Routes
-app.use('/api/v1', routes); // API routes
+app.use('/api/v1', auditWrites, routes); // API routes; staff writes are audited
 app.use(swaggerRouter); // Swagger documentation routes
 app.get('/', (req, res) => {
     res.status(httpStatus.OK).json(

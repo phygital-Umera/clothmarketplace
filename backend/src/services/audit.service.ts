@@ -6,6 +6,8 @@ import {ZodError} from 'zod';
 
 export type AuditEntry = {
     actor?: Request['user'];
+    /** When there is no request (e.g. a record made as a side effect) */
+    actorId?: string;
     action: string;
     module: string;
     targetId?: string | null;
@@ -44,7 +46,7 @@ class AuditService {
         try {
             await prisma.auditLog.create({
                 data: {
-                    actorId: entry.actor?.id,
+                    actorId: entry.actor?.id ?? entry.actorId,
                     actorName: entry.actor?.fullname,
                     // In shop mode the company admin is recorded, not the shop role
                     actorRole: entry.actor?.realRole ?? entry.actor?.role,
@@ -108,8 +110,9 @@ class AuditService {
         }
     }
 
-    /** Actor, IP and user agent from the request */
+    /** Actor, IP and user agent from the request; marks it as audited (see auditWrites) */
     public fromRequest(req: Request) {
+        if (req.res) req.res.locals.audited = true;
         return {actor: req.user, ip: req.ip, userAgent: req.get('user-agent')};
     }
 }
