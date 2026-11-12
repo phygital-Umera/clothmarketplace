@@ -20,6 +20,10 @@ export type Scope = {
  *
  * Purchase returns settled as "deduct from payable" already lower the bill's
  * balance due, so they are counted through the bills.
+ *
+ * The supplier list is shared by the branch's shops, but a shop sees and pays
+ * only its own bills. The opening balance (and the payments on account that
+ * pay it off) belongs to whoever added the supplier: that shop, or the branch.
  */
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -39,10 +43,15 @@ const billMode = (mode: string) => {
 const billsOf = (scope: Scope, name: string) =>
   ({
     branchId: scope.branchId,
+    ...(scope.shopId ? {shopId: scope.shopId} : {}),
     supplierName: {equals: name.trim(), mode: 'insensitive'},
     status: BillStatus.CONFIRMED,
     deletedAt: null,
   }) satisfies Prisma.PurchaseBillWhereInput;
+
+/** The branch sees every opening balance; a shop only those of suppliers it added */
+const ownsOpening = (scope: Scope, supplier: {shopId: string | null}) =>
+  !scope.shopId || supplier.shopId === scope.shopId;
 
 class SupplierService {
   private async findSupplier(scope: Scope, id: string) {
@@ -60,12 +69,16 @@ class SupplierService {
     return Math.max(0, round2(supplier.openingBalance - (onAccount._sum.amount ?? 0)));
   }
 
-  private async payableOf(scope: Scope, supplier: {id: string; name: string; openingBalance: number}) {
+  private async payableOf(
+    scope: Scope,
+    supplier: {id: string; name: string; openingBalance: number; shopId: string | null},
+  ) {
     const bills = await prisma.purchaseBill.aggregate({
       where: billsOf(scope, supplier.name),
       _sum: {balanceDue: true},
     });
-    return round2((await this.openingLeft(supplier)) + (bills._sum.balanceDue ?? 0));
+    const opening = ownsOpening(scope, supplier) ? await this.openingLeft(supplier) : 0;
+    return round2(opening + (bills._sum.balanceDue ?? 0));
   }
 
   public async listSuppliers(scope: Scope, search?: string) {
@@ -133,13 +146,16 @@ class SupplierService {
         orderBy: {billDate: 'asc'},
         include: {payments: {orderBy: {paidAt: 'asc'}}},
       }),
-      prisma.supplierPayment.findMany({
-        where: {supplierId: supplier.id, billId: null},
-        orderBy: {paymentDate: 'asc'},
-      }),
+      ownsOpening(scope, supplier)
+        ? prisma.supplierPayment.findMany({
+            where: {supplierId: supplier.id, billId: null},
+            orderBy: {paymentDate: 'asc'},
+          })
+        : [],
       prisma.purchaseReturn.findMany({
         where: {
           branchId: scope.branchId,
+          ...(scope.shopId ? {shopId: scope.shopId} : {}),
           supplierName: {equals: supplier.name, mode: 'insensitive'},
           status: 'CONFIRMED',
           settleAs: 'DEDUCT_FROM_PAYABLE',
@@ -150,7 +166,7 @@ class SupplierService {
 
     type Event = {id: string; at: Date; particulars: string; ref: string; credit: number | null; debit: number | null};
     const events: Event[] = [];
-    if (supplier.openingBalance > 0) {
+    if (supplier.openingBalance > 0 && ownsOpening(scope, supplier)) {
       events.push({
         id: `open-${supplier.id}`,
         at: supplier.createdAt,
@@ -305,7 +321,7 @@ class SupplierService {
           },
         });
       } else {
-        const left = await this.openingLeft(supplier);
+        const left = ownsOpening(scope, supplier) ? await this.openingLeft(supplier) : 0;
         if (input.amount > left) {
           throw new ApiError(
             httpStatus.BAD_REQUEST,
@@ -340,7 +356,9 @@ class SupplierService {
     });
 
     const newBalance = await this.payableOf(scope, supplier);
-    await prisma.supplier.update({where: {id: supplier.id}, data: {payable: newBalance}});
+    // The stored figure is the whole branch's, whoever paid
+    const branchPayable = await this.payableOf({companyId: scope.companyId, branchId: scope.branchId}, supplier);
+    await prisma.supplier.update({where: {id: supplier.id}, data: {payable: branchPayable}});
     return {
       success: true,
       receiptNumber,
