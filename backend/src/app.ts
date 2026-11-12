@@ -6,12 +6,7 @@ import httpStatus from 'http-status';
 import cookieParser from 'cookie-parser';
 
 import {config, morgan, swaggerRouter} from '@config/index';
-import {
-    // xss,
-    notFoundHandler,
-    errorConverter,
-    errorHandler,
-} from '@middlewares/index';
+import {notFoundHandler, errorConverter, errorHandler} from '@middlewares/index';
 import routes from '@routes/index';
 import {ApiResponse} from '@utils/index';
 
@@ -25,8 +20,7 @@ app.use(express.json({limit: '16mb'})); // Parse JSON request body with size lim
 app.use(express.urlencoded({extended: true, limit: '16mb'})); // Parse URL-encoded request body with size limit
 app.use(express.static('public')); // Serve static files
 app.use(cookieParser()); // Parse cookies
-// TODO
-// app.use(xss()); // Sanitize request data
+// No input "XSS cleaning": data is stored as typed and escaped where it is shown (React, the print windows)
 app.use(compression()); // Apply gzip compression
 
 // CORS configuration
