@@ -58,7 +58,7 @@ export default function OfferFormModal({isOpen, offer, panel, onClose, onSuccess
     ? categoriesData
     : (categoriesData as any)?.items || [];
 
-  const {data: subcategoriesData} = useMasterSubcategories({limit: 100});
+  const {data: subcategoriesData} = useMasterSubcategories({page: 1, limit: 100}, panel);
   const subcategories: any[] = subcategoriesData?.items || [];
 
   const {data: productsData} = useProducts(panel, {limit: 100});

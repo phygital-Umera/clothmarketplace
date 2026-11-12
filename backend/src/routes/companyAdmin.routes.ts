@@ -1,5 +1,10 @@
 import {Router} from 'express';
-import {orgController, ecommerceController, shopProductController as p} from '@controllers/index';
+import {
+    orgController,
+    ecommerceController,
+    masterController,
+    shopProductController as p,
+} from '@controllers/index';
 import {checkCompanyAdmin, verifyJWT} from '@middlewares/index';
 import mountCatalog from './catalog.routes';
 import {mountPromotions} from './promotion.routes';
@@ -38,6 +43,8 @@ router.post('/users/:id/revoke-sessions', c.revokeSessions);
 
 // Catalog: own brands and all of the company's products
 mountCatalog(router, {manageBrands: true, manageProducts: true});
+// Sub-categories for the offer form (read only; edited in the shop panel)
+router.get('/subcategories', masterController.listSubcategories);
 
 // AI photo tools on any product of the company (same handlers as the shop panel)
 router.get('/ai-status', p.aiStatus);

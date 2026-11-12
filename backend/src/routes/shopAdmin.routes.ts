@@ -176,12 +176,13 @@ ownerRoutes.post('/day-close/resolve-difference', ownerOnly, dayCloseController.
 ownerRoutes.get('/transfers/:id/sources', ownerOnly, stockTransferController.branch.sources);
 ownerRoutes.post('/transfers/:id/decision', ownerOnly, stockTransferController.branch.decide);
 
-// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management).
-// A company admin works in one of their shops via X-Shop-Id (companyAdminShopMode).
+// Only the shop login and the company admin in shop mode (D-08): a company admin
+// works in one of their shops via X-Shop-Id (companyAdminShopMode). The super
+// admin and branch admins use their own panels; employees use /employee.
 const shopAdminRouter = Router();
 shopAdminRouter.use(
     verifyJWT,
-    checkRole([Role.SHOP_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.SUB_ADMIN]),
+    checkRole([Role.SHOP_ADMIN, Role.ADMIN]),
     companyAdminShopMode,
     ownerRoutes,
     shopRoutes,

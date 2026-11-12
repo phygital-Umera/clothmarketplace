@@ -86,10 +86,10 @@ export const useDeleteMasterCategory = () => {
 // 2. SUBCATEGORIES
 // ==========================================
 
-export const useMasterSubcategories = (params: MasterParams) =>
+export const useMasterSubcategories = (params: MasterParams, panel?: string) =>
   useQuery({
-    queryKey: [MASTER_KEYS.SUBCATEGORIES, params],
-    queryFn: () => getMasterSubcategories(params).then((r) => r.data),
+    queryKey: [MASTER_KEYS.SUBCATEGORIES, params, panel],
+    queryFn: () => getMasterSubcategories(params, panel).then((r) => r.data),
     placeholderData: keepPreviousData,
   });
 

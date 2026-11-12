@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {
     orgController,
     ecommerceController,
+    masterController,
     billController,
     creditNoteController,
     customerDueController,
@@ -52,6 +53,8 @@ router.post('/users/:id/revoke-sessions', c.revokeSessions);
 
 // Catalog: the company's products; edits limited to products of this branch
 mountCatalog(router, {manageProducts: true});
+// Sub-categories for the offer form (read only; edited in the shop panel)
+router.get('/subcategories', masterController.listSubcategories);
 
 // Products & Price List (Branch Pricing)
 router.get('/products-pricing', branchPricingController.list);

@@ -49,8 +49,12 @@ export const deleteMasterCategory = (id: string) =>
 // 2. SUBCATEGORIES
 // ==========================================
 
-export const getMasterSubcategories = (params: MasterParams) =>
-  api.get('/shop-admin/subcategories', {
+/** Shop panel by default; the company and branch panels have a read-only list */
+export const getMasterSubcategories = (
+  params: MasterParams,
+  panel = 'shop-admin',
+) =>
+  api.get(`/${panel}/subcategories`, {
     params: clean(params),
   }) as unknown as Res<ListResult<MasterSubcategory>>;
 
