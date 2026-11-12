@@ -1,11 +1,8 @@
-import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
-import { MovementType, Prisma, StockSourceType } from '@prisma/client';
 import { CreateAdjustmentInput, GetAdjustmentsQuery } from '../validations/stockAdjustment.validation';
 import { dayKey } from '../utils/day';
-import accountService from './account.service';
 import inventoryService from './inventory.service';
 
 export type Scope = {
@@ -34,23 +31,12 @@ class StockAdjustmentService {
     return firstBranch?.id || '';
   }
 
-  /** Adjustment numbers run per branch: ADJ-0001, ADJ-0002... */
-  private nextNumber = (tx: Prisma.TransactionClient, branchId: string) =>
-    accountService.nextCode(tx, 'ADJ-', 4, async (prefix) =>
-      (
-        await tx.stockAdjustment.findMany({
-          where: { branchId, adjustmentNumber: { startsWith: prefix } },
-          select: { adjustmentNumber: true },
-        })
-      ).map((a) => a.adjustmentNumber ?? ''),
-    );
-
   /**
    * Next adjustment number (a preview; the number is fixed when saved)
    */
   public async getNextAdjustmentNumber(scope: Scope) {
     const branchId = await this.resolveBranchId(scope);
-    return { adjustmentNumber: await this.nextNumber(prisma, branchId) };
+    return { adjustmentNumber: await inventoryService.nextAdjustmentNumber(prisma, branchId) };
   }
 
   /**
@@ -232,84 +218,31 @@ class StockAdjustmentService {
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
 
     const qty = input.quantity;
-    // Damaged units sit outside the sellable count: marking damaged moves them out, writing off removes them
-    const delta = input.type === 'INCREASE' ? qty : input.type === 'WRITE_OFF' ? 0 : -qty;
-    const damagedDelta = input.type === 'MARK_DAMAGED' ? qty : input.type === 'WRITE_OFF' ? -qty : 0;
-    const movementType =
-      input.type === 'INCREASE'
-        ? MovementType.ADJUSTMENT_INCREASE
-        : input.type === 'MARK_DAMAGED'
-          ? MovementType.DAMAGE_WRITE_OFF
-          : MovementType.ADJUSTMENT_DECREASE;
-
     // Auto-approve rule: if mark damaged or count <= 2 -> AUTO, else APPROVED or PENDING
     const approvalStatus = input.type === 'MARK_DAMAGED' || qty <= 2 ? 'AUTO' : 'APPROVED';
-    const where = { branchId_variantId: { branchId, variantId: input.variantId } };
 
     return prisma.$transaction(async (tx) => {
-      // One adjustment at a time per branch, so two saves can't take the same number
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stock-adjustment:' + branchId}))`;
-      const adjustmentNumber = await this.nextNumber(tx, branchId);
-      const id = randomUUID();
-
-      if (delta) {
-        await inventoryService.applyStockChanges(tx, {
-          branchId,
-          changes: [{ variantId: input.variantId, productId: variant.productId, delta, type: movementType }],
-          reason: input.reason,
-          reference: adjustmentNumber,
-          sourceType: StockSourceType.ADJUSTMENT,
-          sourceId: id,
-          performedById: actorId,
-        });
-      }
-      if (damagedDelta) {
-        const { count } = await tx.inventory.updateMany({
-          where: {
-            branchId,
+      const [done] = await inventoryService.recordAdjustments(tx, {
+        branchId,
+        shopId: scope.shopId,
+        companyId: scope.companyId,
+        reason: input.reason,
+        reference: input.reference,
+        photoUrl: input.photoUrl,
+        notes: actorName ? `Logged by ${actorName}` : null,
+        approvalStatus,
+        performedById: actorId,
+        lines: [
+          {
             variantId: input.variantId,
-            ...(damagedDelta < 0 ? { damagedQty: { gte: qty } } : {}),
+            productId: variant.productId,
+            label: `"${variant.product.name}" (${variant.size})`,
+            type: input.type,
+            quantity: qty,
           },
-          data: { damagedQty: { increment: damagedDelta } },
-        });
-        if (!count) {
-          const inv = await tx.inventory.findUnique({ where });
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Only ${inv?.damagedQty ?? 0} damaged unit(s) of "${variant.product.name}" (${variant.size}) can be written off`,
-          );
-        }
-      }
-
-      // Read after the change: the row is locked by now, so before = after - change
-      const inv = await tx.inventory.findUniqueOrThrow({ where });
-      const availableAfter = inv.physicalQty;
-      const damagedAfter = inv.damagedQty;
-      const availableBefore = availableAfter - delta;
-      const damagedBefore = damagedAfter - damagedDelta;
-
-      await tx.stockAdjustment.create({
-        data: {
-          id,
-          adjustmentNumber,
-          reference: input.reference || null,
-          photoUrl: input.photoUrl || null,
-          branchId,
-          shopId: scope.shopId || null,
-          companyId: scope.companyId,
-          variantId: input.variantId,
-          type: input.type,
-          quantity: qty,
-          availableBefore,
-          availableAfter,
-          damagedBefore,
-          damagedAfter,
-          reason: input.reason,
-          approvalStatus,
-          notes: actorName ? `Logged by ${actorName}` : null,
-          createdById: actorId,
-        },
+        ],
       });
+      const { adjustmentNumber, availableBefore, availableAfter, damagedBefore, damagedAfter } = done;
 
       return {
         success: true,
