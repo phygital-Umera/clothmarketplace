@@ -20,6 +20,7 @@ const PRODUCT_INCLUDE = {
     brand: {select: {id: true, name: true}},
     company: {select: {id: true, name: true, code: true}},
     createdBy: {select: {id: true, fullname: true, branchId: true}},
+    shop: {select: {id: true, name: true, branchId: true}},
     images: {orderBy: [{isMain: 'desc' as const}, {order: 'asc' as const}]},
     variants: {
         orderBy: {createdAt: 'asc' as const},
@@ -43,7 +44,8 @@ const slugify = (s: string) =>
 /**
  * Who may edit a product:
  *   company admin -> any product of the company
- *   branch admin  -> products created in their branch
+ *   branch admin  -> products of the shops in their branch (a product with no
+ *                    shop: its creator's branch, until every product has a shop, P3-01)
  *   employee      -> products they created (and only with products.manage)
  *   super admin   -> nobody's (monitors, can unpublish)
  */
@@ -51,11 +53,16 @@ const canEdit = (
     actor: Actor,
     product: Pick<ProductRow, 'companyId' | 'createdById'> & {
         createdBy: {branchId: string | null} | null;
+        shop: {branchId: string} | null;
     },
 ) => {
     if (product.companyId !== actor.companyId) return false;
     if (actor.role === Role.ADMIN) return true;
-    if (actor.role === Role.SUB_ADMIN) return product.createdBy?.branchId === actor.branchId;
+    if (actor.role === Role.SUB_ADMIN) {
+        // The product's shop decides, so moving its creator moves no rights
+        const branchId = product.shop ? product.shop.branchId : product.createdBy?.branchId;
+        return !!actor.branchId && branchId === actor.branchId;
+    }
     if (actor.role === Role.EMPLOYEE) {
         return product.createdById === actor.id && actor.permissions.includes('products.manage');
     }
