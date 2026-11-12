@@ -153,6 +153,7 @@ class CustomerService {
         gstin: r.GSTIN ?? r.gstin,
         address: r.Address ?? r.address,
         creditLimit: r.CreditLimit ?? r.creditLimit ?? 0,
+        creditDays: r.CreditDays ?? r.creditDays,
         openingDue: r.OpeningDue ?? r.openingDue ?? 0,
       });
       if (!parsed.success) {
