@@ -195,20 +195,29 @@ class PurchaseReturnService {
     const bill = data.purchaseBillId
       ? await prisma.purchaseBill.findFirst({
           where: { id: data.purchaseBillId, shopId: scope.shopId },
-          include: { items: { select: { id: true, taxRate: true } } },
+          include: { items: { select: { id: true, taxRate: true, unitCost: true } } },
         })
       : null;
-    // GST rate of the purchase bill line (0% stays 0%); the sent rate only for lines without one
-    const billRates = new Map(bill?.items.map((i) => [i.id, i.taxRate]));
-    const rateOf = (item: (typeof activeItems)[number]) =>
-      billRates.get(item.purchaseBillItemId ?? '') ?? item.taxRate;
+    if (data.purchaseBillId && !bill) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Purchase bill not found');
+    }
+    // Unit cost and GST rate come from the purchase bill line (0% stays 0%), never from the browser.
+    // Only a note without a purchase bill uses the sent values: there is nothing to look them up in.
+    const billLines = new Map(bill?.items.map((i) => [i.id, i]));
+    const stranger = bill && activeItems.find((i) => !billLines.has(i.purchaseBillItemId ?? ''));
+    if (stranger) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `${stranger.productName} is not on this purchase bill`);
+    }
+    const lineOf = (item: (typeof activeItems)[number]) => billLines.get(item.purchaseBillItemId ?? '');
+    const rateOf = (item: (typeof activeItems)[number]) => lineOf(item)?.taxRate ?? item.taxRate;
+    const costOf = (item: (typeof activeItems)[number]) => lineOf(item)?.unitCost ?? item.unitCost;
 
     let returnValue = 0;
     let taxAmount = 0;
     let totalQuantity = 0;
 
     for (const item of activeItems) {
-      const lineCost = item.returnQty * item.unitCost;
+      const lineCost = item.returnQty * costOf(item);
       const lineTax = (lineCost * rateOf(item)) / 100;
       returnValue += lineCost;
       taxAmount += lineTax;
@@ -263,9 +272,9 @@ class PurchaseReturnService {
               boughtQty: item.boughtQty,
               inStockQty: item.inStockQty,
               returnQty: item.returnQty,
-              unitCost: item.unitCost,
+              unitCost: costOf(item),
               taxRate: rateOf(item),
-              totalCost: Math.round(item.returnQty * item.unitCost * 100) / 100,
+              totalCost: Math.round(item.returnQty * costOf(item) * 100) / 100,
               reason: item.reason || null,
             })),
           },
