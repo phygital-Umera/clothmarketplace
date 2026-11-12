@@ -10,6 +10,7 @@ import {exportCustomerDues} from '@/lib/api/customerDue';
 import {ChevronLeft, ChevronRight, Download, MessageCircle, Search, X} from 'lucide-react';
 import {useDebounceValue} from 'usehooks-ts';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 
 const inr = (n?: number | null) =>
   n === undefined || n === null
@@ -100,7 +101,7 @@ export default function BranchCustomerDuesPage() {
       const blob = new Blob([[head.join(','), ...rows].join('\n')], {type: 'text/csv;charset=utf-8;'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `customer_dues_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `customer_dues_${format(new Date(), 'yyyy-MM-dd')}.csv`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch {

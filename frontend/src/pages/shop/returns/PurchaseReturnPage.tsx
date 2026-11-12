@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 import {
   useBillsBySupplier,
   useCreatePurchaseReturn,
@@ -36,10 +37,9 @@ export default function PurchaseReturnPage() {
   // Form State
   const [selectedSupplier, setSelectedSupplier] = useState<string>('');
   const [selectedBillId, setSelectedBillId] = useState<string>('');
-  const [returnDate, setReturnDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [returnDate, setReturnDate] = useState<string>(() =>
+    format(new Date(), 'yyyy-MM-dd'),
+  );
   const [sentVia, setSentVia] = useState<string>('');
   const [takeStockFrom, setTakeStockFrom] = useState<'DAMAGED_STOCK' | 'ACTIVE_STOCK'>('DAMAGED_STOCK');
   const [noteToSupplier, setNoteToSupplier] = useState<string>(

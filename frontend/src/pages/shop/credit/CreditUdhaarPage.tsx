@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 import {
   useCreditCustomers,
   useCreditMetrics,
@@ -71,10 +72,9 @@ export default function CreditUdhaarPage() {
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
-  const [paymentDate, setPaymentDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [paymentDate, setPaymentDate] = useState<string>(() =>
+    format(new Date(), 'yyyy-MM-dd'),
+  );
   const [paymentNote, setPaymentNote] = useState<string>('');
 
   const recordPaymentMutation = useRecordCustomerPayment(PANEL);

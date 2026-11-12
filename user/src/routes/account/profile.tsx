@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {createFileRoute} from '@tanstack/react-router';
 import {Eye, EyeOff, Lock, ShieldCheck} from 'lucide-react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 import {errorMessage, fieldErrors} from '@/lib/api';
 import {useAuth} from '@/lib/auth';
 import {passwordApi, ProfileInput, useProfile, useSaveProfile} from '@/lib/queries';
@@ -63,7 +64,7 @@ function Details({profile}: {profile: Profile}) {
     );
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = format(new Date(), 'yyyy-MM-dd');
   return (
     <form onSubmit={submit} className={card} noValidate>
       <div className="flex flex-wrap items-center gap-4 border-b border-line px-5 py-4">
