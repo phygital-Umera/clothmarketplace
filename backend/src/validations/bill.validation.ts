@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {BillStatus} from '@prisma/client';
+import {BillStatus, SalesBillType} from '@prisma/client';
 import {field} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
 
@@ -37,7 +37,14 @@ const paymentMode = z.enum(PAYMENT_MODES, {
 });
 /** Amounts received now, one row per mode; whatever is left becomes credit */
 const payments = z
-    .array(z.object({mode: paymentMode, amount: money('Payment Amount')}))
+    .array(
+        z.object({
+            mode: paymentMode,
+            amount: money('Payment Amount'),
+            /** UPI reference or the card's last 4 digits */
+            reference: text('Payment Reference', 40),
+        }),
+    )
     .max(PAYMENT_MODES.length)
     .superRefine((list, ctx) => {
         const seen = new Set<string>();
@@ -92,9 +99,18 @@ const purchaseFields = {
 
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'UPI', 'CREDIT'] as const;
 
+const billType = z.nativeEnum(SalesBillType, {
+    errorMap: () => ({message: 'Select a valid bill type'}),
+});
+
 const salesFields = {
     customerName: text('Customer Name', 120),
     customerPhone: field({label: 'Customer Phone', kind: 'phone', required: false}),
+    customerGstin: field({label: 'Customer GSTIN', kind: 'gstin', required: false}),
+    salesmanId: z.preprocess(
+        emptyToUndefined,
+        z.string().uuid('Select a valid salesman').optional(),
+    ),
     billDate,
     paymentMethod: z.enum(PAYMENT_METHODS).default('CASH'),
     /** Received at billing; omitted means paid in full (or nothing, for CREDIT) */
@@ -112,12 +128,34 @@ const salesFields = {
 };
 
 const createPurchaseBillSchema = z.object({...purchaseFields, status: saveStatus});
-const createSalesBillSchema = z.object({...salesFields, status: saveStatus});
+/** A B2B tax invoice needs the buyer's GSTIN */
+const b2bNeedsGstin = (
+    bill: {billType?: SalesBillType; customerGstin?: string},
+    ctx: z.RefinementCtx,
+) => {
+    if (bill.billType === SalesBillType.TAX_INVOICE_B2B && !bill.customerGstin) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['customerGstin'],
+            message: 'Customer GSTIN is required for a B2B tax invoice',
+        });
+    }
+};
+const createSalesBillSchema = z
+    .object({
+        ...salesFields,
+        billType: billType.default(SalesBillType.TAX_INVOICE_B2C),
+        status: saveStatus,
+    })
+    .superRefine(b2bNeedsGstin);
 
 // Edits resend the full bill plus the version that was loaded (optimistic lock)
 const version = z.coerce.number({required_error: 'Bill version is required'}).int().min(0);
 const updatePurchaseBillSchema = z.object({...purchaseFields, version});
-const updateSalesBillSchema = z.object({...salesFields, version});
+// billType omitted on an edit (older bill forms) keeps the bill's type, GSTIN and salesman
+const updateSalesBillSchema = z
+    .object({...salesFields, billType: billType.optional(), version})
+    .superRefine(b2bNeedsGstin);
 
 const cancelBillSchema = z.object({
     reason: field({label: 'Cancel Reason', kind: 'text', max: 300}),

@@ -3,6 +3,10 @@ export type BillStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
 /** Paid in full, partly on credit, or fully on credit */
 export type PaymentStatus = 'PAID' | 'PART_CREDIT' | 'CREDIT';
+export type SalesBillType =
+  | 'TAX_INVOICE_B2C'
+  | 'TAX_INVOICE_B2B'
+  | 'RETAIL_INVOICE';
 
 export interface BillPayment {
   id: string;
@@ -10,6 +14,8 @@ export interface BillPayment {
   amount: number;
   paidAt: string;
   note?: string | null;
+  /** UPI transaction id / card last 4 */
+  reference?: string | null;
   /** true = taken when the bill was saved; false = collected / paid later */
   atBilling: boolean;
 }
@@ -74,6 +80,21 @@ export interface Bill {
   // sales
   customerName?: string | null;
   customerPhone?: string | null;
+  billType?: SalesBillType | null;
+  customerGstin?: string | null;
+  salesman?: {id: string; fullname: string} | null;
+  paidAmount?: number;
+  creditAmount?: number;
+  editCount?: number;
+  lastEditedAt?: string | null;
+  shop?: {
+    id: string;
+    name: string;
+    code: string;
+    address?: string | null;
+    phone?: string | null;
+    gstin?: string | null;
+  };
   /** CREDIT when nothing was paid at billing */
   paymentMethod?: PaymentMethod | 'CREDIT';
   returns?: {
@@ -159,8 +180,12 @@ export interface BillPayload {
   customerPhone?: string;
   paymentMethod?: PaymentMethod;
   /** sales: split payment; omitted = whole bill in paymentMethod */
-  payments?: {mode: PaymentMethod; amount: number}[];
+  payments?: {mode: PaymentMethod; amount: number; reference?: string}[];
   dueDate?: string;
+  billType?: SalesBillType;
+  /** required (valid GSTIN) for TAX_INVOICE_B2B */
+  customerGstin?: string;
+  salesmanId?: string;
   /** purchase: paid to the supplier now; omitted = paid in full */
   amountPaid?: number;
   paymentMode?: PaymentMethod;

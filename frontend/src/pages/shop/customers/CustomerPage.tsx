@@ -523,6 +523,7 @@ export default function CustomerPage() {
                                 onClick={() =>
                                   navigate({
                                     to: '/shop-admin/new-bill',
+                                    search: {phone: customer.mobile} as never,
                                   })
                                 }
                                 className="p-1 text-outline hover:text-espresso transition-colors cursor-pointer"

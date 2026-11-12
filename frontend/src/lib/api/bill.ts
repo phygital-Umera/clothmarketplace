@@ -75,11 +75,18 @@ export interface CustomerSuggestion {
   name: string;
   phone: string;
   previousDue: number;
-  loyaltyPoints: number;
+  /** 0 = no limit */
+  creditLimit: number;
+  creditDays: number;
+  gstin: string | null;
+  businessName: string | null;
 }
 
+// sales-bills/customers: plain /customers is also the shop customer list route
 export const searchCustomers = (panel: string, q: string) =>
-  (api.get(`/${panel}/customers`, {params: {q}}) as unknown as Promise<Res<CustomerSuggestion[]>>);
+  api.get(`/${panel}/sales-bills/customers`, {
+    params: {q},
+  }) as unknown as Promise<Res<CustomerSuggestion[]>>;
 
 // Branch admin: read-only view of every shop's sales bills
 // (the axios response interceptor already unwraps `res.data`)

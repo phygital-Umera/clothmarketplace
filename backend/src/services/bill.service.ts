@@ -88,8 +88,11 @@ export const paymentStatusOf = (amountPaid: number, balanceDue: number) =>
 
 const BILL_INCLUDE = {
     createdBy: {select: {id: true, fullname: true}},
-    shop: {select: {id: true, name: true, code: true}},
+    shop: {select: {id: true, name: true, code: true, address: true, phone: true, gstin: true}},
 } satisfies Prisma.PurchaseBillInclude;
+
+/** Sales bills only: the staff member credited with the sale */
+const SALESMAN = {select: {id: true, fullname: true}} as const;
 
 const PAYMENT_ORDER = {orderBy: {paidAt: 'asc'}} as const;
 
@@ -263,6 +266,42 @@ class BillService {
             throw new ApiError(
                 httpStatus.BAD_REQUEST,
                 'This bill has returns (credit notes) and can no longer be changed',
+            );
+        }
+    }
+
+    /** The salesman must be a live user of the shop's company */
+    private async assertSalesman(tx: Tx, companyId: string, salesmanId: string) {
+        const found = await tx.user.count({where: {id: salesmanId, companyId, deletedAt: null}});
+        if (!found) throw new ApiError(httpStatus.BAD_REQUEST, 'Select a valid salesman');
+    }
+
+    /**
+     * A shop customer with a credit limit (0 = no limit) cannot owe more than
+     * it. `previous` is the due this bill already added for the same phone (edits).
+     * Their due is ShopCustomer.balanceDue, the figure the Credit page shows.
+     */
+    private async assertCreditLimit(
+        tx: Tx,
+        shopId: string,
+        phone: string | null | undefined,
+        balanceDue: number,
+        previous = 0,
+    ) {
+        const mobile = phone?.trim();
+        // Only a new or bigger due is checked, so lowering one is always allowed
+        if (!mobile || balanceDue <= previous) return;
+        const customer = await tx.shopCustomer.findFirst({
+            where: {shopId, mobile},
+            select: {name: true, creditLimit: true, balanceDue: true},
+        });
+        if (!customer || customer.creditLimit <= 0) return;
+        const owes = Math.max(0, round2(customer.balanceDue - previous));
+        if (round2(owes + balanceDue) > customer.creditLimit) {
+            const inr = (v: number) => `₹${v.toLocaleString('en-IN')}`;
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `Credit limit ${inr(customer.creditLimit)} exceeded: ${customer.name} already owes ${inr(owes)}`,
             );
         }
     }
@@ -690,6 +729,7 @@ class BillService {
             },
             include: {
                 ...BILL_INCLUDE,
+                salesman: SALESMAN,
                 items: {include: {...ITEM_INCLUDE, returnItems: {select: {quantity: true}}}},
                 payments: PAYMENT_ORDER,
                 returns: {
@@ -710,6 +750,7 @@ class BillService {
             where: {id, ...scopeWhere(scope), deletedAt: null},
             include: {
                 ...BILL_INCLUDE,
+                salesman: SALESMAN,
                 items: {include: {...ITEM_INCLUDE, returnItems: {select: {quantity: true}}}},
                 payments: PAYMENT_ORDER,
                 returns: {
@@ -756,15 +797,28 @@ class BillService {
                 prisma.$transaction(async (tx) => {
                     const {lines, totals} = await this.salesLines(tx, scope, data);
                     const paidNow = this.salesPaidNow(data, totals.totalAmount);
+                    const settled = this.settle('SALES', totals.totalAmount, paidNow, 0, {
+                        name: data.customerName,
+                        phone: data.customerPhone,
+                    });
+                    if (data.salesmanId) {
+                        await this.assertSalesman(tx, shop.companyId, data.salesmanId);
+                    }
+                    // Drafts add nothing to the customer's due; confirmSales checks them later
+                    if (status === BillStatus.CONFIRMED) {
+                        await this.assertCreditLimit(
+                            tx,
+                            shop.id,
+                            data.customerPhone,
+                            settled.balanceDue,
+                        );
+                    }
                     const bill = await tx.salesBill.create({
                         data: {
                             ...header,
                             ...totals,
                             ...this.payment(totals.totalAmount, data as any),
-                            ...this.settle('SALES', totals.totalAmount, paidNow, 0, {
-                                name: data.customerName,
-                                phone: data.customerPhone,
-                            }),
+                            ...settled,
                             billNumber: await this.nextBillNumber(tx, 'SALES', shop),
                             status,
                             companyId: shop.companyId,
@@ -883,6 +937,33 @@ class BillService {
             const {lines, totals} = await this.salesLines(tx, scope, data, before.pricesIncludeTax);
             const paidNow = this.salesPaidNow(data, totals.totalAmount);
             const later = await this.collected(tx, 'SALES', id);
+            const settled = this.settle('SALES', totals.totalAmount, paidNow, later, {
+                name: data.customerName,
+                phone: data.customerPhone,
+            });
+            if (data.salesmanId && data.salesmanId !== before.salesmanId) {
+                await this.assertSalesman(tx, scope.companyId, data.salesmanId);
+            }
+            if (before.status === BillStatus.CONFIRMED) {
+                const samePhone = before.customerPhone?.trim() === data.customerPhone?.trim();
+                await this.assertCreditLimit(
+                    tx,
+                    before.shopId,
+                    data.customerPhone,
+                    settled.balanceDue,
+                    samePhone ? before.balanceDue : 0,
+                );
+            }
+            // Edits resend the whole bill, so a missing GSTIN / salesman is cleared;
+            // without billType (older bill forms) all three are left as they were
+            if (data.billType) {
+                header.customerGstin = data.customerGstin ?? null;
+                header.salesmanId = data.salesmanId ?? null;
+            } else {
+                delete header.billType;
+                delete header.customerGstin;
+                delete header.salesmanId;
+            }
 
             await tx.salesBillItem.deleteMany({where: {billId: id}});
             await tx.salesBillPayment.deleteMany({where: {billId: id, atBilling: true}});
@@ -892,10 +973,7 @@ class BillService {
                     ...header,
                     ...totals,
                     ...this.payment(totals.totalAmount, data as any),
-                    ...this.settle('SALES', totals.totalAmount, paidNow, later, {
-                        name: data.customerName,
-                        phone: data.customerPhone,
-                    }),
+                    ...settled,
                     // Edits after confirming are tracked for the branch watch list
                     ...(before.status === BillStatus.CONFIRMED
                         ? {editCount: {increment: 1}, lastEditedAt: new Date()}
@@ -921,6 +999,7 @@ class BillService {
                 data: {status: BillStatus.CONFIRMED},
                 include: {items: true},
             });
+            await this.assertCreditLimit(tx, bill.shopId, bill.customerPhone, bill.balanceDue);
             await this.post(tx, 'SALES', bill, [], bill.items, 'confirmed', actorId);
             await syncCustomerFromBill(tx, null, bill);
         });
@@ -1183,19 +1262,60 @@ class BillService {
         };
     };
 
-    /** Past customers: distinct phone+name combos from CONFIRMED sales bills */
+    /**
+     * POS customer lookup: this shop's saved customers first (due as the Credit
+     * page shows it), then past bill customers not saved yet. At most 10.
+     */
     public searchCustomers = async (scope: ShopScope, q: string) => {
+        const term = q.trim();
+        const saved = await prisma.shopCustomer.findMany({
+            where: {
+                shopId: scope.shopId,
+                isActive: true,
+                ...(term
+                    ? {
+                          OR: [
+                              {name: {contains: term, mode: 'insensitive'}},
+                              {businessName: {contains: term, mode: 'insensitive'}},
+                              {mobile: {contains: term}},
+                          ],
+                      }
+                    : {}),
+            },
+            select: {
+                name: true,
+                mobile: true,
+                balanceDue: true,
+                creditLimit: true,
+                creditDays: true,
+                gstin: true,
+                businessName: true,
+            },
+            orderBy: {updatedAt: 'desc'},
+            take: 10,
+        });
+        const result = saved.map((c) => ({
+            name: c.name,
+            phone: c.mobile,
+            previousDue: round2(c.balanceDue),
+            creditLimit: c.creditLimit,
+            creditDays: c.creditDays,
+            gstin: c.gstin,
+            businessName: c.businessName,
+        }));
+        if (result.length >= 10) return result;
+
         const rows = await prisma.salesBill.findMany({
             where: {
                 shopId: scope.shopId,
                 deletedAt: null,
                 status: 'CONFIRMED',
-                customerPhone: {not: null},
-                ...(q.trim()
+                customerPhone: {not: null, notIn: saved.map((c) => c.mobile)},
+                ...(term
                     ? {
                           OR: [
-                              {customerName: {contains: q, mode: 'insensitive'}},
-                              {customerPhone: {contains: q}},
+                              {customerName: {contains: term, mode: 'insensitive'}},
+                              {customerPhone: {contains: term}},
                           ],
                       }
                     : {}),
@@ -1205,26 +1325,26 @@ class BillService {
             take: 20,
         });
 
-        // Deduplicate by phone, aggregate balance due
-        const seen = new Map<string, {name: string; phone: string; totalDue: number}>();
+        // Deduplicate by phone, adding up the balance due
+        const seen = new Map<string, {name: string; due: number}>();
         for (const r of rows) {
-            const key = r.customerPhone!;
-            if (seen.has(key)) {
-                seen.get(key)!.totalDue = round2(seen.get(key)!.totalDue + r.balanceDue);
-            } else {
-                seen.set(key, {
-                    name: r.customerName ?? '',
-                    phone: r.customerPhone!,
-                    totalDue: r.balanceDue,
-                });
-            }
+            const c = seen.get(r.customerPhone!);
+            if (c) c.due = round2(c.due + r.balanceDue);
+            else seen.set(r.customerPhone!, {name: r.customerName ?? '', due: r.balanceDue});
         }
-        return [...seen.values()].slice(0, 10).map((c) => ({
-            name: c.name,
-            phone: c.phone,
-            previousDue: round2(c.totalDue),
-            loyaltyPoints: 0,
-        }));
+        for (const [phone, c] of seen) {
+            if (result.length >= 10) break;
+            result.push({
+                name: c.name,
+                phone,
+                previousDue: round2(c.due),
+                creditLimit: 0,
+                creditDays: 15,
+                gstin: null,
+                businessName: null,
+            });
+        }
+        return result;
     };
 
     private async list(kind: Kind, scope: BillScope, query: BillList | BranchSalesList) {
