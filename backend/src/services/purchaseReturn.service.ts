@@ -194,23 +194,30 @@ class PurchaseReturnService {
 
     const bill = data.purchaseBillId
       ? await prisma.purchaseBill.findFirst({
-          where: { id: data.purchaseBillId, shopId: scope.shopId },
-          include: { items: { select: { id: true, taxRate: true, unitCost: true } } },
+          where: { id: data.purchaseBillId, shopId: scope.shopId, status: 'CONFIRMED', deletedAt: null },
+          include: {
+            items: { select: { id: true, taxRate: true, unitCost: true, quantity: true, productId: true, variantId: true } },
+          },
         })
       : null;
     if (data.purchaseBillId && !bill) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Purchase bill not found');
     }
-    // Unit cost and GST rate come from the purchase bill line (0% stays 0%), never from the browser.
+    // Unit cost, GST rate (0% stays 0%) and the product come from the purchase bill line, never from the browser.
     // Only a note without a purchase bill uses the sent values: there is nothing to look them up in.
     const billLines = new Map(bill?.items.map((i) => [i.id, i]));
     const stranger = bill && activeItems.find((i) => !billLines.has(i.purchaseBillItemId ?? ''));
     if (stranger) {
       throw new ApiError(httpStatus.BAD_REQUEST, `${stranger.productName} is not on this purchase bill`);
     }
+    const twice = bill && activeItems.find((i, n) => activeItems.findIndex((j) => j.purchaseBillItemId === i.purchaseBillItemId) !== n);
+    if (twice) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `${twice.productName} appears twice in this debit note`);
+    }
     const lineOf = (item: (typeof activeItems)[number]) => billLines.get(item.purchaseBillItemId ?? '');
     const rateOf = (item: (typeof activeItems)[number]) => lineOf(item)?.taxRate ?? item.taxRate;
     const costOf = (item: (typeof activeItems)[number]) => lineOf(item)?.unitCost ?? item.unitCost;
+    const variantOf = (item: (typeof activeItems)[number]) => lineOf(item)?.variantId ?? item.variantId;
 
     let returnValue = 0;
     let taxAmount = 0;
@@ -228,17 +235,38 @@ class PurchaseReturnService {
     taxAmount = Math.round(taxAmount * 100) / 100;
     const totalAmount = Math.round((returnValue + taxAmount) * 100) / 100;
 
-    let payableBefore = 0;
-    let payableAfter = 0;
-
-    if (bill) {
-      payableBefore = bill.balanceDue;
-      payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
-    }
-
     const returnDate = data.returnDate ? new Date(data.returnDate) : new Date();
 
     const result = await prisma.$transaction(async (tx) => {
+      let payableBefore = 0;
+      let payableAfter = 0;
+
+      if (bill) {
+        // One debit note at a time per bill, so two notes can't both use up the same quantity
+        const [locked] = await tx.$queryRaw<{ balanceDue: number }[]>`
+          SELECT "balanceDue" FROM "PurchaseBill" WHERE "id" = ${bill.id} FOR UPDATE`;
+        // A line can be returned up to what was bought, less earlier confirmed debit notes
+        const earlier = await tx.purchaseReturnItem.groupBy({
+          by: ['purchaseBillItemId'],
+          where: { purchaseBillItemId: { in: [...billLines.keys()] }, purchaseReturn: { status: 'CONFIRMED' } },
+          _sum: { returnQty: true },
+        });
+        const returned = new Map(earlier.map((e) => [e.purchaseBillItemId, e._sum.returnQty ?? 0]));
+        for (const item of activeItems) {
+          const left = lineOf(item)!.quantity - (returned.get(item.purchaseBillItemId!) ?? 0);
+          if (item.returnQty > left) {
+            throw new ApiError(
+              httpStatus.BAD_REQUEST,
+              left > 0
+                ? `${item.productName}: only ${left} left to return on this bill`
+                : `${item.productName} has already been returned in full`,
+            );
+          }
+        }
+        payableBefore = locked.balanceDue;
+        payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
+      }
+
       // 1. Create PurchaseReturn
       const purchaseReturn = await tx.purchaseReturn.create({
         data: {
@@ -263,9 +291,9 @@ class PurchaseReturnService {
           createdById: actorId,
           items: {
             create: activeItems.map((item) => ({
-              purchaseBillItemId: item.purchaseBillItemId || null,
-              productId: item.productId || null,
-              variantId: item.variantId || null,
+              purchaseBillItemId: lineOf(item)?.id ?? null,
+              productId: lineOf(item)?.productId ?? (item.productId || null),
+              variantId: variantOf(item) || null,
               productName: item.productName,
               size: item.size || null,
               hsn: item.hsn || null,
@@ -287,9 +315,9 @@ class PurchaseReturnService {
         const branchId = bill ? bill.branchId : scope.shopId;
 
         for (const item of activeItems) {
-          if (item.variantId) {
+          if (variantOf(item)) {
             const inv = await tx.inventory.findFirst({
-              where: { branchId, variantId: item.variantId },
+              where: { branchId, variantId: variantOf(item) },
             });
             if (inv) {
               const newQty = Math.max(0, inv.physicalQty - item.returnQty);
