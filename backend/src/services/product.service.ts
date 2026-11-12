@@ -177,13 +177,19 @@ class ProductService {
                                 })
                             ).map((p) => p.sku),
                     );
+                    // The store link: set once, never rebuilt. A shop product whose SKU was
+                    // changed keeps its old slug, so this one may already be taken.
+                    let slug = `${slugify(fields.name)}-${sku.toLowerCase()}`;
+                    if (await tx.product.findUnique({where: {slug}, select: {id: true}})) {
+                        slug = `${slug}-${Date.now().toString(36)}`;
+                    }
                     return tx.product.create({
                         data: {
                             ...fields,
                             tags: fields.tags.map((t) => t.toLowerCase()),
                             companyId,
                             sku,
-                            slug: `${slugify(fields.name)}-${sku.toLowerCase()}`,
+                            slug,
                             // New products are drafts until they are complete and published
                             status: ProductStatus.DRAFT,
                             createdById: actor.id,
@@ -222,9 +228,6 @@ class ProductService {
                 data: {
                     ...fields,
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
-                    ...(fields.name
-                        ? {slug: `${slugify(fields.name)}-${before.sku.toLowerCase()}`}
-                        : {}),
                 },
             });
             if (!variants) return;

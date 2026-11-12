@@ -349,6 +349,12 @@ class ShopProductService {
                                 })
                             ).map((p) => p.sku),
                         ));
+                    // The store link: set once, never rebuilt. A product whose SKU was
+                    // changed keeps its old slug, so this one may already be taken.
+                    let slug = `${slugify(fields.name)}-${sku.toLowerCase()}`;
+                    if (await tx.product.findUnique({where: {slug}, select: {id: true}})) {
+                        slug = `${slug}-${Date.now().toString(36)}`;
+                    }
                     const product = await tx.product.create({
                         data: {
                             ...fields,
@@ -357,7 +363,7 @@ class ShopProductService {
                             companyId: scope.companyId,
                             shopId: scope.shopId,
                             sku,
-                            slug: `${slugify(fields.name)}-${sku.toLowerCase()}`,
+                            slug,
                             createdById: actorId,
                             sizes: {create: sizeIds.map((sizeId) => ({sizeId}))},
                             colors: {create: colorIds.map((colorId) => ({colorId}))},
@@ -430,9 +436,6 @@ class ShopProductService {
                     ...fields,
                     sellingPrice: merged.sellingPrice,
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
-                    ...(fields.name || fields.sku
-                        ? {slug: `${slugify(fields.name ?? before.name)}-${sku.toLowerCase()}`}
-                        : {}),
                 },
             });
             if (sizeIds) {
