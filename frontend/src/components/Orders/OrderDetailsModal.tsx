@@ -40,6 +40,8 @@ function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Prop
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
   const addr = order.shippingAddress || {};
+  // D-03: only the selling shop changes an order; other panels view it
+  const canAct = panel === 'shop-admin';
 
   return (
     <>
@@ -78,21 +80,25 @@ function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Prop
                 <Download size={14} className="text-burgundy" /> Tax Invoice
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsShippingModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm hover:bg-cyan-100"
-              >
-                <Truck size={14} /> Shipping
-              </button>
+              {canAct && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsShippingModalOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm hover:bg-cyan-100"
+                  >
+                    <Truck size={14} /> Shipping
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setIsStatusModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-burgundy px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-burgundy/90"
-              >
-                Update Status
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsStatusModalOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-burgundy px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-burgundy/90"
+                  >
+                    Update Status
+                  </button>
+                </>
+              )}
 
               <button
                 type="button"
@@ -113,13 +119,15 @@ function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Prop
                   <strong>Customer requested cancellation:</strong> "{order.cancelReason}"
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCancelModalOpen(true)}
-                className="shrink-0 rounded bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-amber-700"
-              >
-                Review Request
-              </button>
+              {canAct && (
+                <button
+                  type="button"
+                  onClick={() => setIsCancelModalOpen(true)}
+                  className="shrink-0 rounded bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-amber-700"
+                >
+                  Review Request
+                </button>
+              )}
             </div>
           )}
 
@@ -230,13 +238,15 @@ function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Prop
                 ) : (
                   <div className="rounded-lg bg-ivory-100 p-2.5 text-xs text-outline flex items-center justify-between">
                     <span>No tracking info assigned yet</span>
-                    <button
-                      type="button"
-                      onClick={() => setIsShippingModalOpen(true)}
-                      className="text-burgundy font-medium hover:underline text-[11px]"
-                    >
-                      + Add Tracking
-                    </button>
+                    {canAct && (
+                      <button
+                        type="button"
+                        onClick={() => setIsShippingModalOpen(true)}
+                        className="text-burgundy font-medium hover:underline text-[11px]"
+                      >
+                        + Add Tracking
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

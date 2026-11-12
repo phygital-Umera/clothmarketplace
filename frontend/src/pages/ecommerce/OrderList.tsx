@@ -17,6 +17,8 @@ export default function OrderList({panel}: {panel: string}) {
   });
 
   const updateStatusMutation = useUpdateOrderStatus(panel);
+  // D-03: only the selling shop changes an order; other panels view it
+  const canAct = panel === 'shop-admin';
 
   const handleStatusChange = async (orderId: string, nextStatus: string, trackNum?: string) => {
     await updateStatusMutation.mutateAsync({
@@ -116,17 +118,21 @@ export default function OrderList({panel}: {panel: string}) {
         emptyTitle="No orders found"
         pagination={data?.pagination}
         onPageChange={setPage}
-        rowActions={(o) => [
-          {
-            label: 'Process Next Step',
-            icon: <CheckCircle2 size={16} />,
-            onClick: () => setSelectedOrder(o),
-          },
-        ]}
+        rowActions={
+          canAct
+            ? (o) => [
+                {
+                  label: 'Process Next Step',
+                  icon: <CheckCircle2 size={16} />,
+                  onClick: () => setSelectedOrder(o),
+                },
+              ]
+            : undefined
+        }
       />
 
       {/* Dispatch / Status Update Modal */}
-      {selectedOrder && (
+      {canAct && selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-outline/20 bg-ivory p-6 shadow-xl">
             <h3 className="font-serif text-headline-sm text-burgundy">Update Order Status</h3>
