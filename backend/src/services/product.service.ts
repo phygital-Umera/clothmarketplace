@@ -7,6 +7,7 @@ import {listArgs, toListResult} from '../utils/list';
 import {catalogValidation} from '@validations/index';
 import accountService from './account.service';
 import categoryBrandService from './categoryBrand.service';
+import masterService from './master.service';
 
 type CreateProduct = z.infer<typeof catalogValidation.createProductSchema>;
 type UpdateProduct = z.infer<typeof catalogValidation.updateProductSchema>;
@@ -184,6 +185,7 @@ class ProductService {
         const companyId = actor.companyId;
         await categoryBrandService.assertUsable(companyId, data.categoryId, data.brandId);
         const shopId = await this.ownShop(actor, data.shopId);
+        await masterService.ensureShopMasters(shopId);
         const company = await prisma.company.findUniqueOrThrow({
             where: {id: companyId},
             select: {code: true},
@@ -211,7 +213,7 @@ class ProductService {
                     if (await tx.product.findUnique({where: {slug}, select: {id: true}})) {
                         slug = `${slug}-${Date.now().toString(36)}`;
                     }
-                    return tx.product.create({
+                    const made = await tx.product.create({
                         data: {
                             ...fields,
                             tags: fields.tags.map((t) => t.toLowerCase()),
@@ -236,6 +238,9 @@ class ProductService {
                         },
                         select: {id: true},
                     });
+                    // The shop's product form works with its size and colour rows (D-02)
+                    await masterService.linkVariantNames(tx, shopId, made.id, variants);
+                    return made;
                 }),
             'sku',
         );
@@ -263,7 +268,15 @@ class ProductService {
             (fields.mrp !== undefined && fields.mrp !== before.mrp) ||
             (fields.sellingPrice !== undefined && fields.sellingPrice !== before.sellingPrice) ||
             variants?.some((v) => {
-                const old = v.id && before.variants.find((b) => b.id === v.id);
+                // A row without an id reuses a saved variant of the same size and colour
+                const old = v.id
+                    ? before.variants.find((b) => b.id === v.id)
+                    : before.variants.find(
+                          (o) =>
+                              !variants.some((k) => k.id === o.id) &&
+                              o.size.toLowerCase() === v.size.toLowerCase() &&
+                              o.color.toLowerCase() === v.color.toLowerCase(),
+                      );
                 return !!old && (!same(v.mrp, old.mrp) || !same(v.sellingPrice, old.sellingPrice));
             });
         if (priceChanged) {
@@ -271,6 +284,8 @@ class ProductService {
                 {field: 'sellingPrice', message: 'Prices are changed in the shop'},
             ]);
         }
+        const linkShop = newShopId ?? before.shopId;
+        if (linkShop) await masterService.ensureShopMasters(linkShop);
 
         await prisma.$transaction(async (tx) => {
             await tx.product.update({
@@ -281,7 +296,16 @@ class ProductService {
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
                 },
             });
-            if (!variants) return;
+            if (!variants) {
+                if (newShopId) {
+                    const rows = await tx.productVariant.findMany({
+                        where: {productId: id, isActive: true},
+                        select: {size: true, color: true, colorHex: true},
+                    });
+                    await masterService.linkVariantNames(tx, newShopId, id, rows);
+                }
+                return;
+            }
 
             const keep = new Set(variants.filter((v) => v.id).map((v) => v.id));
             const unknown = [...keep].filter((vid) => !before.variants.some((v) => v.id === vid));
@@ -327,6 +351,14 @@ class ProductService {
                 where: {productId: id, id: {notIn: [...keep] as string[]}},
                 data: {isActive: false},
             });
+            if (linkShop) {
+                await masterService.linkVariantNames(
+                    tx,
+                    linkShop,
+                    id,
+                    variants.filter((v) => v.isActive),
+                );
+            }
             if (before.status === ProductStatus.PUBLISHED && !variants.some((v) => v.isActive)) {
                 throw new ApiError(
                     httpStatus.BAD_REQUEST,

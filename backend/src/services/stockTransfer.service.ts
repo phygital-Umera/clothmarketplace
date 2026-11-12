@@ -632,6 +632,8 @@ class StockTransferService {
             where: {id: shop.id},
             select: {id: true, code: true},
         });
+        // A copied product links to this shop's own sizes and colours (D-02)
+        await masterService.ensureShopMasters(shop.id);
 
         await prisma.$transaction(async (tx) => {
             const short = transfer.items.some((i) => (counted.get(i.id) ?? 0) < (i.dispatchedQty ?? 0));

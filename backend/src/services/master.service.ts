@@ -222,25 +222,35 @@ class MasterService {
                 skipDuplicates: true,
             });
         }
-        for (const [from, to] of colorMap) {
-            await tx.productColorPreview.updateMany({
-                where: {...ofShop, colorId: from},
-                data: {colorId: to},
-            });
+        // Two old colours can map to one copy: keep one preview per product, image and copy
+        const previews = await tx.productColorPreview.findMany({
+            where: {...ofShop, colorId: {in: [...colorMap.keys()]}},
+            select: {id: true, productId: true, colorId: true, sourceImageId: true},
+        });
+        const taken = new Set<string>();
+        for (const pv of previews) {
+            const to = colorMap.get(pv.colorId) as string;
+            const key = `${pv.productId}:${to}:${pv.sourceImageId}`;
+            if (taken.has(key)) {
+                await tx.productColorPreview.delete({where: {id: pv.id}});
+            } else {
+                taken.add(key);
+                await tx.productColorPreview.update({where: {id: pv.id}, data: {colorId: to}});
+            }
         }
     }
 
     /**
      * D-02: a product copied into another shop (stock transfer) uses that
      * shop's own sizes and colours with the same names, made when missing.
-     * A shop that has not copied its masters yet still uses the shared rows.
+     * Call ensureShopMasters(shopId) first, outside the transaction.
      */
     public async sameInShop(tx: Tx, shopId: string, sizeIds: string[], colorIds: string[]) {
         const shop = await tx.shop.findUniqueOrThrow({
             where: {id: shopId},
             select: {companyId: true, code: true, mastersCopiedAt: true},
         });
-        if (!shop.mastersCopiedAt) return {sizeIds, colorIds};
+        if (!shop.mastersCopiedAt) throw new Error('ensureShopMasters must run before sameInShop');
         const freeCode = async (model: 'size' | 'color', base: string) => {
             for (let n = 1; ; n++) {
                 const code = n === 1 ? `${shop.code}-${base}` : `${shop.code}-${base}-${n}`;
@@ -298,6 +308,80 @@ class MasterService {
             );
         }
         return {sizeIds: [...new Set(outSizes)], colorIds: [...new Set(outColors)]};
+    }
+
+    /**
+     * Products made in the company or branch panel have free-text variants:
+     * link the product to its shop's size and colour rows with those names
+     * (made when missing), so the shop's product form shows and keeps them.
+     * Call ensureShopMasters(shopId) first, outside the transaction.
+     */
+    public async linkVariantNames(
+        tx: Tx,
+        shopId: string,
+        productId: string,
+        variants: {size: string; color: string; colorHex?: string | null}[],
+    ) {
+        const sizeIds: string[] = [];
+        const colorIds: string[] = [];
+        for (const v of variants) {
+            const size = await tx.size.findFirst({
+                where: {shopId, name: {equals: v.size, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            const color = await tx.color.findFirst({
+                where: {shopId, name: {equals: v.color, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            sizeIds.push(size?.id ?? (await this.newRow(tx, 'size', shopId, v.size)));
+            colorIds.push(
+                color?.id ?? (await this.newRow(tx, 'color', shopId, v.color, v.colorHex)),
+            );
+        }
+        // Exactly the active variants' names, so a removed size doesn't come back on the shop's next save
+        await tx.productSize.deleteMany({where: {productId, sizeId: {notIn: sizeIds}}});
+        await tx.productColor.deleteMany({where: {productId, colorId: {notIn: colorIds}}});
+        await tx.productSize.createMany({
+            data: [...new Set(sizeIds)].map((sizeId) => ({productId, sizeId})),
+            skipDuplicates: true,
+        });
+        await tx.productColor.createMany({
+            data: [...new Set(colorIds)].map((colorId) => ({productId, colorId})),
+            skipDuplicates: true,
+        });
+    }
+
+    /** A new size or colour of a shop, named as typed on a product */
+    private async newRow(
+        tx: Tx,
+        model: 'size' | 'color',
+        shopId: string,
+        name: string,
+        hex?: string | null,
+    ) {
+        const shop = await tx.shop.findUniqueOrThrow({
+            where: {id: shopId},
+            select: {companyId: true, code: true},
+        });
+        const base = `${shop.code}-${codeFrom(name)}`;
+        let code = base;
+        for (let n = 2; ; n++) {
+            const taken =
+                model === 'size'
+                    ? await tx.size.findUnique({where: {code}, select: {id: true}})
+                    : await tx.color.findUnique({where: {code}, select: {id: true}});
+            if (!taken) break;
+            code = `${base}-${n}`;
+        }
+        const data = {companyId: shop.companyId, shopId, name, code};
+        return model === 'size'
+            ? (await tx.size.create({data, select: {id: true}})).id
+            : (
+                  await tx.color.create({
+                      data: {...data, hexCode: (hex ?? '#9E9E9E').toUpperCase()},
+                      select: {id: true},
+                  })
+              ).id;
     }
 
     /** Ensure the shop's copies exist before any size / colour work in a shop */
