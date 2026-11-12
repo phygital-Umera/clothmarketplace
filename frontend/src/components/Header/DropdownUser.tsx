@@ -28,11 +28,6 @@ const DropdownUser = () => {
     .join('')
     .toUpperCase();
 
-  const profilePath =
-    user?.role === 'SHOP_ADMIN'
-      ? '/shop-admin/my-profile'
-      : '/branch-admin/my-profile';
-
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
       <button
@@ -67,7 +62,7 @@ const DropdownUser = () => {
           </div>
 
           <Link
-            to={profilePath}
+            to="/my-profile"
             onClick={() => setDropdownOpen(false)}
             className="flex w-full items-center gap-3 border-b border-ivory-300 px-4 py-3 text-body-sm text-espresso transition-colors hover:bg-ivory-100 hover:text-burgundy"
           >

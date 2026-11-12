@@ -62,7 +62,7 @@ export const ROLES: Record<Role, RoleConfig> = {
 };
 
 /** Pages every signed-in role may open */
-export const SHARED_PATHS = ['/change-password'];
+export const SHARED_PATHS = ['/change-password', '/my-profile'];
 
 export const roleConfig = (role?: string | null): RoleConfig | undefined =>
   role && role in ROLES ? ROLES[role as Role] : undefined;

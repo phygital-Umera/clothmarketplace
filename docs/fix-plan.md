@@ -1,6 +1,6 @@
 # Fix Plan and Tracker
 
-This is the living list of what we are fixing, in order: what is done, what is in progress, and what needs a decision first. Update it in the same commit as each fix.
+This is the living list of what we are fixing, in order: what is done, what is in progress, and what needs a decision first. Update it after every fix. A commit can't contain its own hash, so the ✅ and the hash are written right after the commit and committed with the next item, or in a `docs(plan)` commit.
 
 - The details behind each issue are in [roles-products-stock.md](roles-products-stock.md) and [hard-coded-values.md](hard-coded-values.md).
 - Older review findings are in [review/](review/README.md).
@@ -24,9 +24,10 @@ This is the living list of what we are fixing, in order: what is done, what is i
 
 | | |
 |---|---|
-| **Doing now** | Nothing. Waiting for you to pick the first item. |
-| **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Uncommitted. Changes `schema.prisma`, `bill.service.ts`, `bill.validation.ts`, `NewBillPOSPage.tsx`, `BillDetailsModal.tsx`. **Commit it before P0-05 and Phase 4**, which touch the same files. |
-| **Next up** | P0-01 → P0-04, P0-06, P0-07 (no decisions needed, no overlap with W-01) |
+| **Branch** | `fix/p0-quick-fixes` (from `feat/company-admin-shop-mode`). Not pushed. |
+| **Doing now** | Phase 0. P0-09 (one My Profile page for every role) and P0-10 (debit note GST from the purchase bill line) are changed and being checked. |
+| **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Uncommitted, and left out of every commit on this branch. Changes `schema.prisma`, `bill.service.ts`, `bill.validation.ts`, `NewBillPOSPage.tsx`, `BillDetailsModal.tsx`. **Commit it before P0-05 and Phase 4**, which touch the same files. |
+| **Next up** | P0-11, P0-12. After that, Phase 0 waits on W-01 (P0-05), D-12 (P0-08) and D-07 (P0-13). |
 
 ---
 
@@ -96,16 +97,16 @@ flowchart TD
 
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
-| P0-01 | Users without a PIN get PIN 1234 when they save their profile | Empty by default; send only when typed | `frontend/src/pages/profile/MyProfilePage.tsx:30, 87` | Save the profile without a PIN; the DB PIN is unchanged | – | ⬜ |
-| P0-02 | Barcode labels print "MATOSHRI FASHIONS" | Use the logged-in shop's name | `frontend/src/pages/shop/barcode/BarcodeLabelsPage.tsx:361, 811` | Print preview shows your shop | – | ⬜ |
-| P0-03 | Customer is told "₹X has been refunded" when no refund was made | Change the text to "Refund approved; you'll get it within N days" | `backend/src/services/order.service.ts:578-585, 651, 863` | Set an order to REFUNDED; read the notification | – | ⬜ |
-| P0-04 | Debit note defaults to the fake supplier "Tiruppur Knits - 33" and a fake bill | Start empty; set from the loaded suppliers; remove the fake options | `frontend/src/pages/shop/returns/PurchaseReturnPage.tsx:37, 250, 272` | Save a debit note; the supplier is the real one | – | ⬜ |
+| P0-01 | Users without a PIN get PIN 1234 when they save their profile | Empty by default; send only when typed | `frontend/src/pages/profile/MyProfilePage.tsx:30, 87` | Save the profile without a PIN; the DB PIN is unchanged | – | ✅ ea7800a |
+| P0-02 | Barcode labels print "MATOSHRI FASHIONS" | Use the logged-in shop's name | `frontend/src/pages/shop/barcode/BarcodeLabelsPage.tsx:361, 811` | Print preview shows your shop | – | ✅ 654bfe7 |
+| P0-03 | Customer is told "₹X has been refunded" when no refund was made | Change the text to "Refund approved; you'll get it within N days" | `backend/src/services/order.service.ts:578-585, 651, 863` | Set an order to REFUNDED; read the notification | – | ✅ 2589204 |
+| P0-04 | Debit note defaults to the fake supplier "Tiruppur Knits - 33" and a fake bill | Start empty; set from the loaded suppliers; remove the fake options | `frontend/src/pages/shop/returns/PurchaseReturnPage.tsx:37, 250, 272` | Save a debit note; the supplier is the real one | – | ✅ 93167b3 |
 | P0-05 | Every new POS bill shows "…/26-27/00232" | Show "New bill" or the real next number | `frontend/src/pages/shop/pos/NewBillPOSPage.tsx:738` | Open the POS | W-01 | ⛔ |
-| P0-06 | CORS lets any website call the API | Use `config.cors.origins`; set `CORS_ORIGINS` for both frontends | `backend/src/app.ts:36`, `backend/.env` | Panel and store still work; another origin is refused | – | ⬜ |
-| P0-07 | Public test page with a dev-tunnel URL | Delete the file | `backend/public/backup-test.html` | `/backup-test.html` returns 404 | – | ⬜ |
+| P0-06 | CORS lets any website call the API | Use `config.cors.origins`; set `CORS_ORIGINS` for both frontends | `backend/src/app.ts:36`, `backend/.env` | Panel and store still work; another origin is refused | – | ✅ 32a6886 |
+| P0-07 | Public test page with a dev-tunnel URL | Delete the file | `backend/public/backup-test.html` | `/backup-test.html` returns 404 | – | ✅ 14901ec |
 | P0-08 | Bills between 00:00 and 05:29 IST can get yesterday's date | `TZ=Asia/Kolkata` in the backend env and `.env.example` | `backend/.env`, `.env.example` | Bill created after midnight IST has today's date | D-12 | ❓ |
-| P0-09 | My Profile shows the company admin as "Branch Manager"; the header "My Profile" link gives "Access denied" for the company admin, super admin and employees | Use the `ROLES` labels; profile path per panel | `MyProfilePage.tsx:39-46`, `Header/DropdownUser.tsx:31-34` | Open My Profile as each role | – | ⬜ |
-| P0-10 | Debit note adds 5% GST to 0% items | `??` instead of `\|\|`; take the rate from the purchase bill line | `backend/src/services/purchaseReturn.service.ts:129, 203, 265`, `validations/purchaseReturn.validation.ts:14` | Return a 0% item; tax is 0 | – | ⬜ |
+| P0-09 | My Profile shows the company admin as "Branch Manager"; the header "My Profile" link gives "Access denied" for the company admin, super admin and employees | Use the `ROLES` labels; profile path per panel | `MyProfilePage.tsx:39-46`, `Header/DropdownUser.tsx:31-34` | Open My Profile as each role | – | 🟡 |
+| P0-10 | Debit note adds 5% GST to 0% items | `??` instead of `\|\|`; take the rate from the purchase bill line | `backend/src/services/purchaseReturn.service.ts:129, 203, 265`, `validations/purchaseReturn.validation.ts:14` | Return a 0% item; tax is 0 | – | 🟡 |
 | P0-11 | Fake number series: debit notes start at 0004, receipts at 0044 | Use `accountService.nextCode` with no offset | `purchaseReturn.service.ts:46`, `credit.service.ts:59` | First new number is 0001 in a fresh FY | – | ⬜ |
 | P0-12 | Credit/Udhaar page: fake totals, picks "Kavita", ₹2,000 default, `RC/26-27/0044` | `?? 0` / "—"; first customer; empty amount | `frontend/src/pages/shop/credit/CreditUdhaarPage.tsx`, `lib/api/credit.ts:35` | Page with no customers shows zeros | – | ⬜ |
 | P0-13 | Demo company's products show on the store | Run `npm run seed:demo -- --remove` on shared environments | (ops step) | The store shows only real shops | D-07 | ❓ |
@@ -234,7 +235,13 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
-| 2026-11-12 | Docs: who manages what, products and stock, hard-coded values, this plan | (not committed) |
+| 2026-11-12 | P0-07: public backup test page removed | 14901ec |
+| 2026-11-12 | P0-06: CORS allows only the origins in `CORS_ORIGINS` (checked: both frontends allowed, another origin refused) | 32a6886 |
+| 2026-11-12 | P0-04: no fake supplier or bill on a new debit note | 93167b3 |
+| 2026-11-12 | P0-02: barcode labels print the shop's own name (company name in the branch panel) | 654bfe7 |
+| 2026-11-12 | P0-03: refund notifications say "approved", not "refunded" | 2589204 |
+| 2026-11-12 | P0-01: no default POS PIN of 1234 | ea7800a |
+| 2026-11-12 | Docs: who manages what, products and stock, hard-coded values, this plan | 5c17854 |
 | 2026-11-10 | Refuse "any shop" stock requests when the branch has no other shop | ef34cbf |
 | 2026-11-10 | Automatic Main Branch for businesses without branches | 44748d8 |
 | 2026-11-10 | Shop mode: company admin sells in and manages their own shops; owner approves refunds | 340d795 |
