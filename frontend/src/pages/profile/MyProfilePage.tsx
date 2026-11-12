@@ -27,7 +27,7 @@ export default function MyProfilePage() {
     if (user) {
       setFullName(user.fullname || '');
       setMobile(user.phoneNumber || '');
-      setPosPin((user as any).posPin || '1234');
+      setPosPin((user as any).posPin || '');
       if ((user as any).photoUrl) {
         setPhotoPreview((user as any).photoUrl);
       }
