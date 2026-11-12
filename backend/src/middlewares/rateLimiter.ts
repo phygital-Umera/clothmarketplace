@@ -39,3 +39,7 @@ export const loginLimiter = rateLimit({
 // Login: 50 attempts of any outcome per IP per 15 minutes, so one address
 // cannot try passwords across many accounts.
 export const loginIpLimiter = rateLimit({...common, max: 50});
+
+// Token refresh: each open tab refreshes about once per access-token lifetime,
+// and a shop's devices often share one address, so the limit is generous
+export const refreshLimiter = rateLimit({...common, max: 100});

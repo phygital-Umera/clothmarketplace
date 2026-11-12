@@ -6,7 +6,7 @@ import prisma from '../client';
 import {config, logger} from '@config/index';
 import {ApiError, encryptPassword, isPasswordMatch} from '@utils/index';
 import {userValidation} from '@validations/index';
-import tokenService from './token.service';
+import tokenService, {hashToken} from './token.service';
 import emailService from './email.service';
 import staffService from './staff.service';
 
@@ -55,7 +55,6 @@ type AccessCheckUser = {
 // takes as long as a wrong password
 let dummyHash: Promise<string> | undefined;
 
-const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 const isEmailConfigured = () => !!(config.email.smtp.host && config.email.from);
 
@@ -180,7 +179,7 @@ class UserService {
         const decoded = tokenService.verifyToken(refreshToken, 'refresh');
         const user = await prisma.user.findUnique({where: {id: decoded.id}});
 
-        if (!user || refreshToken !== user.refreshToken) {
+        if (!user || hashToken(refreshToken) !== user.refreshToken) {
             throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired refresh token');
         }
 
