@@ -247,7 +247,7 @@ const seed = async () => {
     const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '30', '32', '34', '36', '2Y', '4Y', '6Y', '8Y', 'Free'];
     for (const [i, name] of SIZES.entries()) {
         const found = await prisma.size.findFirst({where: {...ours, name: {equals: name, mode: 'insensitive'}}, select: {id: true}});
-        sizeIds[name] = found?.id ?? (await masterService.createSize(company.id, masterValidation.createSizeSchema.parse({name, displayOrder: i}))).id;
+        sizeIds[name] = found?.id ?? (await masterService.createSize({companyId: company.id}, masterValidation.createSizeSchema.parse({name, displayOrder: i}))).id;
     }
     const colorIds: Record<string, string> = {};
     for (const [name, hexCode] of Object.entries(COLORS)) {
@@ -255,8 +255,30 @@ const seed = async () => {
             where: {AND: [ours, {OR: [{name: {equals: name, mode: 'insensitive'}}, {hexCode: {equals: hexCode, mode: 'insensitive'}}]}]},
             select: {id: true},
         });
-        colorIds[name] = found?.id ?? (await masterService.createColor(company.id, masterValidation.createColorSchema.parse({name, hexCode}))).id;
+        colorIds[name] = found?.id ?? (await masterService.createColor({companyId: company.id}, masterValidation.createColorSchema.parse({name, hexCode}))).id;
     }
+    // D-02: each shop works with its own copy of the sizes and colours (same names)
+    const nameOf = async (model: 'size' | 'color', ids: string[]) =>
+        new Map(
+            (model === 'size'
+                ? await prisma.size.findMany({where: {id: {in: ids}}, select: {id: true, name: true}})
+                : await prisma.color.findMany({where: {id: {in: ids}}, select: {id: true, name: true}})
+            ).map((r) => [r.id, r.name.toLowerCase()]),
+        );
+    const sizeName = await nameOf('size', Object.values(sizeIds));
+    const colorName = await nameOf('color', Object.values(colorIds));
+    const byName = (rows: {id: string; name: string}[]) => new Map(rows.map((r) => [r.name.toLowerCase(), r.id]));
+    const shopRows: Record<string, {size: Map<string, string>; color: Map<string, string>}> = {};
+    for (const [key, s] of Object.entries(shops)) {
+        await masterService.ensureShopMasters(s.id);
+        shopRows[key] = {
+            size: byName(await prisma.size.findMany({where: {shopId: s.id}, select: {id: true, name: true}})),
+            color: byName(await prisma.color.findMany({where: {shopId: s.id}, select: {id: true, name: true}})),
+        };
+    }
+    const shopSize = (key: string, name: string) => shopRows[key].size.get(sizeName.get(sizeIds[name]) ?? '') as string;
+    const shopColor = (key: string, name: string) => shopRows[key].color.get(colorName.get(colorIds[name]) ?? '') as string;
+
     const brandIds: Record<string, string> = {};
     for (const name of ['Matoshri Label', 'Urban Weave', 'Little Petals', 'Desi Roots']) {
         const code = `${company.code}-${name.toUpperCase().replace(/[^A-Z]+/g, '-')}`.slice(0, 40);
@@ -281,7 +303,7 @@ const seed = async () => {
                 shopProductValidation.createShopProductSchema.parse({
                     name: item.name, detailedDesc: item.desc, shortDesc: item.desc.split('.')[0],
                     categoryId: category.id, subcategoryId: subIds[item.sub],
-                    sizeIds: item.sizes.map((s) => sizeIds[s]), colorIds: colours.map((c) => colorIds[c]),
+                    sizeIds: item.sizes.map((s) => shopSize(shopKey, s)), colorIds: colours.map((c) => shopColor(shopKey, c)),
                     mrp: item.mrp, sellingPrice: item.price, stockQuantity: 0, status: 'PUBLISHED',
                     gender: item.gender, fabric: item.fabric, tags: item.tags, taxRate: item.price > 1000 ? 12 : 5,
                     careInstructions: ['Silk', 'Art Silk', 'Tissue Silk', 'Brocade', 'Velvet', 'Wool', 'Lace'].includes(item.fabric) ? 'Dry clean only' : 'Hand wash cold, dry in shade',

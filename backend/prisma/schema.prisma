@@ -255,6 +255,10 @@ model Shop {
   branch      Branch     @relation(fields: [branchId], references: [id])
   users       User[]
   products    Product[]
+  /// D-02: the shop's own sizes and colours, copied on first use
+  sizes       Size[]
+  colors      Color[]
+  mastersCopiedAt DateTime?
   offers      Offer[]
   coupons     Coupon[]
   orders      Order[]
@@ -401,6 +405,9 @@ model Color {
   /// null = platform-wide (super admin); otherwise one company's own
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
+  /// D-02: a shop's own colour (copied from the standard list on first use); null = shared
+  shopId    String?
+  shop      Shop?    @relation(fields: [shopId], references: [id])
   name      String
   code      String   @unique
   hexCode   String
@@ -411,6 +418,7 @@ model Color {
   previews  ProductColorPreview[]
 
   @@index([companyId])
+  @@index([shopId])
   @@index([code])
 }
 
@@ -419,6 +427,9 @@ model Size {
   /// null = platform-wide (super admin); otherwise one company's own
   companyId    String?
   company      Company? @relation(fields: [companyId], references: [id])
+  /// D-02: a shop's own size (copied from the standard list on first use); null = shared
+  shopId       String?
+  shop         Shop?    @relation(fields: [shopId], references: [id])
   name         String
   code         String   @unique
   description  String?
@@ -429,6 +440,7 @@ model Size {
   products     ProductSize[]
 
   @@index([companyId])
+  @@index([shopId])
   @@index([code])
 }
 

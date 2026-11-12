@@ -11,6 +11,12 @@ const companyOf = (req: Request) => {
     return companyId;
 };
 
+/** Sizes and colours belong to the open shop (D-02) */
+const shopScopeOf = (req: Request) => ({
+    companyId: companyOf(req),
+    shopId: req.user?.shopId ?? null,
+});
+
 
 const ok = (
     res: Parameters<Parameters<typeof catchAsync>[0]>[1],
@@ -119,12 +125,12 @@ const deleteSubcategory = catchAsync(async (req, res) => {
 
 const listColors = catchAsync(async (req, res) => {
     const query = v.masterListSchema.parse(req.query);
-    return ok(res, await masterService.listColors(companyOf(req), query), 'Colors fetched successfully');
+    return ok(res, await masterService.listColors(shopScopeOf(req), query), 'Colors fetched successfully');
 });
 
 const getColor = catchAsync(async (req, res) => {
     const {id} = v.idSchema.parse(req.params);
-    return ok(res, await masterService.getColor(companyOf(req), id), 'Color fetched successfully');
+    return ok(res, await masterService.getColor(shopScopeOf(req), id), 'Color fetched successfully');
 });
 
 const createColor = catchAsync(async (req, res) => {
@@ -132,7 +138,7 @@ const createColor = catchAsync(async (req, res) => {
     const {after} = await auditService.track(
         req,
         {action: 'color.create', module: 'catalog'},
-        async () => ({after: await masterService.createColor(companyOf(req), data)}),
+        async () => ({after: await masterService.createColor(shopScopeOf(req), data)}),
     );
     return ok(res, after, 'Color created successfully', httpStatus.CREATED);
 });
@@ -143,7 +149,7 @@ const updateColor = catchAsync(async (req, res) => {
     const {after} = await auditService.track(
         req,
         {action: 'color.update', module: 'catalog', targetId: id},
-        () => masterService.updateColor(companyOf(req), id, data),
+        () => masterService.updateColor(shopScopeOf(req), id, data),
     );
     return ok(res, after, 'Color updated successfully');
 });
@@ -153,7 +159,7 @@ const deleteColor = catchAsync(async (req, res) => {
     await auditService.track(
         req,
         {action: 'color.delete', module: 'catalog', targetId: id},
-        () => masterService.deleteColor(companyOf(req), id),
+        () => masterService.deleteColor(shopScopeOf(req), id),
     );
     return ok(res, {}, 'Color deleted successfully');
 });
@@ -164,12 +170,12 @@ const deleteColor = catchAsync(async (req, res) => {
 
 const listSizes = catchAsync(async (req, res) => {
     const query = v.masterListSchema.parse(req.query);
-    return ok(res, await masterService.listSizes(companyOf(req), query), 'Sizes fetched successfully');
+    return ok(res, await masterService.listSizes(shopScopeOf(req), query), 'Sizes fetched successfully');
 });
 
 const getSize = catchAsync(async (req, res) => {
     const {id} = v.idSchema.parse(req.params);
-    return ok(res, await masterService.getSize(companyOf(req), id), 'Size fetched successfully');
+    return ok(res, await masterService.getSize(shopScopeOf(req), id), 'Size fetched successfully');
 });
 
 const createSize = catchAsync(async (req, res) => {
@@ -177,7 +183,7 @@ const createSize = catchAsync(async (req, res) => {
     const {after} = await auditService.track(
         req,
         {action: 'size.create', module: 'catalog'},
-        async () => ({after: await masterService.createSize(companyOf(req), data)}),
+        async () => ({after: await masterService.createSize(shopScopeOf(req), data)}),
     );
     return ok(res, after, 'Size created successfully', httpStatus.CREATED);
 });
@@ -188,7 +194,7 @@ const updateSize = catchAsync(async (req, res) => {
     const {after} = await auditService.track(
         req,
         {action: 'size.update', module: 'catalog', targetId: id},
-        () => masterService.updateSize(companyOf(req), id, data),
+        () => masterService.updateSize(shopScopeOf(req), id, data),
     );
     return ok(res, after, 'Size updated successfully');
 });
@@ -198,7 +204,7 @@ const deleteSize = catchAsync(async (req, res) => {
     await auditService.track(
         req,
         {action: 'size.delete', module: 'catalog', targetId: id},
-        () => masterService.deleteSize(companyOf(req), id),
+        () => masterService.deleteSize(shopScopeOf(req), id),
     );
     return ok(res, {}, 'Size deleted successfully');
 });

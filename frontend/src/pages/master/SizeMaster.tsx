@@ -187,6 +187,7 @@ const SizeMaster = () => {
           {label: 'Sizes'},
         ]}
         title="Size Management"
+        subtitle="This shop's own sizes. Changes here never affect another shop."
         actions={
           <button
             type="button"

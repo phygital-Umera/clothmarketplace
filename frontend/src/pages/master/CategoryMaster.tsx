@@ -11,6 +11,7 @@ import {PageHeader, StatusBadge} from '@/components/ui';
 import FormDialog from '@/components/ui/FormDialog';
 import ViewDetailsDialog from '@/components/ui/ViewDetailsDialog';
 import useListState from '@/hooks/useListState';
+import useCurrentUser from '@/hooks/useCurrentUser';
 import {
   useDeleteMasterCategory,
   useMasterCategories,
@@ -65,6 +66,9 @@ const STATUS_TABS = [
 ];
 
 const CategoryMaster = () => {
+  // D-02: one list for the whole company; only the owner (shop mode) changes it
+  const {data: me} = useCurrentUser();
+  const owner = me?.role === 'ADMIN';
   const list = useListState();
   const {data, isPending, isError, error, refetch, isFetching} =
     useMasterCategories({
@@ -131,7 +135,7 @@ const CategoryMaster = () => {
       key: 'description',
       hideBelow: 'md',
       render: (c) => (
-        <span className="text-on-surface-variant line-clamp-1">
+        <span className="line-clamp-1 text-on-surface-variant">
           {c.description || '–'}
         </span>
       ),
@@ -172,14 +176,17 @@ const CategoryMaster = () => {
           {label: 'Categories'},
         ]}
         title="Category Management"
+        subtitle="One list for the whole company. Only the owner can change it."
         actions={
-          <button
-            type="button"
-            onClick={() => openForm('new')}
-            className="btn-primary"
-          >
-            <Plus size={14} /> Add Category
-          </button>
+          owner && (
+            <button
+              type="button"
+              onClick={() => openForm('new')}
+              className="btn-primary"
+            >
+              <Plus size={14} /> Add Category
+            </button>
+          )
         }
       />
 
@@ -208,26 +215,30 @@ const CategoryMaster = () => {
             icon: <Eye size={16} />,
             onClick: () => setViewing(c),
           },
-          {
-            label: 'Edit',
-            icon: <Pencil size={16} />,
-            onClick: () => openForm(c),
-          },
-          {
-            label: c.isActive ? 'Deactivate' : 'Activate',
-            icon: c.isActive ? (
-              <CirclePause size={16} />
-            ) : (
-              <CircleCheck size={16} />
-            ),
-            onClick: () => save.mutate({id: c.id, isActive: !c.isActive}),
-          },
-          {
-            label: 'Delete',
-            icon: <Trash2 size={16} />,
-            tone: 'danger',
-            onClick: () => setToDelete(c),
-          },
+          ...(owner
+            ? ([
+                {
+                  label: 'Edit',
+                  icon: <Pencil size={16} />,
+                  onClick: () => openForm(c),
+                },
+                {
+                  label: c.isActive ? 'Deactivate' : 'Activate',
+                  icon: c.isActive ? (
+                    <CirclePause size={16} />
+                  ) : (
+                    <CircleCheck size={16} />
+                  ),
+                  onClick: () => save.mutate({id: c.id, isActive: !c.isActive}),
+                },
+                {
+                  label: 'Delete',
+                  icon: <Trash2 size={16} />,
+                  tone: 'danger',
+                  onClick: () => setToDelete(c),
+                },
+              ] as const)
+            : []),
         ]}
         pagination={data?.pagination}
         onPageChange={list.setPage}

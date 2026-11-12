@@ -7,6 +7,7 @@ import {listArgs, toListResult} from '../utils/list';
 import {shopProductValidation} from '@validations/index';
 import accountService from './account.service';
 import inventoryService from './inventory.service';
+import masterService from './master.service';
 
 type CreateShopProduct = z.infer<typeof shopProductValidation.createShopProductSchema>;
 type UpdateShopProduct = z.infer<typeof shopProductValidation.updateShopProductSchema>;
@@ -177,12 +178,15 @@ class ShopProductService {
      * even if they were deactivated since).
      */
     private async assertRefs(
-        companyId: string,
+        scope: {companyId: string; shopId?: string | null},
         data: {categoryId: string; subcategoryId?: string | null; sizeIds?: string[]; colorIds?: string[]},
         current?: {sizeIds: string[]; colorIds: string[]},
     ) {
+        const {companyId} = scope;
         // Only the company's own masters or platform-wide ones
         const visible = {OR: [{companyId}, {companyId: null}]};
+        // D-02: sizes and colours of the product's shop only
+        const shopMasters = scope.shopId ? {shopId: scope.shopId} : {shopId: null, ...visible};
         const [category, subcategory] = await Promise.all([
             prisma.category.findFirst({where: {id: data.categoryId, ...visible}, select: {isActive: true}}),
             data.subcategoryId
@@ -214,7 +218,7 @@ class ShopProductService {
         if (data.sizeIds) {
             const keep = new Set(current?.sizeIds);
             const found = await prisma.size.findMany({
-                where: {id: {in: data.sizeIds}, ...visible},
+                where: {id: {in: data.sizeIds}, ...shopMasters},
                 select: {id: true, isActive: true},
             });
             if (
@@ -227,7 +231,7 @@ class ShopProductService {
         if (data.colorIds) {
             const keep = new Set(current?.colorIds);
             const found = await prisma.color.findMany({
-                where: {id: {in: data.colorIds}, ...visible},
+                where: {id: {in: data.colorIds}, ...shopMasters},
                 select: {id: true, isActive: true},
             });
             if (
@@ -327,7 +331,8 @@ class ShopProductService {
     }
 
     public async create(scope: ShopScope, actorId: string, data: CreateShopProduct) {
-        await this.assertRefs(scope.companyId, data);
+        await masterService.ensureShopMasters(scope.shopId);
+        await this.assertRefs(scope, data);
         if (data.sku) await this.assertSkuFree(data.sku);
         const [company, shop] = await Promise.all([
             prisma.company.findUniqueOrThrow({where: {id: scope.companyId}, select: {code: true}}),
@@ -404,6 +409,8 @@ class ShopProductService {
     }
 
     public async update(scope: ShopScope, id: string, data: UpdateShopProduct) {
+        // The product's sizes and colours are the shop's own copies first (D-02)
+        await masterService.ensureShopMasters(scope.shopId);
         const before = await this.get(scope, id);
         const merged = {
             categoryId: data.categoryId ?? before.categoryId,
@@ -421,7 +428,7 @@ class ShopProductService {
             );
         }
         await this.assertRefs(
-            scope.companyId,
+            {companyId: scope.companyId, shopId: before.shopId},
             {...merged, sizeIds: data.sizeIds, colorIds: data.colorIds},
             {sizeIds: before.sizes.map((s) => s.id), colorIds: before.colors.map((c) => c.id)},
         );

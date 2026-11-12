@@ -14,6 +14,7 @@ import {stockTransferValidation} from '@validations/index';
 import accountService from './account.service';
 import billService from './bill.service';
 import inventoryService from './inventory.service';
+import masterService from './master.service';
 import {BranchScope} from './customerDue.service';
 import {ShopScope} from './shopProduct.service';
 
@@ -547,6 +548,13 @@ class StockTransferService {
                 images,
                 ...fields
             } = p;
+            // D-02: the receiving shop's own sizes and colours
+            const own = await masterService.sameInShop(
+                tx,
+                toShop.id,
+                sizes.map((s) => s.sizeId),
+                colors.map((c) => c.colorId),
+            );
             product = await tx.product.create({
                 data: {
                     ...fields,
@@ -556,8 +564,8 @@ class StockTransferService {
                     shopId: toShop.id,
                     stockQuantity: 0,
                     createdById: actorId,
-                    sizes: {create: sizes.map((s) => ({sizeId: s.sizeId}))},
-                    colors: {create: colors.map((c) => ({colorId: c.colorId}))},
+                    sizes: {create: own.sizeIds.map((sizeId) => ({sizeId}))},
+                    colors: {create: own.colorIds.map((colorId) => ({colorId}))},
                     images: {
                         create: images.map((i) => ({
                             url: i.url,

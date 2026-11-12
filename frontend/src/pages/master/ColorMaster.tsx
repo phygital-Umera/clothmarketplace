@@ -155,6 +155,7 @@ const ColorMaster = () => {
           {label: 'Colors'},
         ]}
         title="Color Management"
+        subtitle="This shop's own colours. Changes here never affect another shop."
         actions={
           <button
             type="button"
