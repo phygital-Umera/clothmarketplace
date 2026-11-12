@@ -25,7 +25,7 @@ This is the living list of what we are fixing, in order: what is done, what is i
 | | |
 |---|---|
 | **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Phase 2: `fix/p2-security` (from `fix/p1-stock-and-store`). Not pushed. |
-| **Doing now** | Phase 2 is done (12 of 12; P2-02, 05, 08, 10, 11 and 12 by the other session, the rest here) and reviewed. Of the review's 6 findings, 3 are fixed (3d4b2d7, 9c3bc35, 1e01dab); the other session is fixing 2 in its own items (P2-11 return quantity, P2-02 opening balance); 1 waits for your decision (employees cancelling or editing a confirmed bill, inbox ❓). |
+| **Doing now** | Phase 2 is done (12 of 12; P2-02, 05, 08, 10, 11 and 12 by the other session, the rest here) and reviewed. Of the review's 6 findings, 5 are fixed (3d4b2d7, 9c3bc35, 1e01dab here; a46f4ce, 88da1bc by the other session) and 1 waits for your decision (employees cancelling or editing a confirmed bill, inbox ❓). |
 | **Before deploying Phase 2** | 1) Each server makes its own migration for P2-03 (3 new columns on `SalesBill` and `PurchaseBill`, D-15). 2) Production now needs `CORS_ORIGINS` (P2-12) and `HOSTED_BACKEND_URL` (P2-05); every admin-app build needs `VITE_SERVER_URL` (P2-10). 3) After P2-06b every signed-in user signs in once more when their access token expires. |
 | **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
 | **W-02 (single-shop mode, D-17)** | Committed in e4edc0b: `Company.businessMode`, the one-way switch to branch mode, and the owner accepting day-close differences and approving stock transfers in shop mode (P3-06). Its migration `20261113090000_company_business_mode` stays out of git (D-15): each server makes its own. |
@@ -279,8 +279,8 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (P2-06) | One refresh token per user: signing in on a second device signs the first out at its next refresh. Reuse detection (revoke all on a reused token) needs a per-device table first | `token.service.ts`, `schema.prisma` | ⬜ |
 | 2026-11-12 (P2-02) | The opening balance of a supplier added by the branch admin (no shop) is seen only by the branch, not by its shops. Should shops see and pay it? | `supplier.service.ts` | ❓ |
 | 2026-11-12 (P2-11) | A debit note without a purchase bill still uses the cost and rate sent by the browser (there is nothing to look them up in) | `purchaseReturn.service.ts` `createPurchaseReturn` | ⬜ |
-| 2026-11-12 (P2-11, review) | The return quantity is not capped at the bill line's quantity minus earlier returns, a line can be sent twice, and a deleted or draft bill is accepted: returning 1000 of a 10-piece line marks the bill paid and stock down | `purchaseReturn.service.ts:195-225` | 🟡 other session |
-| 2026-11-12 (P2-02, review) | The supplier list still sends another shop's supplier opening balance to a shop | `supplier.service.ts` | 🟡 other session |
+| 2026-11-12 (P2-11, review) | The return quantity is not capped at the bill line's quantity minus earlier returns, a line can be sent twice, and a deleted or draft bill is accepted: returning 1000 of a 10-piece line marks the bill paid and stock down | `purchaseReturn.service.ts:195-225` | ✅ a46f4ce |
+| 2026-11-12 (P2-02, review) | The supplier list still sends another shop's supplier opening balance to a shop | `supplier.service.ts` | ✅ 88da1bc |
 | 2026-11-12 (P2-10) | The store app also needs `VITE_SERVER_URL` but has no build check; a missing value crashes at runtime | `user/src/lib/api.ts` | ⬜ |
 | 2026-11-12 (P2-02) | Barcode labels: `resolveScope` falls back to the company's first branch when the user has none (no longer reachable from `/shop-admin` after P2-01) | `barcodeLabel.controller.ts` | ⬜ |
 | 2026-11-12 (P2-08) | `sendVerificationEmail` puts the user name into HTML and the link without escaping; nothing calls it today | `email.service.ts` | ⬜ |
@@ -291,6 +291,8 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | Phase 2 review fix (other session): the supplier list sends a shop the opening balance only of suppliers it added (0 otherwise); the branch still sees all | 88da1bc |
+| 2026-11-12 | Phase 2 review fix (other session): a debit note line is capped at the bought quantity less earlier confirmed notes, the same line twice is refused, only a confirmed, non-deleted bill is accepted (bill row locked during the note); product and variant come from the bill line (8 API checks) | a46f4ce |
 | 2026-11-12 | Phase 2 review fix: the refresh limit is per account (30 per 15 minutes), not per IP, so shoppers sharing an IP are not signed out | 1e01dab |
 | 2026-11-12 | Phase 2 review fix: a POS PIN is never stored in an audit row (keys ending in "pin" are removed like passwords) | 9c3bc35 |
 | 2026-11-12 | Phase 2 review fix: the "Delete asked" filter also works on sales bills | 3d4b2d7 |
