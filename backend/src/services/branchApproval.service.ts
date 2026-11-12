@@ -5,7 +5,7 @@ import {BranchScope} from './customerDue.service';
 
 export type ApprovalItem = {
     id: string;
-    type: 'DISCOUNT' | 'CREDIT' | 'CANCEL_BILL' | 'WRITE_OFF' | 'REFUND';
+    type: 'REFUND';
     title: string;
     description: string;
     shopAndStaff: string;
@@ -60,7 +60,7 @@ class BranchApprovalService {
         const [pending, doneToday] = await Promise.all([prisma.creditNote.count({where: pendingWhere}), prisma.creditNote.count({where: doneWhere})]);
 
         const showDone = tab === 'DONE_TODAY';
-        // Only refunds exist as approval requests; other tabs are empty
+        // Refund credit notes are the only requests the shops hand up to the branch
         const notes =
             !tab || tab === 'REFUND' || showDone
                 ? await prisma.creditNote.findMany({
@@ -98,7 +98,7 @@ class BranchApprovalService {
         }));
 
         return {
-            counts: {pending, discount: 0, credit: 0, cancelBill: 0, writeOff: 0, refund: pending, doneToday},
+            counts: {pending, refund: pending, doneToday},
             items,
             // The rules the system actually enforces
             limitsTable: [

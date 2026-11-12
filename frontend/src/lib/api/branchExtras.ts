@@ -46,7 +46,7 @@ export const addBranchExpense = (data: {
 // --- APPROVALS ---
 export type ApprovalItem = {
   id: string;
-  type: 'DISCOUNT' | 'CREDIT' | 'CANCEL_BILL' | 'WRITE_OFF' | 'REFUND';
+  type: 'REFUND';
   title: string;
   description: string;
   shopAndStaff: string;
@@ -58,10 +58,6 @@ export type ApprovalItem = {
 export type ApprovalsData = {
   counts: {
     pending: number;
-    discount: number;
-    credit: number;
-    cancelBill: number;
-    writeOff: number;
     refund: number;
     doneToday: number;
   };
