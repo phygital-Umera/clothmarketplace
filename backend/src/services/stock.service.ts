@@ -5,7 +5,7 @@ import httpStatus from 'http-status';
 import { MovementType, Prisma } from '@prisma/client';
 import { dayKey, dayRange } from '../utils/day';
 import accountService from './account.service';
-import inventoryService from './inventory.service';
+import inventoryService, { LONG_ADJUST_TX, MAX_ADJUST_LINES } from './inventory.service';
 import { financialYear } from './bill.service';
 
 const SLOW_DAYS = 60;
@@ -340,6 +340,9 @@ class StockService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
+    if (payload.items.length > MAX_ADJUST_LINES) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `Count at most ${MAX_ADJUST_LINES} items at a time`);
+    }
     // Only the caller's own products, checked for every line before anything changes
     const ids = [...new Set(payload.items.map((i) => i.variantId))];
     if (ids.length !== payload.items.length) {
@@ -367,31 +370,31 @@ class StockService {
         ).map((a) => a.auditNumber),
       );
 
-      let discrepanciesCount = 0;
-      // A line that matches what the screen showed changes nothing (uncounted rows come in that way)
-      for (const item of payload.items.filter((i) => i.countedQty !== i.systemQty)) {
-        const v = byId.get(item.variantId)!;
-        // Applies counted − shown, so sales made after the count was opened still count
-        const done = await inventoryService.recordAdjustments(tx, {
-          branchId,
-          shopId: scope.shopId,
-          companyId: scope.companyId,
-          reason: item.reason || `Physical audit reconciliation (${auditNumber})`,
-          notes: payload.notes || null,
-          performedById: actorId,
-          lines: [
-            {
+      // A line that matches what the screen showed changes nothing (uncounted rows come in that way).
+      // A counted line applies counted − shown, so sales made after the count was opened still count.
+      const done = await inventoryService.recordAdjustments(tx, {
+        branchId,
+        shopId: scope.shopId,
+        companyId: scope.companyId,
+        reason: `Physical audit reconciliation (${auditNumber})`,
+        notes: payload.notes || null,
+        performedById: actorId,
+        lines: payload.items
+          .filter((i) => i.countedQty !== i.systemQty)
+          .map((item) => {
+            const v = byId.get(item.variantId)!;
+            return {
               variantId: v.id,
               productId: v.productId,
               label: `"${v.product.name}" (${v.size})`,
-              type: 'CORRECTION',
+              type: 'CORRECTION' as const,
               quantity: item.countedQty,
               expected: item.systemQty,
-            },
-          ],
-        });
-        if (done.length) discrepanciesCount += 1;
-      }
+              reason: item.reason,
+            };
+          }),
+      });
+      const discrepanciesCount = done.length;
       const totalItemsCounted = payload.items.length;
 
       await tx.$executeRawUnsafe(`
@@ -411,7 +414,7 @@ class StockService {
         discrepanciesCount,
         message: `Physical stock count ${auditNumber} completed. ${totalItemsCounted} items audited, ${discrepanciesCount} variances reconciled.`,
       };
-    });
+    }, LONG_ADJUST_TX);
   }
 }
 

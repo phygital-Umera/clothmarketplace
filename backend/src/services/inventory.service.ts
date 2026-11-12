@@ -63,6 +63,11 @@ export interface ApplyStockChangesInput {
     allowBelowReserved?: boolean;
 }
 
+/** Most lines one manual save may change (physical count, batch adjust) */
+export const MAX_ADJUST_LINES = 500;
+/** About 8 queries per line: a full 500-line save needs more than Prisma's 5 s default on a hosted database */
+export const LONG_ADJUST_TX = {timeout: 60_000, maxWait: 10_000};
+
 /** CORRECTION sets the count: its quantity is what was counted, not a change */
 export type ManualAdjustType = 'INCREASE' | 'DECREASE' | 'MARK_DAMAGED' | 'WRITE_OFF' | 'CORRECTION';
 
@@ -85,6 +90,8 @@ export interface ManualAdjustInput {
         quantity: number;
         /** CORRECTION only: the count the screen showed when counting started (see recordAdjustments) */
         expected?: number;
+        /** This line's own reason, instead of the input's */
+        reason?: string;
     }[];
 }
 
@@ -199,10 +206,14 @@ class InventoryService {
         const {branchId, performedById} = input;
         // One adjustment at a time per branch, so two saves can't take the same number
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stock-adjustment:' + branchId}))`;
+        // Numbered once per save and counted up (the lock above holds the series): reading every
+        // ADJ number of the branch per line is too slow for a big count
+        let next = Number((await this.nextAdjustmentNumber(tx, branchId)).slice('ADJ-'.length));
 
         const results = [];
         for (const line of input.lines) {
             let {type, quantity: qty} = line;
+            const reason = line.reason || input.reason;
             if (type === 'CORRECTION') {
                 // Lock the row so a sale in between is not counted over
                 const [row] = await tx.$queryRaw<{physicalQty: number}[]>`
@@ -231,14 +242,14 @@ class InventoryService {
                     : type === 'MARK_DAMAGED'
                       ? MovementType.DAMAGE_WRITE_OFF
                       : MovementType.ADJUSTMENT_DECREASE;
-            const adjustmentNumber = await this.nextAdjustmentNumber(tx, branchId);
+            const adjustmentNumber = `ADJ-${String(next++).padStart(4, '0')}`;
             const id = randomUUID();
 
             if (delta) {
                 await this.applyStockChanges(tx, {
                     branchId,
                     changes: [{variantId: line.variantId, productId: line.productId, delta, type: movementType}],
-                    reason: input.reason,
+                    reason,
                     reference: adjustmentNumber,
                     sourceType: StockSourceType.ADJUSTMENT,
                     sourceId: id,
@@ -297,7 +308,7 @@ class InventoryService {
                     availableAfter: result.availableAfter,
                     damagedBefore: result.damagedBefore,
                     damagedAfter: result.damagedAfter,
-                    reason: input.reason,
+                    reason,
                     approvalStatus: input.approvalStatus ?? 'AUTO',
                     notes: input.notes || null,
                     createdById: performedById,
@@ -988,6 +999,9 @@ class InventoryService {
         if (validItems.some((item) => !Number.isInteger(Number(item.quantity)))) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Quantity must be a whole number');
         }
+        if (validItems.length > MAX_ADJUST_LINES) {
+            throw new ApiError(httpStatus.BAD_REQUEST, `Adjust at most ${MAX_ADJUST_LINES} items at a time`);
+        }
 
         if (!reason?.trim()) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Reason is required for stock adjustment');
@@ -1046,7 +1060,7 @@ class InventoryService {
                 type,
                 reason,
             };
-        });
+        }, LONG_ADJUST_TX);
     };
 
     /**
