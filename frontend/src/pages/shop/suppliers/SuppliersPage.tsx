@@ -78,11 +78,10 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
   const suppliers = suppliersData?.items || [];
   const totalPayable = suppliersData?.totalPayable ?? 0;
 
-  // Auto-select first supplier if none selected or if Tiruppur Knits exists
+  // Auto-select the first supplier if none selected
   useEffect(() => {
     if (!selectedSupplierId && suppliers.length > 0) {
-      const tiruppur = suppliers.find((s) => s.name.toLowerCase().includes('tiruppur'));
-      setSelectedSupplierId(tiruppur ? tiruppur.id : suppliers[0].id);
+      setSelectedSupplierId(suppliers[0].id);
     }
   }, [suppliers, selectedSupplierId]);
 
@@ -92,8 +91,8 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
   const activeSupplier = ledgerData?.supplier || suppliers.find((s) => s.id === selectedSupplierId) || null;
   const ledgerEntries = ledgerData?.ledger || [];
   const openBills = ledgerData?.openBills || [];
-  const nextReceiptNumber = ledgerData?.nextReceiptNumber || 'PY/26-27/0019';
-  const statementPeriod = ledgerData?.statementPeriod || 'Statement 01 Oct – 03 Nov 2026';
+  const nextReceiptNumber = ledgerData?.nextReceiptNumber || '—';
+  const statementPeriod = ledgerData?.statementPeriod ?? '';
 
   // Synchronize payment default amount and against bill when supplier changes
   useEffect(() => {
