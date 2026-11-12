@@ -500,7 +500,9 @@ class CatalogService {
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5)
                 .map(([where, count]) => ({text: term.toLowerCase(), where, count})),
-            products: cards.sort((a, b) => b.sold - a.sold).slice(0, 4),
+            products: cards
+                .sort((a, b) => Number(b.inStock) - Number(a.inStock) || b.sold - a.sold)
+                .slice(0, 4),
         };
     }
 
@@ -525,7 +527,13 @@ class CatalogService {
                 .slice(0, 8)
                 .map(([name, count]) => ({name, count})),
             under999: all.filter((c) => c.price < 999 && c.inStock).length,
-            newArrivals: [...all].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 8),
+            newArrivals: [...all]
+                .sort(
+                    (a, b) =>
+                        Number(b.inStock) - Number(a.inStock) ||
+                        b.createdAt.getTime() - a.createdAt.getTime(),
+                )
+                .slice(0, 8),
             trending: {
                 women: trending(byGender(['WOMEN', 'UNISEX'])),
                 men: trending(byGender(['MEN', 'UNISEX'])),
