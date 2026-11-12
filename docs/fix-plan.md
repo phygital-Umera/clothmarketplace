@@ -25,9 +25,9 @@ This is the living list of what we are fixing, in order: what is done, what is i
 | | |
 |---|---|
 | **Branch** | `fix/p0-quick-fixes` (from `feat/company-admin-shop-mode`). Not pushed. |
-| **Doing now** | Phase 0: P0-11 (number series start at 0001), then P0-12. |
+| **Doing now** | Nothing. Phase 0 is done except P0-05, P0-08 and P0-13, which are waiting (see Next up). |
 | **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Uncommitted, and left out of every commit on this branch. Changes `schema.prisma`, `bill.service.ts`, `bill.validation.ts`, `NewBillPOSPage.tsx`, `BillDetailsModal.tsx`. **Commit it before P0-05 and Phase 4**, which touch the same files. |
-| **Next up** | After P0-12, Phase 0 waits on W-01 (P0-05), D-12 (P0-08) and D-07 (P0-13). Phase 1 items without a decision: P1-02, P1-03, P1-04, P1-05, P1-07 to P1-12. |
+| **Next up** | 1) Answer D-12 (P0-08) and D-07 (P0-13). 2) Commit W-01 to unblock P0-05. 3) Phase 1 items that need no decision, top row first: P1-02, P1-03, P1-04, P1-05, P1-07 to P1-12. |
 
 ---
 
@@ -107,8 +107,8 @@ flowchart TD
 | P0-08 | Bills between 00:00 and 05:29 IST can get yesterday's date | `TZ=Asia/Kolkata` in the backend env and `.env.example` | `backend/.env`, `.env.example` | Bill created after midnight IST has today's date | D-12 | ❓ |
 | P0-09 | My Profile shows the company admin as "Branch Manager"; the header "My Profile" link gives "Access denied" for the company admin, super admin and employees | Use the `ROLES` labels; profile path per panel | `MyProfilePage.tsx:39-46`, `Header/DropdownUser.tsx:31-34` | Open My Profile as each role | – | ✅ 47cff00 |
 | P0-10 | Debit note adds 5% GST to 0% items | `??` instead of `\|\|`; take the rate from the purchase bill line | `backend/src/services/purchaseReturn.service.ts:129, 203, 265`, `validations/purchaseReturn.validation.ts:14` | Return a 0% item; tax is 0 | – | ✅ 9146ef6 |
-| P0-11 | Fake number series: debit notes start at 0004, receipts at 0044 | Use `accountService.nextCode` with no offset | `purchaseReturn.service.ts:46`, `credit.service.ts:59` | First new number is 0001 in a fresh FY | – | 🟡 |
-| P0-12 | Credit/Udhaar page: fake totals, picks "Kavita", ₹2,000 default, `RC/26-27/0044` | `?? 0` / "—"; first customer; empty amount | `frontend/src/pages/shop/credit/CreditUdhaarPage.tsx`, `lib/api/credit.ts:35` | Page with no customers shows zeros | – | ⬜ |
+| P0-11 | Fake number series: debit notes start at 0004, receipts at 0044 | Use `accountService.nextCode` with no offset | `purchaseReturn.service.ts:46`, `credit.service.ts:59` | First new number is 0001 in a fresh FY | – | ✅ 9d1d409 |
+| P0-12 | Credit/Udhaar page: fake totals, picks "Kavita", ₹2,000 default, `RC/26-27/0044` | `?? 0` / "—"; first customer; empty amount | `frontend/src/pages/shop/credit/CreditUdhaarPage.tsx`, `lib/api/credit.ts:35` | Page with no customers shows zeros | – | ✅ 1746dc5 |
 | P0-13 | Demo company's products show on the store | Run `npm run seed:demo -- --remove` on shared environments | (ops step) | The store shows only real shops | D-07 | ❓ |
 
 ### Phase 1: wrong numbers and wrong products online
@@ -227,7 +227,9 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Found | Problem | Where | Status |
 |---|---|---|---|
-| | | | |
+| 2026-11-12 (P0-10) | The debit note still trusts the unit cost sent by the browser; it should come from the purchase bill line, like the GST rate now does | `purchaseReturn.service.ts` `createPurchaseReturn` | ⬜ |
+| 2026-11-12 (P0-11) | Receipt and debit note numbers are picked before the save, outside a transaction. Two saves at once can get the same receipt number, because receipts have no unique index | `credit.service.ts:389`, `purchaseReturn.service.ts`, `schema.prisma` (CustomerCreditPayment) | ⬜ |
+| 2026-11-12 (P0-06) | If `CORS_ORIGINS` is empty, any origin is allowed again. The server should refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | ⬜ |
 
 ---
 
@@ -235,6 +237,8 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | P0-12: Credit/Udhaar shows real zeros, starts on the first customer, empty amount, no fake receipt number | 1746dc5 |
+| 2026-11-12 | P0-11: debit notes and credit receipts number from the highest existing one through `accountService.nextCode`; a fresh year starts at 0001 | 9d1d409 |
 | 2026-11-12 | P0-10: debit note GST rate comes from the purchase bill line; 0% stays 0% (checked against the database with a draft note, then deleted) | 9146ef6 |
 | 2026-11-12 | P0-09: one shared `/my-profile` page for every role; the role name comes from `ROLES` | 47cff00 |
 | 2026-11-12 | P0-07: public backup test page removed | 14901ec |
