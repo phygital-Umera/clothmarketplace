@@ -3,6 +3,7 @@ import {
   useShopExpensesQuery,
   useCreateShopExpenseMutation,
 } from '@/lib/react-query/queriesAndMutations/expenses';
+import {uploadPhoto} from '@/lib/api/upload';
 import {Upload, Calendar, ChevronDown, Check} from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -71,6 +72,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
   const [paidBy, setPaidBy] = useState('Cash from counter');
   const [gstAmount, setGstAmount] = useState<string>('');
   const [billFile, setBillFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Zeros until the real figures load
   const metrics = data?.metrics || {
@@ -98,7 +100,10 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
       return;
     }
 
+    setIsSaving(true);
     try {
+      // Upload first; a failed upload stops the save
+      const photoUrl = billFile ? await uploadPhoto(billFile) : null;
       await createExpenseMutation.mutateAsync({
         date,
         amount: amt,
@@ -106,7 +111,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
         description: description.trim(),
         paidBy,
         gstAmount: gstAmount ? parseFloat(gstAmount) : 0,
-        photoUrl: billFile ? billFile.name : null,
+        photoUrl,
       });
 
       toast.success('Expense recorded successfully');
@@ -116,6 +121,8 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
       setBillFile(null);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err?.message || 'Failed to record expense');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -310,6 +317,17 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                         <div className="text-[11px] text-[#8b6f66] mt-0.5 font-sans">
                           {row.loggedBy}
                         </div>
+                        {/* Older rows hold only a file name, not a link */}
+                        {row.photoUrl && /^https?:\/\//.test(row.photoUrl) && (
+                          <a
+                            href={row.photoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-semibold text-[#7a2232] hover:underline"
+                          >
+                            View bill
+                          </a>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-[#524944] whitespace-nowrap">
                         {row.paidBy}
@@ -458,7 +476,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                 <input
                   type="file"
                   className="hidden"
-                  accept="image/*,.pdf"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={(e) => {
                     if (e.target.files?.[0]) {
                       setBillFile(e.target.files[0]);
@@ -474,10 +492,10 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
               <button
                 type="button"
                 onClick={handleSaveExpense}
-                disabled={createExpenseMutation.isPending}
+                disabled={isSaving}
                 className="w-full bg-[#7a2232] hover:bg-[#681c2a] text-white text-xs font-semibold py-3 rounded tracking-wider uppercase transition shadow-sm disabled:opacity-50"
               >
-                {createExpenseMutation.isPending ? 'RECORDING...' : 'SAVE EXPENSE'}
+                {isSaving ? 'RECORDING...' : 'SAVE EXPENSE'}
               </button>
             </div>
           </div>

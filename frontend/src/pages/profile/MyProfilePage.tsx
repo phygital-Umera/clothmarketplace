@@ -1,7 +1,9 @@
 import {useState, useEffect} from 'react';
-import useCurrentUser from '@/hooks/useCurrentUser';
+import useCurrentUser, {CurrentUser} from '@/hooks/useCurrentUser';
 import {roleConfig} from '@/lib/roles';
 import {UpdateUser, changeCurrentPassword} from '@/lib/api/Auth/auth';
+import {uploadPhoto} from '@/lib/api/upload';
+import {AUTH_KEYS} from '@/lib/react-query/queryKeys';
 import {useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -29,9 +31,9 @@ export default function MyProfilePage() {
       setFullName(user.fullname || '');
       setMobile(user.phoneNumber || '');
       setPosPin((user as any).posPin || '');
-      if ((user as any).photoUrl) {
-        setPhotoPreview((user as any).photoUrl);
-      }
+      // Older saves hold only a file name, which would show a broken image
+      const {photoUrl} = user as CurrentUser & {photoUrl?: string | null};
+      if (photoUrl && /^https?:\/\//.test(photoUrl)) setPhotoPreview(photoUrl);
     }
   }, [user]);
 
@@ -73,14 +75,19 @@ export default function MyProfilePage() {
 
     try {
       setIsSavingProfile(true);
+      // Upload first; a failed upload stops the save
+      const photoUrl = photoFile ? await uploadPhoto(photoFile) : undefined;
       await UpdateUser({
         fullname: fullName.trim(),
         phoneNumber: mobile.trim(),
         posPin: posPin.trim() || undefined,
-        photoUrl: photoFile ? photoFile.name : undefined,
+        photoUrl,
       });
+      setPhotoFile(null);
 
-      await queryClient.invalidateQueries({queryKey: ['currentUser']});
+      await queryClient.invalidateQueries({
+        queryKey: [AUTH_KEYS.GET_CURRENT_USER],
+      });
       toast.success('Profile saved successfully');
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err?.message || 'Failed to update profile');
@@ -167,7 +174,7 @@ export default function MyProfilePage() {
                   Choose file
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={handlePhotoChange}
                     className="hidden"
                   />
