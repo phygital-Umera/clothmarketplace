@@ -1,6 +1,9 @@
 import {z} from 'zod';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const originsOf = (list?: string) => (list ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
+
 const envVarsSchema = z.object({
     NODE_ENV: z.enum(['production', 'development', 'test']),
     PORT: z.coerce.number().default(3000),
@@ -78,6 +81,15 @@ const envVarsSchema = z.object({
         .string()
         .default('@cf/black-forest-labs/flux-2-klein-4b')
         .describe('Workers AI image-editing model used for color previews'),
+}).superRefine((env, ctx) => {
+    // An empty list lets any website call the API (app.ts), which is only fine on a developer machine
+    if (env.NODE_ENV === 'production' && !originsOf(env.CORS_ORIGINS).length) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['CORS_ORIGINS'],
+            message: 'CORS_ORIGINS is required in production: list the frontend addresses, comma-separated',
+        });
+    }
 });
 
 const parseEnvVars = () => {
@@ -140,8 +152,6 @@ export default {
         keySecret: envVars.RAZORPAY_KEY_SECRET || undefined,
     },
     cors: {
-        origins: envVars.CORS_ORIGINS
-            ? envVars.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-            : [],
+        origins: originsOf(envVars.CORS_ORIGINS),
     },
 };
