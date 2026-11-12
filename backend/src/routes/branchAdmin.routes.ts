@@ -133,7 +133,6 @@ router.post('/expenses', branchExpenseController.add);
 
 // Overview: Approvals
 router.get('/approvals', branchApprovalController.list);
-router.post('/approvals/:id/decision', branchApprovalController.decide);
 
 // Reports
 router.get('/reports/pnl', branchReportsController.getPnl);

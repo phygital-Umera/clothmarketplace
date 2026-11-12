@@ -77,9 +77,6 @@ export type ApprovalsData = {
 export const getBranchApprovals = (tab?: string) =>
   (api.get('/branch-admin/approvals', {params: {tab}}) as unknown as Promise<Res<ApprovalsData>>);
 
-export const decideBranchApproval = (id: string, data: {decision: 'APPROVE' | 'REJECT'; note?: string}) =>
-  (api.post(`/branch-admin/approvals/${id}/decision`, data) as unknown as Promise<Res<{success: boolean; message: string}>>);
-
 // --- REPORTS ---
 export type PnlRow = {
   line: string;

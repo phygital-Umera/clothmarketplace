@@ -1,6 +1,6 @@
-import {CreditNoteStatus, ReturnSettlement, ReturnStockTo} from '@prisma/client';
+import {CreditNoteStatus, ReturnSettlement} from '@prisma/client';
 import prisma from '../client';
-import creditNoteService, {REFUND_APPROVAL_LIMIT} from './creditNote.service';
+import {REFUND_APPROVAL_LIMIT} from './creditNote.service';
 import {BranchScope} from './customerDue.service';
 
 export type ApprovalItem = {
@@ -19,8 +19,8 @@ export type ApprovalItem = {
 /*
  * The branch admin's approval queue, built from real requests. Today the one
  * action the shops hand up to the branch is a refund credit note (any cash
- * refund, or one above the approval limit); deciding here approves or rejects
- * that credit note, which also puts the stock back.
+ * refund, or one above the approval limit). It is decided through the credit
+ * note decision (POST /credit-notes/:id/decision), which is audited.
  */
 
 const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -110,22 +110,6 @@ class BranchApprovalService {
                 },
             ],
         };
-    }
-
-    public async decide(
-        scope: BranchScope & {actorId: string},
-        id: string,
-        decision: 'APPROVE' | 'REJECT',
-        note?: string,
-    ) {
-        await creditNoteService.decide(
-            {companyId: scope.companyId, branchId: scope.branchId},
-            scope.actorId,
-            id,
-            {action: decision, stockTo: ReturnStockTo.RESTOCK, note},
-        );
-        const status = decision === 'APPROVE' ? 'approved' : 'rejected';
-        return {success: true, message: `Refund has been ${status}`};
     }
 }
 
