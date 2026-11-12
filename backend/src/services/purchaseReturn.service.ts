@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import accountService from './account.service';
 import { ShopScope } from './shopProduct.service';
 import { CreatePurchaseReturnInput } from '../validations/purchaseReturn.validation';
 
@@ -32,20 +33,17 @@ class PurchaseReturnService {
   }
 
   /**
-   * Next Debit Note number format: DN/26-27/0006
+   * Next debit note number in this financial year: DN/26-27/0001
    */
-  public getNextDebitNoteNumber = async (scope: ShopScope): Promise<string> => {
-    const fy = this.getFinancialYear();
-    const count = await prisma.purchaseReturn.count({
-      where: {
-        shopId: scope.shopId,
-        returnNumber: { startsWith: `DN/${fy}/` },
-      },
-    });
-    // Starting offset from sequence in reference (e.g. 0006)
-    const nextSeq = String(count + 4).padStart(4, '0');
-    return `DN/${fy}/${nextSeq}`;
-  };
+  public getNextDebitNoteNumber = async (scope: ShopScope): Promise<string> =>
+    accountService.nextCode(prisma, `DN/${this.getFinancialYear()}/`, 4, async (p) =>
+      (
+        await prisma.purchaseReturn.findMany({
+          where: { shopId: scope.shopId, returnNumber: { startsWith: p } },
+          select: { returnNumber: true },
+        })
+      ).map((r) => r.returnNumber),
+    );
 
   /**
    * Get list of suppliers who have purchase bills in this shop
