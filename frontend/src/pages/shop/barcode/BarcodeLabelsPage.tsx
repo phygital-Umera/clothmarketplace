@@ -46,7 +46,7 @@ const BarcodeSvg: React.FC<{
   className?: string;
 }> = ({value, width = 170, height = 40, className = ''}) => {
   const bars = useMemo(() => {
-    const str = String(value || '8901234011012');
+    const str = String(value || '');
     const pattern: number[] = [2, 1, 1, 2]; // start guard
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -113,11 +113,10 @@ export default function BarcodeLabelsPage({
   // Selected Bill State
   const [selectedBillId, setSelectedBillId] = useState<string>('');
 
-  // Default to PB/26-27/0042 if available, else first bill
+  // Default to the first bill
   useEffect(() => {
     if (!selectedBillId && bills.length > 0) {
-      const bill42 = bills.find((b) => b.billNumber.includes('0042'));
-      setSelectedBillId(bill42 ? bill42.id : bills[0].id);
+      setSelectedBillId(bills[0].id);
     }
   }, [bills, selectedBillId]);
 
@@ -221,30 +220,18 @@ export default function BarcodeLabelsPage({
     }
   };
 
-  // Preview Item: First selected item or Cotton Kurta M
-  const previewItem = useMemo(() => {
-    const selected = tableRows.find((r) => r.selected);
-    if (selected) return selected;
-    if (tableRows.length > 0) return tableRows[0];
-    return {
-      id: 'preview-default',
-      productName: 'Cotton Kurta Indigo',
-      size: 'M',
-      barcode: '8901234011012',
-      mrp: 1299,
-      price: 1099,
-      labels: 35,
-      selected: true,
-      productId: 'prod-default',
-    };
-  }, [tableRows]);
+  // Preview Item: first selected item, or none
+  const previewItem = useMemo(
+    () => tableRows.find((r) => r.selected) ?? null,
+    [tableRows],
+  );
 
   const recordPrintMutation = useRecordPrintJob(panel);
 
   // Trigger Thermal / Browser Print
   const handlePrintLabels = async (isTest: boolean = false) => {
     const selectedRows = tableRows.filter((r) => r.selected);
-    if (!isTest && selectedRows.length === 0) {
+    if (selectedRows.length === 0 || !previewItem) {
       toast.error('Select at least one item to print');
       return;
     }
@@ -479,6 +466,8 @@ export default function BarcodeLabelsPage({
                 >
                   {isBillsLoading ? (
                     <option value="">Loading bills...</option>
+                  ) : bills.length === 0 ? (
+                    <option value="">No purchase bills</option>
                   ) : (
                     bills.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -811,52 +800,63 @@ export default function BarcodeLabelsPage({
 
             {/* Sticker Graphic Container */}
             <div className="mt-4 flex items-center justify-center rounded-lg bg-stone-100/70 p-4">
-              <div className="w-[200px] rounded border border-stone-300 bg-white p-2.5 shadow-sm flex flex-col justify-between text-center select-none">
-                {labelSetup.showShopName && (
-                  <p className="font-extrabold uppercase tracking-wider text-[8.5px] text-stone-900 leading-tight">
-                    {shopName}
-                  </p>
-                )}
-
-                {labelSetup.showItemNameSize && (
-                  <p className="mt-0.5 text-[8px] font-semibold text-stone-800 truncate">
-                    {previewItem.productName} · {previewItem.size}
-                  </p>
-                )}
-
-                <div className="my-1.5 flex flex-col items-center">
-                  <BarcodeSvg value={previewItem.barcode} width={140} height={28} />
-                </div>
-
-                <div className="flex items-baseline justify-between border-t border-stone-200/80 pt-1 text-[8.5px] font-bold text-stone-900">
-                  {labelSetup.showMrp ? (
-                    <span className="text-[7.5px] text-stone-600 font-semibold">
-                      MRP ₹{previewItem.mrp.toLocaleString('en-IN')}
-                    </span>
-                  ) : (
-                    <span />
+              {previewItem ? (
+                <div className="flex w-[200px] select-none flex-col justify-between rounded border border-stone-300 bg-white p-2.5 text-center shadow-sm">
+                  {labelSetup.showShopName && (
+                    <p className="text-[8.5px] font-extrabold uppercase leading-tight tracking-wider text-stone-900">
+                      {shopName}
+                    </p>
                   )}
-                  {labelSetup.showSalePrice && (
-                    <span className="font-serif font-bold text-stone-900 text-[9.5px]">
-                      ₹{previewItem.price.toLocaleString('en-IN')}
-                    </span>
+
+                  {labelSetup.showItemNameSize && (
+                    <p className="mt-0.5 truncate text-[8px] font-semibold text-stone-800">
+                      {previewItem.productName} · {previewItem.size}
+                    </p>
+                  )}
+
+                  <div className="my-1.5 flex flex-col items-center">
+                    <BarcodeSvg
+                      value={previewItem.barcode}
+                      width={140}
+                      height={28}
+                    />
+                  </div>
+
+                  <div className="flex items-baseline justify-between border-t border-stone-200/80 pt-1 text-[8.5px] font-bold text-stone-900">
+                    {labelSetup.showMrp ? (
+                      <span className="text-[7.5px] font-semibold text-stone-600">
+                        MRP ₹{previewItem.mrp.toLocaleString('en-IN')}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {labelSetup.showSalePrice && (
+                      <span className="font-serif text-[9.5px] font-bold text-stone-900">
+                        ₹{previewItem.price.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+
+                  {labelSetup.showCostCode && previewItem.costCode && (
+                    <p className="font-mono mt-0.5 text-right text-[6.5px] text-stone-400">
+                      {previewItem.costCode}
+                    </p>
                   )}
                 </div>
-
-                {labelSetup.showCostCode && (
-                  <p className="text-[6.5px] font-mono text-stone-400 mt-0.5 text-right">
-                    KRT
-                  </p>
-                )}
-              </div>
+              ) : (
+                <p className="py-6 text-center text-xs text-stone-400">
+                  Select an item to preview its label
+                </p>
+              )}
             </div>
 
             {/* Bottom Actions */}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button
                 type="button"
+                disabled={!previewItem || recordPrintMutation.isPending}
                 onClick={() => handlePrintLabels(true)}
-                className="flex items-center justify-center gap-1.5 rounded border border-[#7A2232] py-2 text-xs font-bold uppercase tracking-wider text-[#7A2232] transition-colors hover:bg-[#FDF2F4]"
+                className="flex items-center justify-center gap-1.5 rounded border border-[#7A2232] py-2 text-xs font-bold uppercase tracking-wider text-[#7A2232] transition-colors hover:bg-[#FDF2F4] disabled:opacity-50"
               >
                 TEST PRINT
               </button>
