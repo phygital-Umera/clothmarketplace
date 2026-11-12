@@ -1,9 +1,12 @@
+import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
-import { MovementType, StockSourceType } from '@prisma/client';
+import { MovementType, Prisma, StockSourceType } from '@prisma/client';
 import { CreateAdjustmentInput, GetAdjustmentsQuery } from '../validations/stockAdjustment.validation';
 import { dayKey } from '../utils/day';
+import accountService from './account.service';
+import inventoryService from './inventory.service';
 
 export type Scope = {
   companyId: string;
@@ -31,21 +34,23 @@ class StockAdjustmentService {
     return firstBranch?.id || '';
   }
 
+  /** Adjustment numbers run per branch: ADJ-0001, ADJ-0002... */
+  private nextNumber = (tx: Prisma.TransactionClient, branchId: string) =>
+    accountService.nextCode(tx, 'ADJ-', 4, async (prefix) =>
+      (
+        await tx.stockAdjustment.findMany({
+          where: { branchId, adjustmentNumber: { startsWith: prefix } },
+          select: { adjustmentNumber: true },
+        })
+      ).map((a) => a.adjustmentNumber ?? ''),
+    );
+
   /**
-   * Get Next Adjustment Number e.g. ADJ-0046
+   * Next adjustment number (a preview; the number is fixed when saved)
    */
   public async getNextAdjustmentNumber(scope: Scope) {
     const branchId = await this.resolveBranchId(scope);
-    const countRes: any[] = await prisma.$queryRawUnsafe(`
-      SELECT count(*) as count FROM "StockAdjustment" WHERE "branchId" = $1
-    `, branchId);
-    
-    // We seeded up to 0045, so if count is 5, next is 46
-    const count = parseInt(countRes[0]?.count ?? '0', 10);
-    const nextNum = Math.max(46, 40 + count + 1);
-    const adjustmentNumber = `ADJ-${String(nextNum).padStart(4, '0')}`;
-
-    return { adjustmentNumber };
+    return { adjustmentNumber: await this.nextNumber(prisma, branchId) };
   }
 
   /**
@@ -69,11 +74,9 @@ class StockAdjustmentService {
       JOIN "Product" p ON p."id" = v."productId"
       LEFT JOIN "Shop" s ON s."id" = p."shopId"
       LEFT JOIN "Inventory" i ON i."variantId" = v."id" AND i."branchId" = $1
-      WHERE p."companyId" = $2
+      WHERE p."companyId" = $2 AND p."deletedAt" IS NULL
         AND CASE WHEN $3::text IS NULL THEN p."shopId" IS NULL OR s."branchId" = $1 ELSE p."shopId" = $3 END
-      ORDER BY 
-        CASE WHEN v."variantSku" = 'PRD0110-MAR-M' THEN 1 ELSE 2 END ASC,
-        p."name" ASC, v."size" ASC
+      ORDER BY p."name" ASC, v."size" ASC
       LIMIT 50
     `, branchId, scope.companyId, scope.shopId ?? null);
 
@@ -101,7 +104,8 @@ class StockAdjustmentService {
     const branchId = await this.resolveBranchId(scope);
     const typeFilter = query.type && query.type !== 'All types' && query.type !== 'ALL' ? query.type : undefined;
 
-    let whereClause = `WHERE a."branchId" = '${branchId}'`;
+    // A shop sees only its own products' adjustments (rows from the other stock screens carry no shopId)
+    let whereClause = `WHERE a."branchId" = $1 AND ($2::text IS NULL OR p."shopId" = $2)`;
     if (typeFilter) {
       if (typeFilter === 'Mark damaged' || typeFilter === 'MARK_DAMAGED') {
         whereClause += ` AND a."type" = 'MARK_DAMAGED'`;
@@ -137,7 +141,7 @@ class StockAdjustmentService {
       ${whereClause}
       ORDER BY a."createdAt" DESC, a."adjustmentNumber" DESC
       LIMIT ${query.limit || 50}
-    `);
+    `, branchId, scope.shopId ?? null);
 
     const now = new Date();
     const todayStr = dayKey(now);
@@ -185,7 +189,7 @@ class StockAdjustmentService {
 
       return {
         id: r.id,
-        ref: r.ref || `ADJ-${r.id.slice(-4)}`,
+        ref: r.ref || '—',
         date: displayDate,
         variantName: `${r.productName}`,
         variantSubtext: `${r.size}`,
@@ -223,102 +227,100 @@ class StockAdjustmentService {
             : { OR: [{ shopId: null }, { shop: { branchId } }] }),
         },
       },
+      include: { product: { select: { name: true } } },
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
 
-    const product = await prisma.product.findUnique({
-      where: { id: variant.productId },
-    });
-
-    // Fetch current inventory
-    const inv = await prisma.inventory.findUnique({
-      where: {
-        branchId_variantId: {
-          branchId,
-          variantId: input.variantId,
-        },
-      },
-    });
-
-    const availableBefore = inv?.physicalQty || 0;
-    const damagedBefore = (inv as any)?.damagedQty || 0;
-    const qty = Number(input.quantity);
-
-    let availableAfter = availableBefore;
-    let damagedAfter = damagedBefore;
-    let movementType: MovementType = MovementType.ADJUSTMENT_DECREASE;
-
-    if (input.type === 'INCREASE') {
-      availableAfter = availableBefore + qty;
-      movementType = MovementType.ADJUSTMENT_INCREASE;
-    } else if (input.type === 'DECREASE') {
-      availableAfter = Math.max(0, availableBefore - qty);
-      movementType = MovementType.ADJUSTMENT_DECREASE;
-    } else if (input.type === 'MARK_DAMAGED') {
-      availableAfter = Math.max(0, availableBefore - qty);
-      damagedAfter = damagedBefore + qty;
-      movementType = MovementType.DAMAGE_WRITE_OFF;
-    } else if (input.type === 'WRITE_OFF') {
-      damagedAfter = Math.max(0, damagedBefore - qty);
-      movementType = MovementType.ADJUSTMENT_DECREASE;
-    }
-
-    // Determine next adjustment number
-    const { adjustmentNumber } = await this.getNextAdjustmentNumber(scope);
-    const id = `adj-${adjustmentNumber.toLowerCase()}`;
+    const qty = input.quantity;
+    // Damaged units sit outside the sellable count: marking damaged moves them out, writing off removes them
+    const delta = input.type === 'INCREASE' ? qty : input.type === 'WRITE_OFF' ? 0 : -qty;
+    const damagedDelta = input.type === 'MARK_DAMAGED' ? qty : input.type === 'WRITE_OFF' ? -qty : 0;
+    const movementType =
+      input.type === 'INCREASE'
+        ? MovementType.ADJUSTMENT_INCREASE
+        : input.type === 'MARK_DAMAGED'
+          ? MovementType.DAMAGE_WRITE_OFF
+          : MovementType.ADJUSTMENT_DECREASE;
 
     // Auto-approve rule: if mark damaged or count <= 2 -> AUTO, else APPROVED or PENDING
     const approvalStatus = input.type === 'MARK_DAMAGED' || qty <= 2 ? 'AUTO' : 'APPROVED';
+    const where = { branchId_variantId: { branchId, variantId: input.variantId } };
 
-    // 1. Update Inventory
-    const invId = inv?.id || `inv-${input.variantId}-${branchId.slice(0, 8)}`;
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Inventory" ("id", "branchId", "variantId", "physicalQty", "reservedQty", "threshold", "damagedQty", "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, 0, 5, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT ("branchId", "variantId")
-      DO UPDATE SET "physicalQty" = $4, "damagedQty" = $5, "updatedAt" = CURRENT_TIMESTAMP
-    `, invId, branchId, input.variantId, availableAfter, damagedAfter);
+    return prisma.$transaction(async (tx) => {
+      // One adjustment at a time per branch, so two saves can't take the same number
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stock-adjustment:' + branchId}))`;
+      const adjustmentNumber = await this.nextNumber(tx, branchId);
+      const id = randomUUID();
 
-    // 2. Insert StockAdjustment
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "StockAdjustment" (
-        "id", "adjustmentNumber", "reference", "photoUrl", "branchId", "shopId", "companyId",
-        "variantId", "type", "quantity", "availableBefore", "availableAfter",
-        "damagedBefore", "damagedAfter", "reason", "approvalStatus", "notes",
-        "createdById", "createdAt"
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP
-      )
-    `, id, adjustmentNumber, input.reference || null, input.photoUrl || null, branchId,
-       scope.shopId || null, scope.companyId, input.variantId, input.type, qty,
-       availableBefore, availableAfter, damagedBefore, damagedAfter, input.reason,
-       approvalStatus, actorName ? `Logged by ${actorName}` : null, actorId);
+      if (delta) {
+        await inventoryService.applyStockChanges(tx, {
+          branchId,
+          changes: [{ variantId: input.variantId, productId: variant.productId, delta, type: movementType }],
+          reason: input.reason,
+          reference: adjustmentNumber,
+          sourceType: StockSourceType.ADJUSTMENT,
+          sourceId: id,
+          performedById: actorId,
+        });
+      }
+      if (damagedDelta) {
+        const { count } = await tx.inventory.updateMany({
+          where: {
+            branchId,
+            variantId: input.variantId,
+            ...(damagedDelta < 0 ? { damagedQty: { gte: qty } } : {}),
+          },
+          data: { damagedQty: { increment: damagedDelta } },
+        });
+        if (!count) {
+          const inv = await tx.inventory.findUnique({ where });
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            `Only ${inv?.damagedQty ?? 0} damaged unit(s) of "${variant.product.name}" (${variant.size}) can be written off`,
+          );
+        }
+      }
 
-    // 3. Insert StockMovement
-    await prisma.stockMovement.create({
-      data: {
-        branchId,
-        variantId: input.variantId,
-        type: movementType,
-        quantity: qty,
-        prevPhysical: availableBefore,
-        newPhysical: availableAfter,
-        reason: input.reason,
-        reference: adjustmentNumber,
-        sourceType: StockSourceType.ADJUSTMENT,
-        performedById: actorId,
-      },
+      // Read after the change: the row is locked by now, so before = after - change
+      const inv = await tx.inventory.findUniqueOrThrow({ where });
+      const availableAfter = inv.physicalQty;
+      const damagedAfter = inv.damagedQty;
+      const availableBefore = availableAfter - delta;
+      const damagedBefore = damagedAfter - damagedDelta;
+
+      await tx.stockAdjustment.create({
+        data: {
+          id,
+          adjustmentNumber,
+          reference: input.reference || null,
+          photoUrl: input.photoUrl || null,
+          branchId,
+          shopId: scope.shopId || null,
+          companyId: scope.companyId,
+          variantId: input.variantId,
+          type: input.type,
+          quantity: qty,
+          availableBefore,
+          availableAfter,
+          damagedBefore,
+          damagedAfter,
+          reason: input.reason,
+          approvalStatus,
+          notes: actorName ? `Logged by ${actorName}` : null,
+          createdById: actorId,
+        },
+      });
+
+      return {
+        success: true,
+        adjustmentNumber,
+        availableBefore,
+        availableAfter,
+        damagedBefore,
+        damagedAfter,
+        message: `Adjustment ${adjustmentNumber} created successfully for ${variant.product.name} (${variant.size}).`,
+      };
     });
-
-    return {
-      success: true,
-      adjustmentNumber,
-      availableBefore,
-      availableAfter,
-      damagedBefore,
-      damagedAfter,
-      message: `Adjustment ${adjustmentNumber} created successfully for ${product?.name || 'Product'} (${variant.size}).`,
-    };
   }
 }
 
