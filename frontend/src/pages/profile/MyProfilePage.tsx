@@ -30,7 +30,6 @@ export default function MyProfilePage() {
     if (user) {
       setFullName(user.fullname || '');
       setMobile(user.phoneNumber || '');
-      setPosPin((user as any).posPin || '');
       // Older saves hold only a file name, which would show a broken image
       const {photoUrl} = user as CurrentUser & {photoUrl?: string | null};
       if (photoUrl && /^https?:\/\//.test(photoUrl)) setPhotoPreview(photoUrl);
@@ -84,6 +83,7 @@ export default function MyProfilePage() {
         photoUrl,
       });
       setPhotoFile(null);
+      setPosPin('');
 
       await queryClient.invalidateQueries({
         queryKey: [AUTH_KEYS.GET_CURRENT_USER],
@@ -251,11 +251,17 @@ export default function MyProfilePage() {
                 POS PIN
               </label>
               <input
-                type="text"
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
                 maxLength={6}
                 value={posPin}
-                onChange={(e) => setPosPin(e.target.value)}
-                placeholder="4 digits"
+                onChange={(e) => setPosPin(e.target.value.replace(/\D/g, ''))}
+                placeholder={
+                  user?.hasPosPin
+                    ? 'PIN is set. Type a new one to change it'
+                    : '4 to 6 digits'
+                }
                 className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
               />
             </div>

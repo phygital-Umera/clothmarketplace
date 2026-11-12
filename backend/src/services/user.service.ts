@@ -39,7 +39,6 @@ const SAFE_USER = {
     lastLoginAt: true,
     createdAt: true,
     photoUrl: true,
-    posPin: true,
 } satisfies Prisma.UserSelect;
 
 type AccessCheckUser = {
@@ -240,13 +239,16 @@ class UserService {
             where: {id: userId},
             select: {
                 ...SAFE_USER,
+                posPin: true,
                 company: {select: {id: true, name: true, code: true, status: true, businessMode: true}},
                 branch: {select: {id: true, name: true, code: true, status: true}},
                 shop: {select: {id: true, name: true, code: true, status: true, gstin: true}},
             },
         });
         if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-        return user;
+        // The PIN is a credential: only whether one is set leaves the server
+        const {posPin, ...rest} = user;
+        return {...rest, hasPosPin: !!posPin};
     }
 
     /** Returns fresh tokens: other devices are signed out, this one stays in */
@@ -343,6 +345,8 @@ class UserService {
         const updateData: Prisma.UserUpdateInput = {
             ...data,
             phoneNumber: data.phoneNumber ? data.phoneNumber : undefined,
+            // Stored hashed like a password; null clears it, undefined keeps it
+            posPin: data.posPin ? await encryptPassword(data.posPin) : data.posPin,
         };
         return prisma.user.update({where: {id: userId}, data: updateData, select: SAFE_USER});
     }
