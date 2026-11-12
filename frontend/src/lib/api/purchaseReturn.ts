@@ -15,7 +15,7 @@ interface Res<T> {
 export const getNextDebitNoteNumber = (panel: string = 'shop-admin') =>
   api
     .get<{nextNumber: string; success: boolean}>(`/${panel}/purchase-returns/next-number`)
-    .then((res: any) => res?.nextNumber ?? res?.data?.nextNumber ?? 'DN/26-27/0006');
+    .then((res: any) => res?.nextNumber ?? res?.data?.nextNumber ?? null);
 
 export const getReturnSuppliers = (panel: string = 'shop-admin') =>
   api
