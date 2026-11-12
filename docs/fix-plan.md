@@ -25,9 +25,9 @@ This is the living list of what we are fixing, in order: what is done, what is i
 | | |
 |---|---|
 | **Branch** | `fix/p0-quick-fixes` (from `feat/company-admin-shop-mode`). Not pushed. |
-| **Doing now** | Nothing. All 16 decisions are answered (§3). |
-| **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Uncommitted, and left out of every commit on this branch. Changes `schema.prisma`, `bill.service.ts`, `bill.validation.ts`, `NewBillPOSPage.tsx`, `BillDetailsModal.tsx`. **Commit it before P0-05 and Phase 4**, which touch the same files. |
-| **Next up** | 1) P0-08 (time zone), ready now. 2) P0-13, your step: run `npm run seed:demo -- --remove` on each shared server. 3) Commit W-01 to unblock P0-05 and P4-01 to P4-03. 4) Phase 1, top row first: P1-01 to P1-12. |
+| **Doing now** | Nothing. Phase 0 is done; only P0-13 is left, and it is your step. |
+| **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Also your fix to `seedDemo.ts` (reuse existing sizes and colours; the seed broke after the standard sizes in 87dbd57). Uncommitted, and left out of every commit on this branch. P0-05 and P0-08 changed a few lines in `bill.service.ts` and `NewBillPOSPage.tsx`; only those lines were committed, so your copy has both. **Commit it before Phase 4**, which touches the same files. |
+| **Next up** | 1) P0-13, your step: run `npm run seed:demo -- --remove` on each shared server. 2) Phase 1, top row first: P1-01 to P1-12. 3) Commit W-01 before Phase 4. |
 
 ---
 
@@ -104,10 +104,10 @@ None right now. Add new questions here with ❓.
 | P0-02 | Barcode labels print "MATOSHRI FASHIONS" | Use the logged-in shop's name | `frontend/src/pages/shop/barcode/BarcodeLabelsPage.tsx:361, 811` | Print preview shows your shop | – | ✅ 654bfe7 |
 | P0-03 | Customer is told "₹X has been refunded" when no refund was made | Change the text to "Refund approved; you'll get it within N days" | `backend/src/services/order.service.ts:578-585, 651, 863` | Set an order to REFUNDED; read the notification | – | ✅ 2589204 |
 | P0-04 | Debit note defaults to the fake supplier "Tiruppur Knits - 33" and a fake bill | Start empty; set from the loaded suppliers; remove the fake options | `frontend/src/pages/shop/returns/PurchaseReturnPage.tsx:37, 250, 272` | Save a debit note; the supplier is the real one | – | ✅ 93167b3 |
-| P0-05 | Every new POS bill shows "…/26-27/00232" | Show "New bill" or the real next number | `frontend/src/pages/shop/pos/NewBillPOSPage.tsx:738` | Open the POS | W-01 | ⛔ |
+| P0-05 | Every new POS bill shows "…/26-27/00232" | Show "New bill" or the real next number | `frontend/src/pages/shop/pos/NewBillPOSPage.tsx:738` | Open the POS | W-01 (committed on its own, without W-01) | ✅ 0714207 |
 | P0-06 | CORS lets any website call the API | Use `config.cors.origins`; set `CORS_ORIGINS` for both frontends | `backend/src/app.ts:36`, `backend/.env` | Panel and store still work; another origin is refused | – | ✅ 32a6886 |
 | P0-07 | Public test page with a dev-tunnel URL | Delete the file | `backend/public/backup-test.html` | `/backup-test.html` returns 404 | – | ✅ 14901ec |
-| P0-08 | Bills between 00:00 and 05:29 IST can get yesterday's date | `TZ=Asia/Kolkata` in the backend env and `.env.example` | `backend/.env`, `.env.example` | Bill created after midnight IST has today's date | D-12 | ⬜ |
+| P0-08 | Bills between 00:00 and 05:29 IST can get yesterday's date | a) Server: `TZ` in config, default `Asia/Kolkata`, a wrong name is refused at startup; six number series and day checks use `dayKey` instead of the UTC day. b) Screens: date fields default to the local day (`date-fns` `format`) | `config/config.ts`, `.env.example`, `bill`, `creditNote`, `shop`, `stockAdjustment`, `store/account`, `store/checkout` services; `BillFormModal`, Credit/Udhaar, Purchase Return, Suppliers, Customer Dues, POS due date, store profile | 01:30 IST counts as the new day and the new financial year (tested) | D-12 | ✅ 754ad4a, 1c17df3 |
 | P0-09 | My Profile shows the company admin as "Branch Manager"; the header "My Profile" link gives "Access denied" for the company admin, super admin and employees | Use the `ROLES` labels; profile path per panel | `MyProfilePage.tsx:39-46`, `Header/DropdownUser.tsx:31-34` | Open My Profile as each role | – | ✅ 47cff00 |
 | P0-10 | Debit note adds 5% GST to 0% items | `??` instead of `\|\|`; take the rate from the purchase bill line | `backend/src/services/purchaseReturn.service.ts:129, 203, 265`, `validations/purchaseReturn.validation.ts:14` | Return a 0% item; tax is 0 | – | ✅ 9146ef6 |
 | P0-11 | Fake number series: debit notes start at 0004, receipts at 0044 | Use `accountService.nextCode` with no offset | `purchaseReturn.service.ts:46`, `credit.service.ts:59` | First new number is 0001 in a fresh FY | – | ✅ 9d1d409 |
@@ -168,7 +168,7 @@ None right now. Add new questions here with ❓.
 | P4-01 | GST slab lists are 0/5/12/18 | Per D-05: GST slabs and price rule set per shop | validations, product forms, `BillFormModal.tsx:42` | – | D-05, W-01 | ⛔ W-01 |
 | P4-02 | The POS sends the GST rate and the server trusts it | Server applies the shop's GST rule (D-05), not the rate the POS sends | `bill.service.ts:338, 431`, `bill.validation.ts:25`, `NewBillPOSPage.tsx:295` | Tamper the rate in the request → ignored | D-05, W-01 | ⛔ W-01 |
 | P4-03 | GST maths copied in 4+ places; IGST chosen by state name | Backend returns the GST breakup by state code; UIs print it | POS, `BillFormModal`, `salesBillInvoice.ts`, `user/src/routes/invoice.$id.tsx` | Screen, receipt and invoice match to the paisa | W-01 | ⬜ |
-| P4-04 | HSN missing on products; fallbacks 6206 and 6204 | Add HSN to the product (migration); require it | `schema.prisma`, product forms, `purchaseReturn.service.ts:116`, `NewBillPOSPage.tsx:285` | Debit note and bill show the product's HSN | D-15 | ⬜ |
+| P4-04 | HSN missing on products; fallbacks 6206 and 6204 (the POS shows "6204" on every line) | Add HSN to the product (migration); require it | `schema.prisma`, product forms, `purchaseReturn.service.ts:116`, `NewBillPOSPage.tsx:285` | Debit note and bill show the product's HSN | D-15 | ⬜ |
 | P4-05 | Financial-year helper copied 4 times; `AUD-26-27` typed in | One helper | `bill.service.ts:74`, `expense.service.ts:20`, `credit.service.ts:39`, `purchaseReturn.service.ts:26`, `stock.service.ts:464` | – | – | ⬜ |
 | P4-06 | Bill numbers can exceed 16 characters (GST limit, verify) | Limit the prefix; configurable series | `bill.service.ts:166`, `org.validation.ts:119` | – | – | ⬜ |
 | P4-07 | Online-order invoice: no seller GSTIN or HSN, two invoice numbers, fake tagline | Backend issues one number; print GSTIN, HSN and breakup | `frontend/src/utils/invoiceGenerator.ts`, `user/src/routes/invoice.$id.tsx` | Same number in the panel and the store | – | ⬜ |
@@ -234,6 +234,11 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 |---|---|---|---|
 | 2026-11-12 (P0-10) | The debit note still trusts the unit cost sent by the browser; it should come from the purchase bill line, like the GST rate now does | `purchaseReturn.service.ts` `createPurchaseReturn` | ⬜ |
 | 2026-11-12 (P0-11) | Receipt and debit note numbers are picked before the save, outside a transaction. Two saves at once can get the same receipt number, because receipts have no unique index | `credit.service.ts:389`, `purchaseReturn.service.ts`, `schema.prisma` (CustomerCreditPayment) | ⬜ |
+| 2026-11-12 (you) | POS heading always showed …/26-27/00232 while real bills were 00001 to 00004 | `NewBillPOSPage.tsx` | ✅ P0-05 |
+| 2026-11-12 (you) | A new customer always gets 15 credit days. The customer API's create rule has no `creditDays` (so it is dropped), and customers created from a bill don't pass it; the database default 15 wins | `validations/customer.validation.ts:14`, `services/customer.service.ts:110`, `services/customerLedger.ts:70` | ⬜ |
+| 2026-11-12 (you) | HSN column shows "6204" for every item | POS | → P4-04 |
+| 2026-11-12 (you) | Bill type stays on B2B after a B2B bill is saved | your bill-type work (W-01) | ⬜ W-01 |
+| 2026-11-12 (you) | Demo seed broke after the standard sizes and colours (87dbd57) | `seedDemo.ts` | ✅ fixed by you, in W-01 |
 | 2026-11-12 (branch vs shop check) | A debit note without a purchase bill saves the shop's id as its branch id, then looks for stock under that wrong id, so stock never goes down. It is part of P5-04; move P5-04 up | `purchaseReturn.service.ts:239, 278` | ⬜ |
 | 2026-11-12 (P0-06) | If `CORS_ORIGINS` is empty, any origin is allowed again. The server should refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | ⬜ |
 
@@ -243,6 +248,10 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | P0-05: POS heading says "New bill"; the real number comes on save | 0714207 |
+| 2026-11-12 | P0-08b: date fields default to the local day, not the UTC day | 1c17df3 |
+| 2026-11-12 | P0-08a: server days follow India time (`TZ` in config); number series use the local day | 754ad4a |
+| 2026-11-12 | Decisions D-01 to D-16 recorded | b651198 |
 | 2026-11-12 | P0-12: Credit/Udhaar shows real zeros, starts on the first customer, empty amount, no fake receipt number | 1746dc5 |
 | 2026-11-12 | P0-11: debit notes and credit receipts number from the highest existing one through `accountService.nextCode`; a fresh year starts at 0001 | 9d1d409 |
 | 2026-11-12 | P0-10: debit note GST rate comes from the purchase bill line; 0% stays 0% (checked against the database with a draft note, then deleted) | 9146ef6 |
