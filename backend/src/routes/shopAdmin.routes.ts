@@ -15,7 +15,13 @@ import {
     creditNoteController,
     branchReportsController,
 } from '@controllers/index';
-import {checkRole, imageUpload, verifyJWT} from '@middlewares/index';
+import {
+    checkRole,
+    companyAdminShopMode,
+    imageUpload,
+    ownerOnly,
+    verifyJWT,
+} from '@middlewares/index';
 import {mountPromotions} from './promotion.routes';
 import {mountBills} from './bill.routes';
 import {mountShopOps} from './shopOps.routes';
@@ -159,11 +165,19 @@ router.patch('/returns/:id', e.updateReturnStatus);
 
 export const shopRoutes = router;
 
-// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management)
+// Only under /shop-admin (not /employee): the company admin in shop mode
+// decides the shop's pending refunds, as there is no branch admin above them
+const ownerRoutes = Router();
+ownerRoutes.post('/credit-notes/:id/decision', ownerOnly, cn.decide);
+
+// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management).
+// A company admin works in one of their shops via X-Shop-Id (companyAdminShopMode).
 const shopAdminRouter = Router();
 shopAdminRouter.use(
     verifyJWT,
     checkRole([Role.SHOP_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.SUB_ADMIN]),
+    companyAdminShopMode,
+    ownerRoutes,
     shopRoutes,
 );
 

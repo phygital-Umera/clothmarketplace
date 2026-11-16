@@ -5,15 +5,23 @@ import {ReactNode} from 'react';
 /** Small titled group inside a form panel (Company / Location / ...) */
 export const FormGroup = ({
   title,
+  description,
   children,
 }: {
   title: string;
+  /** One plain sentence under the title: what this part is for */
+  description?: ReactNode;
   children: ReactNode;
 }) => (
   <fieldset>
     <legend className="mb-3 w-full border-b border-ivory-300 pb-1.5 text-label-caps uppercase text-burgundy">
       {title}
     </legend>
+    {description && (
+      <p className="-mt-1.5 mb-3 text-body-sm text-on-surface-variant">
+        {description}
+      </p>
+    )}
     {children}
   </fieldset>
 );

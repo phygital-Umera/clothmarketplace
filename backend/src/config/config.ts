@@ -4,6 +4,17 @@ dotenv.config();
 const envVarsSchema = z.object({
     NODE_ENV: z.enum(['production', 'development', 'test']),
     PORT: z.coerce.number().default(3000),
+    TZ: z
+        .string()
+        .default('Asia/Kolkata')
+        .refine((tz) => {
+            try {
+                return !!new Intl.DateTimeFormat('en', {timeZone: tz});
+            } catch {
+                return false;
+            }
+        }, 'TZ is not a known time zone')
+        .describe('time zone for calendar days: bill dates, day close, number series'),
     JWT_SECRET: z.string().describe('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: z.coerce
         .number()
@@ -48,6 +59,13 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('Cloudflare API token with Workers AI permission (AI product previews)'),
+    CLOUDFLARE_ACCOUNT_ID2: z
+        .string()
+        .optional()
+        .describe('Optional second Cloudflare account, used when the first is out of its daily allowance'),
+    CLOUDFLARE_AI_API_TOKEN2: z.string().optional().describe('API token for CLOUDFLARE_ACCOUNT_ID2'),
+    CLOUDFLARE_ACCOUNT_ID3: z.string().optional().describe('Optional third Cloudflare account, used after the second'),
+    CLOUDFLARE_AI_API_TOKEN3: z.string().optional().describe('API token for CLOUDFLARE_ACCOUNT_ID3'),
     CLOUDFLARE_AI_FOR_COLOURS: z
         .enum(['true', 'false'])
         .default('false')
@@ -77,6 +95,8 @@ const parseEnvVars = () => {
 };
 
 const envVars = parseEnvVars();
+// A shop's day is an Indian day, not the host's (servers usually run on UTC)
+process.env.TZ = envVars.TZ;
 
 export default {
     env: envVars.NODE_ENV,
@@ -105,8 +125,12 @@ export default {
     // clients could fake their IP and dodge the login rate limit
     trustProxy: envVars.TRUST_PROXY ? Number(envVars.TRUST_PROXY) : false,
     ai: {
-        cloudflareAccountId: envVars.CLOUDFLARE_ACCOUNT_ID || undefined,
-        cloudflareApiToken: envVars.CLOUDFLARE_AI_API_TOKEN || undefined,
+        // Tried in order: the next account takes over when one has used today's allowance
+        accounts: [
+            {id: envVars.CLOUDFLARE_ACCOUNT_ID, token: envVars.CLOUDFLARE_AI_API_TOKEN, tokenVar: 'CLOUDFLARE_AI_API_TOKEN'},
+            {id: envVars.CLOUDFLARE_ACCOUNT_ID2, token: envVars.CLOUDFLARE_AI_API_TOKEN2, tokenVar: 'CLOUDFLARE_AI_API_TOKEN2'},
+            {id: envVars.CLOUDFLARE_ACCOUNT_ID3, token: envVars.CLOUDFLARE_AI_API_TOKEN3, tokenVar: 'CLOUDFLARE_AI_API_TOKEN3'},
+        ].filter((a): a is {id: string; token: string; tokenVar: string} => !!(a.id?.trim() && a.token?.trim())),
         imageModel: envVars.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-2-klein-4b',
         proModel: envVars.CLOUDFLARE_AI_PRO_MODEL || '@cf/black-forest-labs/flux-2-klein-9b',
         colourWithAi: envVars.CLOUDFLARE_AI_FOR_COLOURS === 'true',

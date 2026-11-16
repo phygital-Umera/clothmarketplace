@@ -1,8 +1,10 @@
 import Header from '@/components/Header';
+import OwnerShopPicker from '@/components/OwnerShopPicker';
 import Sidebar from '@/components/Sidebar';
 import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
-import {canOpen, homeFor, roleConfig} from '@/lib/roles';
+import {useOwnerShop} from '@/lib/ownerShop';
+import {canOpen, homeFor, inShopPanel, roleConfig} from '@/lib/roles';
 import {levelOf, moduleOfPath} from '@/lib/shopModules';
 import {getErrorMessage} from '@/utils/axios';
 import {Link, Navigate, Outlet, useRouterState} from '@tanstack/react-router';
@@ -21,6 +23,7 @@ const AppLayout = () => {
   const pathname = useRouterState({select: (s) => s.location.pathname});
   // Session check with the backend: real role, status, password-change flag
   const {data: me, isPending, isError, error} = useCurrentUser();
+  const ownerShop = useOwnerShop(me?.id);
 
   if (!isAuthenticated) return <Navigate to="/signin" />;
 
@@ -75,7 +78,10 @@ const AppLayout = () => {
   const allowed = canOpen(me.role, pathname, me.permissions);
   // Employees with view access only: say so, since saving will be refused
   const shopModule = me.role === 'EMPLOYEE' ? moduleOfPath(pathname) : null;
-  const viewOnly = !!shopModule && levelOf(me.permissions, shopModule) === 'view';
+  const viewOnly =
+    !!shopModule && levelOf(me.permissions, shopModule) === 'view';
+  // A company admin on the shop screens works in one shop: which one?
+  const pickShop = me.role === 'ADMIN' && inShopPanel(pathname) && !ownerShop;
 
   return (
     <div className="flex h-screen overflow-hidden bg-ivory">
@@ -84,11 +90,14 @@ const AppLayout = () => {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1">
           <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
-            {allowed ? (
+            {allowed && pickShop ? (
+              <OwnerShopPicker userId={me.id} />
+            ) : allowed ? (
               <>
                 {viewOnly && (
                   <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-                    You can view this page. Ask your shop admin if you need to make changes.
+                    You can view this page. Ask your shop admin if you need to
+                    make changes.
                   </p>
                 )}
                 <Outlet />

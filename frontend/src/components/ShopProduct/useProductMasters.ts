@@ -31,6 +31,17 @@ const useProductMasters = (categoryId?: string, product?: ShopProduct) => {
     sortDir: 'asc',
   });
 
+  // A company's own size / colour hides the standard one with the same name (no "M" twice)
+  const preferOwn = <T extends {name: string; isGlobal?: boolean}>(
+    rows: T[] = [],
+  ) =>
+    rows.filter(
+      (r) =>
+        !r.isGlobal ||
+        !rows.some(
+          (o) => !o.isGlobal && o.name.toLowerCase() === r.name.toLowerCase(),
+        ),
+    );
   const merge = <T extends {id: string}>(active: T[] = [], own: T[] = []) => [
     ...active,
     ...own.filter((o) => !active.some((a) => a.id === o.id)),
@@ -39,8 +50,8 @@ const useProductMasters = (categoryId?: string, product?: ShopProduct) => {
   return {
     categories: categories.data ?? [],
     subcategories: subcategories.data?.items ?? [],
-    colors: merge(colors.data?.items, product?.colors),
-    sizes: merge(sizes.data?.items, product?.sizes),
+    colors: merge(preferOwn(colors.data?.items), product?.colors),
+    sizes: merge(preferOwn(sizes.data?.items), product?.sizes),
     loading: {
       categories: categories.isPending,
       subcategories: subcategories.isPending,

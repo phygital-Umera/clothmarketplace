@@ -1,3 +1,4 @@
+import {CreditNotePanel} from '@/lib/api/creditNote';
 import {useDecideCreditNote} from '@/lib/react-query/queriesAndMutations/creditNote';
 import {
   CreditNote,
@@ -20,13 +21,15 @@ const Fact = ({label, children}: {label: string; children: ReactNode}) => (
 
 type Props = {
   note: CreditNote;
-  /** Branch admin can decide on notes waiting for approval */
+  /** Branch admin (or the owner running the shop) decides waiting notes */
   canDecide?: boolean;
+  /** Where the decision is posted; 'shop-admin' for the owner in shop mode */
+  panel?: CreditNotePanel;
 };
 
 /** Right-hand panel: what came back, the money, and the decision */
-export default function CreditNoteDetail({note, canDecide}: Props) {
-  const decide = useDecideCreditNote();
+export default function CreditNoteDetail({note, canDecide, panel}: Props) {
+  const decide = useDecideCreditNote(panel);
   const [stockTo, setStockTo] = useState<ReturnStockTo>('RESTOCK');
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
@@ -139,11 +142,13 @@ export default function CreditNoteDetail({note, canDecide}: Props) {
                   ` · ${new Date(note.decidedAt).toLocaleString('en-IN')}`}
               </Fact>
             )}
-            {!note.needsApproval && note.status === 'APPROVED' && (
-              <p className="text-technical-data text-outline">
-                Settled at the shop; no approval needed.
-              </p>
-            )}
+            {!note.needsApproval &&
+              note.status === 'APPROVED' &&
+              !note.decidedBy && (
+                <p className="text-technical-data text-outline">
+                  Settled at the shop; no approval needed.
+                </p>
+              )}
             {note.decisionNote && <Fact label="Note">{note.decisionNote}</Fact>}
           </div>
         )}

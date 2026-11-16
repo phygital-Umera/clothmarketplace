@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import accountService from './account.service';
 import { ShopScope } from './shopProduct.service';
 import { CreatePurchaseReturnInput } from '../validations/purchaseReturn.validation';
 
@@ -32,20 +33,17 @@ class PurchaseReturnService {
   }
 
   /**
-   * Next Debit Note number format: DN/26-27/0006
+   * Next debit note number in this financial year: DN/26-27/0001
    */
-  public getNextDebitNoteNumber = async (scope: ShopScope): Promise<string> => {
-    const fy = this.getFinancialYear();
-    const count = await prisma.purchaseReturn.count({
-      where: {
-        shopId: scope.shopId,
-        returnNumber: { startsWith: `DN/${fy}/` },
-      },
-    });
-    // Starting offset from sequence in reference (e.g. 0006)
-    const nextSeq = String(count + 4).padStart(4, '0');
-    return `DN/${fy}/${nextSeq}`;
-  };
+  public getNextDebitNoteNumber = async (scope: ShopScope): Promise<string> =>
+    accountService.nextCode(prisma, `DN/${this.getFinancialYear()}/`, 4, async (p) =>
+      (
+        await prisma.purchaseReturn.findMany({
+          where: { shopId: scope.shopId, returnNumber: { startsWith: p } },
+          select: { returnNumber: true },
+        })
+      ).map((r) => r.returnNumber),
+    );
 
   /**
    * Get list of suppliers who have purchase bills in this shop
@@ -126,7 +124,7 @@ class PurchaseReturnService {
           inStockQty,
           returnQty: 0,
           unitCost: item.unitCost,
-          taxRate: item.taxRate || 5,
+          taxRate: item.taxRate,
         });
       }
 
@@ -194,13 +192,24 @@ class PurchaseReturnService {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Please enter return quantity for at least one item');
     }
 
+    const bill = data.purchaseBillId
+      ? await prisma.purchaseBill.findFirst({
+          where: { id: data.purchaseBillId, shopId: scope.shopId },
+          include: { items: { select: { id: true, taxRate: true } } },
+        })
+      : null;
+    // GST rate of the purchase bill line (0% stays 0%); the sent rate only for lines without one
+    const billRates = new Map(bill?.items.map((i) => [i.id, i.taxRate]));
+    const rateOf = (item: (typeof activeItems)[number]) =>
+      billRates.get(item.purchaseBillItemId ?? '') ?? item.taxRate;
+
     let returnValue = 0;
     let taxAmount = 0;
     let totalQuantity = 0;
 
     for (const item of activeItems) {
       const lineCost = item.returnQty * item.unitCost;
-      const lineTax = (lineCost * (item.taxRate || 5)) / 100;
+      const lineTax = (lineCost * rateOf(item)) / 100;
       returnValue += lineCost;
       taxAmount += lineTax;
       totalQuantity += item.returnQty;
@@ -210,19 +219,12 @@ class PurchaseReturnService {
     taxAmount = Math.round(taxAmount * 100) / 100;
     const totalAmount = Math.round((returnValue + taxAmount) * 100) / 100;
 
-    // Fetch purchase bill if provided
     let payableBefore = 0;
     let payableAfter = 0;
-    let bill = null;
 
-    if (data.purchaseBillId) {
-      bill = await prisma.purchaseBill.findFirst({
-        where: { id: data.purchaseBillId, shopId: scope.shopId },
-      });
-      if (bill) {
-        payableBefore = bill.balanceDue;
-        payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
-      }
+    if (bill) {
+      payableBefore = bill.balanceDue;
+      payableAfter = Math.max(0, Math.round((payableBefore - totalAmount) * 100) / 100);
     }
 
     const returnDate = data.returnDate ? new Date(data.returnDate) : new Date();
@@ -262,7 +264,7 @@ class PurchaseReturnService {
               inStockQty: item.inStockQty,
               returnQty: item.returnQty,
               unitCost: item.unitCost,
-              taxRate: item.taxRate || 5,
+              taxRate: rateOf(item),
               totalCost: Math.round(item.returnQty * item.unitCost * 100) / 100,
               reason: item.reason || null,
             })),

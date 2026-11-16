@@ -10,6 +10,8 @@ declare global {
                 email?: string | null;
                 fullname: string;
                 role: Role;
+                /** Set in shop mode: the company admin (ADMIN) acting as SHOP_ADMIN */
+                realRole?: Role;
                 phoneNumber: string;
                 adminId?: string;
                 employeeId?: string;

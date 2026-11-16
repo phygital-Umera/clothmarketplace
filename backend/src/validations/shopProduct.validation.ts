@@ -40,7 +40,11 @@ const productFields = {
     shortDesc: text('Short Description', 300),
     detailedDesc: field({label: 'Description', kind: 'text', max: 4000}),
     categoryId: id('Category'),
-    subcategoryId: id('Subcategory'),
+    // Optional: blank or null = no subcategory (on edit, clears it)
+    subcategoryId: z.preprocess(
+        (v) => (v === '' ? null : v),
+        z.string().uuid('Select a valid Subcategory').nullable().optional(),
+    ),
     sizeIds: ids('Size', 30),
     colorIds: ids('Color', 30),
     mrp: z.preprocess(
@@ -132,7 +136,7 @@ const imageIdSchema = idSchema.extend({imageId: z.string().uuid('Invalid image I
 
 /** Style of an AI professional photo */
 const professionalPhotoSchema = z.object({
-    style: z.enum(['GHOST', 'MANNEQUIN', 'MODEL'], {errorMap: () => ({message: 'Pick a photo style'})}),
+    style: z.enum(['GHOST', 'MANNEQUIN', 'MODEL', 'ENHANCE'], {errorMap: () => ({message: 'Pick a photo style'})}),
     /** Shop's own words about the garment, e.g. "turtleneck, rib knit, no zip" */
     details: z.string().trim().max(200, 'Keep the details under 200 characters').optional(),
 });

@@ -1,0 +1,47 @@
+{
+    "superAdmin": {
+        "phone": "9876543210",
+        "password": "Change@1234",
+        "name": "Platform Owner",
+        "email": "owner@example.com"
+    },
+    "company": {
+        "name": "My Company",
+        "email": "company@example.com",
+        "contactNumber": "9876543211",
+        "postalCode": "411001",
+        "state": "Maharashtra",
+        "district": "Pune",
+        "city": "Pune",
+        "address": "MG Road, Pune",
+        "adminName": "Company Admin",
+        "adminEmail": "admin@example.com",
+        "adminPhone": "9876543212",
+        "adminPassword": "Change@1234"
+    },
+    "branches": [
+        {
+            "name": "Pune Branch",
+            "postalCode": "411001",
+            "state": "Maharashtra",
+            "district": "Pune",
+            "city": "Pune",
+            "address": "MG Road, Pune",
+            "openingTime": "10:00",
+            "closingTime": "21:00",
+            "weeklyHolidays": [],
+            "adminName": "Pune Branch Admin",
+            "adminEmail": "pune.branch@example.com",
+            "adminPhone": "9876543213",
+            "adminPassword": "Change@1234"
+        },
+        {
+            "name": "Mumbai Branch",
+            "postalCode": "400001",
+            "state": "Maharashtra",
+            "district": "Mumbai",
+            "city": "Mumbai",
+            "address": "Fort, Mumbai"
+        }
+    ]
+}

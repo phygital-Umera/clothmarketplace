@@ -312,6 +312,17 @@ class StockTransferService {
                 ]);
             }
             await this.assertShopInBranch(fromShopId, shop.branchId, shop.companyId);
+        } else {
+            // "Any shop": the branch admin needs another shop to pick as the source
+            const others = (await this.branchShops(shop.branchId, shop.companyId)).filter(
+                (s) => s.id !== shop.id,
+            );
+            if (!others.length) {
+                throw new ApiError(
+                    httpStatus.BAD_REQUEST,
+                    'There is no other shop in this branch to send stock',
+                );
+            }
         }
 
         const variants = await prisma.productVariant.findMany({

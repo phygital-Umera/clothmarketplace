@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 import {
   useCreditCustomers,
   useCreditMetrics,
@@ -51,11 +52,10 @@ export default function CreditUdhaarPage() {
   const {data: customers = [], isLoading: customersLoading} = useCreditCustomers(PANEL, search);
   const {data: nextReceipt} = useNextReceiptNumber(PANEL);
 
-  // Auto-select first customer or Kavita Desai if available
+  // Start on the first customer
   useEffect(() => {
     if (customers.length > 0 && !selectedCustomerId) {
-      const kavita = customers.find((c) => c.name.toLowerCase().includes('kavita'));
-      setSelectedCustomerId(kavita ? kavita.id : customers[0].id);
+      setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
 
@@ -70,12 +70,11 @@ export default function CreditUdhaarPage() {
   );
 
   // Payment form state
-  const [paymentAmount, setPaymentAmount] = useState<string>('2000');
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
-  const [paymentDate, setPaymentDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [paymentDate, setPaymentDate] = useState<string>(() =>
+    format(new Date(), 'yyyy-MM-dd'),
+  );
   const [paymentNote, setPaymentNote] = useState<string>('');
 
   const recordPaymentMutation = useRecordCustomerPayment(PANEL);
@@ -83,8 +82,7 @@ export default function CreditUdhaarPage() {
   // Pre-fill payment amount when selected customer changes
   useEffect(() => {
     if (selectedCustomer) {
-      // Suggest full balance due or 2000 default
-      setPaymentAmount(String(Math.min(2000, selectedCustomer.balanceDue || 2000)));
+      setPaymentAmount('');
     }
   }, [selectedCustomer?.id]);
 
@@ -168,10 +166,10 @@ export default function CreditUdhaarPage() {
             TOTAL DUE
           </p>
           <p className="font-serif text-2xl text-espresso font-semibold mt-1">
-            ₹{(metrics?.totalDue ?? 28650).toLocaleString('en-IN')}
+            ₹{(metrics?.totalDue ?? 0).toLocaleString('en-IN')}
           </p>
           <p className="text-xs text-espresso/60 mt-0.5">
-            {metrics?.totalCustomers ?? 9} customers
+            {metrics?.totalCustomers ?? 0} customers
           </p>
         </div>
 
@@ -181,10 +179,10 @@ export default function CreditUdhaarPage() {
             0–15 DAYS
           </p>
           <p className="font-serif text-2xl text-espresso font-semibold mt-1">
-            ₹{(metrics?.aging?.range0To15?.amount ?? 24650).toLocaleString('en-IN')}
+            ₹{(metrics?.aging?.range0To15?.amount ?? 0).toLocaleString('en-IN')}
           </p>
           <p className="text-xs text-espresso/60 mt-0.5">
-            {metrics?.aging?.range0To15?.count ?? 4} customers
+            {metrics?.aging?.range0To15?.count ?? 0} customers
           </p>
         </div>
 
@@ -209,10 +207,10 @@ export default function CreditUdhaarPage() {
             OVER 30 DAYS
           </p>
           <p className="font-serif text-2xl text-espresso font-semibold mt-1">
-            ₹{(metrics?.aging?.rangeOver30?.amount ?? 4000).toLocaleString('en-IN')}
+            ₹{(metrics?.aging?.rangeOver30?.amount ?? 0).toLocaleString('en-IN')}
           </p>
           <p className="text-xs text-espresso/60 mt-0.5">
-            {metrics?.aging?.rangeOver30?.count ?? 2} customers
+            {metrics?.aging?.rangeOver30?.count ?? 0} customers
           </p>
         </div>
 
@@ -222,10 +220,10 @@ export default function CreditUdhaarPage() {
             COLLECTED THIS MONTH
           </p>
           <p className="font-serif text-2xl text-espresso font-semibold mt-1">
-            ₹{(metrics?.collectedThisMonth?.amount ?? 9200).toLocaleString('en-IN')}
+            ₹{(metrics?.collectedThisMonth?.amount ?? 0).toLocaleString('en-IN')}
           </p>
           <p className="text-xs text-espresso/60 mt-0.5">
-            {metrics?.collectedThisMonth?.paymentsCount ?? 6} payments
+            {metrics?.collectedThisMonth?.paymentsCount ?? 0} payments
           </p>
         </div>
       </div>
@@ -435,7 +433,7 @@ export default function CreditUdhaarPage() {
                 Receive payment
               </h3>
               <p className="text-xs text-espresso/60 font-mono">
-                Receipt {nextReceipt || 'RC/26-27/0044'}
+                Receipt {nextReceipt || '—'}
               </p>
             </div>
 

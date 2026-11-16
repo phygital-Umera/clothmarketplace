@@ -11,7 +11,7 @@ export const purchaseReturnItemSchema = z.object({
   inStockQty: z.number().int().nonnegative().default(0),
   returnQty: z.number().int().nonnegative().default(0),
   unitCost: z.number().nonnegative().default(0),
-  taxRate: z.number().nonnegative().default(5),
+  taxRate: z.number().min(0).max(100),
   reason: z.string().optional(),
 });
 

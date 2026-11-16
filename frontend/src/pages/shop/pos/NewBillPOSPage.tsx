@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 
 const PANEL = 'shop-admin';
 
@@ -497,7 +498,7 @@ export default function NewBillPOSPage() {
     if (creditAmount > 0) {
       const d = new Date();
       d.setDate(d.getDate() + creditDays);
-      calculatedDueDate = d.toISOString().slice(0, 10);
+      calculatedDueDate = format(d, 'yyyy-MM-dd');
     }
 
     const payload: BillPayload = {
@@ -581,7 +582,7 @@ export default function NewBillPOSPage() {
               </span>
             </div>
             <h1 className="font-serif text-2xl font-bold tracking-tight text-burgundy mt-0.5">
-              Bill {dashboard?.shop?.code ? `${dashboard.shop.code}/26-27/00232` : 'WW/26-27/00232'}
+              New bill
             </h1>
           </div>
 

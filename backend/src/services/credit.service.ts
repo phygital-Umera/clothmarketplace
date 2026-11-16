@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import accountService from './account.service';
 import { ShopScope } from './shopProduct.service';
 import { ReceivePaymentInput } from '../validations/credit.validation';
 
@@ -45,20 +46,17 @@ class CreditService {
   }
 
   /**
-   * Next Receipt Number format: RC/26-27/0044
+   * Next receipt number in this financial year: RC/26-27/0001
    */
-  public getNextReceiptNumber = async (scope: ShopScope): Promise<string> => {
-    const fy = this.getFinancialYear();
-    const count = await prisma.customerCreditPayment.count({
-      where: {
-        shopId: scope.shopId,
-        receiptNumber: { startsWith: `RC/${fy}/` },
-      },
-    });
-    // Offset by base sequence so realistic numbering starts e.g. at 0044
-    const nextSeq = String(count + 44).padStart(4, '0');
-    return `RC/${fy}/${nextSeq}`;
-  };
+  public getNextReceiptNumber = async (scope: ShopScope): Promise<string> =>
+    accountService.nextCode(prisma, `RC/${this.getFinancialYear()}/`, 4, async (p) =>
+      (
+        await prisma.customerCreditPayment.findMany({
+          where: { shopId: scope.shopId, receiptNumber: { startsWith: p } },
+          select: { receiptNumber: true },
+        })
+      ).map((r) => r.receiptNumber),
+    );
 
   /**
    * Top stats metrics for Credit / Udhaar

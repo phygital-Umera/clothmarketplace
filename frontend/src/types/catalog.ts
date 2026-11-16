@@ -1,3 +1,5 @@
+import type {PhotoStyle} from './shopProduct';
+
 /** Admin panels that work with the catalog (API prefix) */
 export type CatalogPanel =
   | 'super-admin'
@@ -66,6 +68,10 @@ export interface ProductImage {
   altText: string | null;
   order: number;
   isMain: boolean;
+  /** Set on a clean white-background photo: the photo it was made from */
+  cleanedFromId?: string | null;
+  /** AI professional photo style, when the AI made this photo */
+  aiStyle?: PhotoStyle | null;
 }
 
 export interface Product {

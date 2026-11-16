@@ -1,5 +1,6 @@
 import {useState, useEffect} from 'react';
 import useCurrentUser from '@/hooks/useCurrentUser';
+import {roleConfig} from '@/lib/roles';
 import {UpdateUser, changeCurrentPassword} from '@/lib/api/Auth/auth';
 import {useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -27,7 +28,7 @@ export default function MyProfilePage() {
     if (user) {
       setFullName(user.fullname || '');
       setMobile(user.phoneNumber || '');
-      setPosPin((user as any).posPin || '1234');
+      setPosPin((user as any).posPin || '');
       if ((user as any).photoUrl) {
         setPhotoPreview((user as any).photoUrl);
       }
@@ -35,23 +36,14 @@ export default function MyProfilePage() {
   }, [user]);
 
   // Derive display role
-  const roleDisplay = (() => {
-    if (!user) return 'Shop Manager';
-    const baseRole =
-      user.role === 'SHOP_ADMIN'
-        ? 'Shop Manager'
-        : user.role === 'ADMIN'
-        ? 'Branch Manager'
-        : user.role === 'SUPER_ADMIN'
-        ? 'Super Admin'
-        : user.role;
-
-    const parts = [baseRole];
-    if (user.shop?.name) parts.push(user.shop.name);
-    else if (user.branch?.name) parts.push(user.branch.name);
-
-    return parts.join(' · ');
-  })();
+  const roleDisplay = user
+    ? [
+        roleConfig(user.role)?.label ?? user.role,
+        user.shop?.name ?? user.branch?.name ?? user.company?.name,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
 
   const initials = (fullName || user?.fullname || 'PS')
     .split(/\s+/)

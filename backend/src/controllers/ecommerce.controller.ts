@@ -198,11 +198,6 @@ export const getOrderInvoice = catchAsync(async (req, res) => {
 });
 
 // Customer endpoints
-export const customerCheckout = catchAsync(async (req, res) => {
-    const order = await orderService.createCustomerOrder(req.user.id, req.body);
-    return ok(res, order, 'Order placed successfully', httpStatus.CREATED);
-});
-
 export const listCustomerOrders = catchAsync(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 15;

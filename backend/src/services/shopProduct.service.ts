@@ -14,6 +14,8 @@ type Tx = Prisma.TransactionClient;
 
 /** Products of one shop; always taken from the signed-in user */
 export type ShopScope = {companyId: string; shopId: string};
+/** Reading one product: a shop sees its own, a company admin (no shopId) any product of the company */
+export type ProductScope = {companyId: string; shopId?: string};
 
 const MAX_IMAGES = 8;
 export const LOW_STOCK = 5;
@@ -104,10 +106,10 @@ class ShopProductService {
         return toListResult(items.map(present), total, query);
     }
 
-    /** 404 outside the caller's shop (no probing other shops) */
-    public async get(scope: ShopScope, id: string) {
+    /** 404 outside the caller's shop, or company when there is no shop (no probing others) */
+    public async get(scope: ProductScope, id: string) {
         const product = await prisma.product.findFirst({
-            where: this.scopeWhere(scope, id),
+            where: {id, companyId: scope.companyId, deletedAt: null, ...(scope.shopId ? {shopId: scope.shopId} : {})},
             include: DETAIL_INCLUDE,
         });
         if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
@@ -121,29 +123,32 @@ class ShopProductService {
      */
     private async assertRefs(
         companyId: string,
-        data: {categoryId: string; subcategoryId: string; sizeIds?: string[]; colorIds?: string[]},
+        data: {categoryId: string; subcategoryId?: string | null; sizeIds?: string[]; colorIds?: string[]},
         current?: {sizeIds: string[]; colorIds: string[]},
     ) {
         // Only the company's own masters or platform-wide ones
         const visible = {OR: [{companyId}, {companyId: null}]};
         const [category, subcategory] = await Promise.all([
             prisma.category.findFirst({where: {id: data.categoryId, ...visible}, select: {isActive: true}}),
-            prisma.subcategory.findFirst({
-                where: {id: data.subcategoryId, ...visible},
-                select: {isActive: true, categoryId: true},
-            }),
+            data.subcategoryId
+                ? prisma.subcategory.findFirst({
+                      where: {id: data.subcategoryId, ...visible},
+                      select: {isActive: true, categoryId: true},
+                  })
+                : null,
         ]);
         if (!category?.isActive) {
             throw fieldError(httpStatus.BAD_REQUEST, 'categoryId', 'Select an active category');
         }
-        if (!subcategory?.isActive) {
+        // Subcategory is optional; when given it must be active and in the category
+        if (data.subcategoryId && !subcategory?.isActive) {
             throw fieldError(
                 httpStatus.BAD_REQUEST,
                 'subcategoryId',
                 'Select an active subcategory',
             );
         }
-        if (subcategory.categoryId !== data.categoryId) {
+        if (subcategory && subcategory.categoryId !== data.categoryId) {
             throw fieldError(
                 httpStatus.BAD_REQUEST,
                 'subcategoryId',
@@ -310,7 +315,8 @@ class ShopProductService {
         const before = await this.get(scope, id);
         const merged = {
             categoryId: data.categoryId ?? before.categoryId,
-            subcategoryId: data.subcategoryId ?? before.subcategoryId ?? '',
+            // null = cleared on purpose; undefined = not sent, keep the current one
+            subcategoryId: data.subcategoryId !== undefined ? data.subcategoryId : before.subcategoryId,
             mrp: data.mrp ?? before.mrp,
             sellingPrice:
                 data.sellingPrice ?? (data.mrp !== undefined ? data.mrp : before.sellingPrice),

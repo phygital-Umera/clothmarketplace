@@ -22,10 +22,19 @@ import {
   Barcode as BarcodeIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useCurrentUser from '@/hooks/useCurrentUser';
+import {useOwnerShop} from '@/lib/ownerShop';
 
 interface BarcodeLabelsPageProps {
   panel?: 'shop-admin' | 'branch-admin';
 }
+
+/** Escapes text written into the print window's HTML (product names are user data, and that window shares our origin) */
+const escapeHtml = (value: unknown) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]!
+  );
 
 /**
  * Clean SVG Barcode generator that renders crisp vector stripes
@@ -88,6 +97,10 @@ const BarcodeSvg: React.FC<{
 export default function BarcodeLabelsPage({
   panel = 'shop-admin',
 }: BarcodeLabelsPageProps) {
+  const {data: me} = useCurrentUser();
+  const ownerShop = useOwnerShop(me?.id);
+  // Shop login, then the shop a company admin opened, then the company (branch panel)
+  const shopName = me?.shop?.name ?? ownerShop?.name ?? me?.company?.name ?? '';
 
   // Tabs: FROM_PURCHASE_BILL | PICK_PRODUCTS | REPRINT
   const [activeTab, setActiveTab] = useState<'FROM_PURCHASE_BILL' | 'PICK_PRODUCTS' | 'REPRINT'>(
@@ -285,7 +298,7 @@ export default function BarcodeLabelsPage({
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Print Barcode Labels - ${labelSetup.printer}</title>
+              <title>Print Barcode Labels - ${escapeHtml(labelSetup.printer)}</title>
               <style>
                 @page {
                   size: 50mm 30mm;
@@ -351,12 +364,12 @@ export default function BarcodeLabelsPage({
                     <div class="label-container">
                       ${
                         labelSetup.showShopName
-                          ? `<div class="shop-name">MATOSHRI FASHIONS</div>`
+                          ? `<div class="shop-name">${escapeHtml(shopName)}</div>`
                           : ''
                       }
                       ${
                         labelSetup.showItemNameSize
-                          ? `<div class="item-name">${item.productName} · ${item.size}</div>`
+                          ? `<div class="item-name">${escapeHtml(item.productName)} · ${escapeHtml(item.size)}</div>`
                           : ''
                       }
                       <div class="barcode-img">
@@ -370,11 +383,11 @@ export default function BarcodeLabelsPage({
                             )
                             .join('')}
                         </svg>
-                        <div class="barcode-num">${item.barcode}</div>
+                        <div class="barcode-num">${escapeHtml(item.barcode)}</div>
                       </div>
                       <div class="price-row">
-                        ${labelSetup.showMrp ? `<span>MRP ₹${item.mrp}</span>` : ''}
-                        ${labelSetup.showSalePrice ? `<span>₹${item.price}</span>` : ''}
+                        ${labelSetup.showMrp ? `<span>MRP ₹${escapeHtml(item.mrp)}</span>` : ''}
+                        ${labelSetup.showSalePrice ? `<span>₹${escapeHtml(item.price)}</span>` : ''}
                       </div>
                     </div>
                   `
@@ -801,7 +814,7 @@ export default function BarcodeLabelsPage({
               <div className="w-[200px] rounded border border-stone-300 bg-white p-2.5 shadow-sm flex flex-col justify-between text-center select-none">
                 {labelSetup.showShopName && (
                   <p className="font-extrabold uppercase tracking-wider text-[8.5px] text-stone-900 leading-tight">
-                    MATOSHRI FASHIONS
+                    {shopName}
                   </p>
                 )}
 

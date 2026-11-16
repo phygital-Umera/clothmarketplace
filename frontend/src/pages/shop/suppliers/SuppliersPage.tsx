@@ -24,6 +24,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {format} from 'date-fns';
 
 interface SuppliersPageProps {
   panel?: 'shop-admin' | 'branch-admin';
@@ -57,10 +58,9 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
   // Payment form state
   const [payAmount, setPayAmount] = useState<string>('');
   const [payMode, setPayMode] = useState<string>('Bank transfer (NEFT / RTGS)');
-  const [payDate, setPayDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [payDate, setPayDate] = useState<string>(() =>
+    format(new Date(), 'yyyy-MM-dd'),
+  );
   const [utrChequeNo, setUtrChequeNo] = useState<string>('');
   const [againstBill, setAgainstBill] = useState<string>('');
   const [paidFrom, setPaidFrom] = useState<string>('Bank account');

@@ -11,6 +11,7 @@ const MODULE_HOME: Record<ShopModule, {to: string; label: string}[]> = {
     {to: '/shop-admin/sales-bills', label: 'Sales bills'},
     {to: '/shop-admin/sales-returns', label: 'Sales returns'},
   ],
+  orders: [{to: '/shop-admin/orders', label: 'Online orders'}],
   customers: [
     {to: '/shop-admin/customers', label: 'Customers'},
     {to: '/shop-admin/credit', label: 'Credit / udhaar'},
@@ -34,6 +35,7 @@ const MODULE_HOME: Record<ShopModule, {to: string; label: string}[]> = {
   reports: [{to: '/shop-admin/reports', label: 'Profit & loss'}],
   masters: [
     {to: '/shop-admin/categories', label: 'Categories'},
+    {to: '/shop-admin/subcategories', label: 'Subcategories'},
     {to: '/shop-admin/sizes', label: 'Sizes'},
     {to: '/shop-admin/colors', label: 'Colors'},
   ],

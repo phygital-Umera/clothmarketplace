@@ -35,6 +35,8 @@ export interface MasterColor {
   code: string;
   hexCode: string;
   isActive: boolean;
+  /** Platform-wide (standard list, changed only by the super admin) */
+  isGlobal?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +48,8 @@ export interface MasterSize {
   description: string | null;
   displayOrder: number;
   isActive: boolean;
+  /** Platform-wide (standard list, changed only by the super admin) */
+  isGlobal?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,4 +60,3 @@ export interface MasterOption {
   code?: string;
   hexCode?: string;
 }
-

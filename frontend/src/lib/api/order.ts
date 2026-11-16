@@ -1,6 +1,5 @@
 import {api} from '@/utils/axios';
 import {
-  CreateOrderCheckoutPayload,
   Order,
   OrderDashboardData,
   OrderListParams,
@@ -120,12 +119,6 @@ export const getOrderInvoiceData = (panel: string, id: string) =>
 // -------------------------------------------------------------
 // CUSTOMER ORDER APIS
 // -------------------------------------------------------------
-
-export const checkoutCustomerOrder = (data: CreateOrderCheckoutPayload) =>
-  (api.post(
-    '/users/orders/checkout',
-    data
-  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
 
 export const getCustomerOrders = (params: {page?: number; limit?: number; status?: string}) =>
   (api.get(

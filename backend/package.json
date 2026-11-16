@@ -32,7 +32,8 @@
         "prisma:db:seed": "prisma db seed",
         "prisma:reset": "prisma migrate reset --force",
         "create:superadmin": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/createSuperAdmin.ts",
-        "seed:demo": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedDemo.ts"
+        "seed:org": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedOrg.ts",
+        "seed:demo":"node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedDemo.ts"
     },
     "lint-staged": {
         "src/**/*.{ts,tsx,js,jsx}": [

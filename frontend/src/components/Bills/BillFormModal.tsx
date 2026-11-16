@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import {useMemo, useState} from 'react';
+import {format} from 'date-fns';
 
 interface Props {
   panel: string;
@@ -41,7 +42,8 @@ type Line = {
 
 const TAX_RATES = [0, 5, 12, 18];
 const round2 = (v: number) => Math.round(v * 100) / 100;
-const today = () => new Date().toISOString().slice(0, 10);
+// The shop's calendar day (toISOString would give the UTC day before 05:30 IST)
+const today = () => format(new Date(), 'yyyy-MM-dd');
 const inputCls =
   'w-full rounded-lg border border-ivory-300 bg-white py-2 px-3 text-body-sm text-espresso focus:border-burgundy focus:outline-none';
 

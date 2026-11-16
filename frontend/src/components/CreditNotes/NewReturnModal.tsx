@@ -1,4 +1,5 @@
 import {Overlay} from '@/components/ui';
+import {useAuthContext} from '@/context/AuthContext';
 import {
   useCreateCreditNote,
   useReturnableBill,
@@ -34,6 +35,8 @@ type Props = {
 
 /** Shop admin: return items of a confirmed sales bill as a credit note */
 export default function NewReturnModal({open, onClose, billNumber}: Props) {
+  // The company owner running the shop approves their own refunds
+  const isOwner = useAuthContext().role === 'ADMIN';
   const [billInput, setBillInput] = useState(billNumber ?? '');
   const [lookup, setLookup] = useState(billNumber);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -87,7 +90,7 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
 
   const isRefund = settlement === 'REFUND';
   const needsApproval =
-    isRefund && (refundMode === 'CASH' || total > APPROVAL_LIMIT);
+    !isOwner && isRefund && (refundMode === 'CASH' || total > APPROVAL_LIMIT);
   const chosen = Object.entries(qty).filter(([, q]) => q > 0);
 
   const submit = async () => {
@@ -128,9 +131,9 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
             New return
           </h2>
           <p className="mt-1 text-body-sm text-on-surface-variant">
-            Cash refunds and refunds above ₹
-            {APPROVAL_LIMIT.toLocaleString('en-IN')} go to the branch admin for
-            approval.
+            {isOwner
+              ? 'Your refunds are approved at once.'
+              : `Cash refunds and refunds above ₹${APPROVAL_LIMIT.toLocaleString('en-IN')} need approval.`}
           </p>
         </div>
 
@@ -321,7 +324,7 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
                   </p>
                 </div>
                 {needsApproval && (
-                  <span className="badge-ribbon">Needs branch approval</span>
+                  <span className="badge-ribbon">Needs approval</span>
                 )}
               </div>
             </>
