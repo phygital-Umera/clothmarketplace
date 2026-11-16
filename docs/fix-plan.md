@@ -25,8 +25,8 @@ This is the living list of what we are fixing, in order: what is done, what is i
 | | |
 |---|---|
 | **Branch** | Phases 0-3 are merged into `main` (PRs #15-#17). Phase 4: `fix/p4-tax-and-settings` (from `main`). Not pushed. |
-| **Doing now** | Phase 4. Done: P4-00 (credit days through the bill API), P4-05, P4-04. Next: P4-01, P4-02, P4-03 (GST rule and breakup), then P4-06 to P4-11. |
-| **Before deploying Phase 4** | Each server makes its own migration (D-15) for: P4-04 (`Product.hsnCode`, `SalesBillItem.hsnCode`, `PurchaseBillItem.hsnCode`). Existing products have no HSN: each shop fills it in when it next edits a product (the form requires it); until then bills show "—". |
+| **Doing now** | Phase 4. Done: P4-00, P4-01 to P4-06. Next: P4-07 (online-order invoice), then P4-08 to P4-11. |
+| **Before deploying Phase 4** | Each server makes its own migration (D-15) for: P4-04 (`Product.hsnCode`, `SalesBillItem.hsnCode`, `PurchaseBillItem.hsnCode`); P4-01 (`Shop.gstRule`; `Product.taxRate` becomes nullable with no default). Existing products have no HSN: each shop fills it in when it next edits a product (the form requires it); until then bills show "—". Existing products keep their fixed GST rate; a shop switches them to "Auto" in the product form. Each shop checks its GST rule (default: 5% up to ₹2,500 a piece, 18% above) under Setup → GST Settings with its CA. |
 | **Before deploying Phase 3** | Each server makes its own migration for P3-02 (`Size.shopId`, `Color.shopId`, `Shop.mastersCopiedAt`, D-15). Nothing else to run: each shop copies its sizes and colours the first time it opens them. |
 | **Before deploying Phase 2** | 1) Each server makes its own migration for P2-03 (3 new columns on `SalesBill` and `PurchaseBill`, D-15). 2) Production now needs `CORS_ORIGINS` (P2-12) and `HOSTED_BACKEND_URL` (P2-05); every admin-app build needs `VITE_SERVER_URL` (P2-10). 3) After P2-06b every signed-in user signs in once more when their access token expires. |
 | **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
@@ -177,12 +177,12 @@ None right now. Add new questions here with ❓.
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
 | P4-00 | The POS sends credit days but the bill API dropped them, so a customer made from a bill always got 15 days (Inbox, P1-13 follow-up) | Accept `creditDays` (0-365) on sales bills and pass it to `syncCustomerFromBill` | `bill.validation.ts`, `bill.service.ts` | Credit bill for a new customer with 30 days → customer has 30 | – | ✅ 7c7c3b0 |
-| P4-01 | GST slab lists are 0/5/12/18 | Per D-18: GST slabs and price rule set per shop | validations, product forms, `BillFormModal.tsx:42` | – | D-18 | ⬜ |
-| P4-02 | The POS sends the GST rate and the server trusts it | Server applies the shop's GST rule (D-18), not the rate the POS sends | `bill.service.ts:338, 431`, `bill.validation.ts:25`, `NewBillPOSPage.tsx:295` | Tamper the rate in the request → ignored | D-18 | ⬜ |
-| P4-03 | GST maths copied in 4+ places; IGST chosen by state name | Backend returns the GST breakup by state code; UIs print it | POS, `BillFormModal`, `salesBillInvoice.ts`, `user/src/routes/invoice.$id.tsx` | Screen, receipt and invoice match to the paisa | W-01 | ⬜ |
+| P4-01 | GST slab lists are 0/5/12/18 | Per D-18: GST slabs and price rule set per shop | validations, product forms, `BillFormModal.tsx:42` | – | D-18 | ✅ 2fcf3d0 |
+| P4-02 | The POS sends the GST rate and the server trusts it | Server applies the shop's GST rule (D-18), not the rate the POS sends | `bill.service.ts:338, 431`, `bill.validation.ts:25`, `NewBillPOSPage.tsx:295` | Tamper the rate in the request → ignored | D-18 | ✅ 27b638a |
+| P4-03 | GST maths copied in 4+ places; IGST chosen by state name | Backend returns the GST breakup by state code; UIs print it | POS, `BillFormModal`, `salesBillInvoice.ts`, `user/src/routes/invoice.$id.tsx` | Screen, receipt and invoice match to the paisa | W-01 | ✅ d3abee1 (store invoice in P4-07) |
 | P4-04 | HSN missing on products; fallbacks 6206 and 6204 (the POS shows "6204" on every line) | Add HSN to the product (migration); require it | `schema.prisma`, product forms, `purchaseReturn.service.ts:116`, `NewBillPOSPage.tsx:285` | Debit note and bill show the product's HSN | D-15 | ✅ 4e6a74f |
 | P4-05 | Financial-year helper copied 4 times; `AUD-26-27` typed in | One helper | `bill.service.ts:74`, `expense.service.ts:20`, `credit.service.ts:39`, `purchaseReturn.service.ts:26`, `stock.service.ts:464` | – | – | ✅ 5359346 |
-| P4-06 | Bill numbers can exceed 16 characters (GST limit, verify) | Limit the prefix; configurable series | `bill.service.ts:166`, `org.validation.ts:119` | – | – | ⬜ |
+| P4-06 | Bill numbers can exceed 16 characters (GST limit, verify) | Limit the prefix; configurable series | `bill.service.ts:166`, `org.validation.ts:119` | – | D-19 | ✅ 189c0e6 |
 | P4-07 | Online-order invoice: no seller GSTIN or HSN, two invoice numbers, fake tagline | Backend issues one number; print GSTIN, HSN and breakup | `frontend/src/utils/invoiceGenerator.ts`, `user/src/routes/invoice.$id.tsx` | Same number in the panel and the store | – | ⬜ |
 | P4-08 | Business rules fixed in code: refund limit ₹2,000, 10% discount, low stock 5/3, delivery ₹49/₹999/₹99, ETAs, 7-day returns, credit days 15, margin 25%, shift times | One company-settings record; UIs read it | see `hard-coded-values.md` §3 | Change a setting → screens follow | D-15 | ⬜ |
 | P4-09 | Store address form has 22 of 36 states; one size chart for all; menu categories exist only in demo data | Full state list; size chart per category or hidden; menu from real categories | `user/src/components/AddressForm.tsx`, `product.$id.tsx:15-22`, `index.tsx:37`, `Layout.tsx:16-18` | A Ladakh address saves | – | ⬜ |
@@ -303,6 +303,10 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 | 2026-11-12 (P3-07, other session) | `/shop-admin/profile` and `/shop-admin/my-profile` both show My Profile while the header uses `/my-profile`; harmless duplicates with no menu entry | `frontend/src/routes/_app/shop-admin` | ⬜ |
 | 2026-11-12 (P3-07, other session) | The shop API still has the promotions routes, with no shop screen (promotions are company-wide) | `shopAdmin.routes.ts` `mountPromotions` | ⬜ |
 | 2026-11-12 (P3-08) | Staff requests made before P3-08 can still be approved or rejected by the branch; no new ones can be made | `staff.service.ts` | ⬜ note |
+| 2026-11-16 (P4-02) | Tag-price edge of the GST rule: a piece priced ₹2,626-₹2,950 incl. GST is billed at 18% (at 5% its taxable value is over ₹2,500). This is the usual reading; each shop confirms with its CA | `utils/gst.ts` `rateFor` | ⬜ note |
+| 2026-11-16 (P4-03) | The POS and bill-form GST figures were checked through the API only, not yet in the browser | `NewBillPOSPage.tsx`, `BillFormModal.tsx` | ⬜ your check |
+| 2026-11-16 (P4-01) | Demo seed products carry fixed 5%/12%; `seed:demo` sets no HSN, so demo bills show "—" for HSN | `cli/seedDemo.ts` | ⬜ |
+| 2026-11-16 (P4-03) | The debit note shows one "GST reversed" total; it has no CGST/SGST/IGST split by the supplier's state | `PurchaseReturnPage.tsx`, `purchaseReturn.service.ts` | ⬜ |
 
 ---
 
@@ -310,6 +314,10 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-16 | P4-06: new bill prefixes 2-4 letters; a longer series already used this year is kept until 31 March, then the first 4 letters; Branch Shops shows the real next number (5 API checks) | 189c0e6 |
+| 2026-11-16 | P4-03: `taxBreakup` on sales bills by GST state code (IGST across states, place of supply); `POST /sales-bills/preview`; the POS, sales bill form, receipt and bill details print the server's numbers (10 API checks, preview = saved bill to the paisa) | d3abee1 |
+| 2026-11-16 | P4-02: the server sets every sales line's GST rate from the product or the shop rule after discounts; the POS rate is dropped (8 API checks) | 27b638a |
+| 2026-11-16 | P4-01: per-shop GST rule and slabs (GST Settings page), products "Auto" or fixed, no more 0/5/12/18 lists (10 API checks) | 2fcf3d0 |
 | 2026-11-16 | P4-04: HSN on products (required in both product forms), saved on sales and purchase bill lines, used by the debit note; no more 6204/6206 fallbacks (7 API checks) | 4e6a74f |
 | 2026-11-16 | P4-05: one `financialYear()` in `utils/day.ts` for every number series (boundaries checked: 31 Mar → 26-27, 1 Apr → 27-28) | 5359346 |
 | 2026-11-16 | P4-00: a customer made from a bill gets the bill's credit days; over 365 is refused (4 API checks) | 7c7c3b0 |
