@@ -8,7 +8,8 @@ export const mountStaffCash = (router: Router) => {
     router.patch('/staff/:id/rights', st.updateRights);
     router.patch('/staff/:id/shift', st.updateShift);
     router.post('/staff/:id/attendance', st.attendance);
-    router.route('/staff-requests').get(st.listRequests).post(st.createRequest);
+    // Past requests only; new staff are added on the Employees page (P3-08)
+    router.get('/staff-requests', st.listRequests);
 
     router.get('/cash-book', cb.getDay);
     router.post('/cash-book/entries', cb.addEntry);

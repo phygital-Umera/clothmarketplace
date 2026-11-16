@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import jwt, {JsonWebTokenError, NotBeforeError, TokenExpiredError} from 'jsonwebtoken';
 import {config} from '@config/index';
 import ApiError from '@utils/ApiError';
@@ -24,6 +25,9 @@ type TokenData = {
     accessToken: string;
 };
 
+/** Tokens are stored as their SHA-256 only, so a database leak hands out no live sessions */
+export const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
+
 class TokenService {
     public generateAccessToken = (user: UserPayload): string => {
         return jwt.sign(
@@ -47,6 +51,8 @@ class TokenService {
             config.jwt.secret,
             {
                 expiresIn: `${config.jwt.refreshExpirationDays}d`,
+                // Two tokens made in the same second must still differ
+                jwtid: crypto.randomUUID(),
             },
         );
     };
@@ -54,7 +60,10 @@ class TokenService {
     public generateAccessAndRefreshToken = async (user: UserPayload): Promise<TokenData> => {
         const accessToken = this.generateAccessToken(user);
         const refreshToken = this.generateRefreshToken(user.id);
-        await prisma.user.update({where: {id: user.id}, data: {refreshToken}});
+        await prisma.user.update({
+            where: {id: user.id},
+            data: {refreshToken: hashToken(refreshToken)},
+        });
         return {accessToken, refreshToken};
     };
 

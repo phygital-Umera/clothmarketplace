@@ -3,16 +3,16 @@ import {
   getBranchExpenses,
   addBranchExpense,
   getBranchApprovals,
-  decideBranchApproval,
   getBranchPnlReport,
   getBranchStaffOverview,
-  inviteBranchStaff,
   getBranchShopAssignment,
   moveBranchEmployee,
   getBranchProfileSetup,
   updateBranchProfileSetup,
   type ReportPanel,
 } from '@/lib/api/branchExtras';
+import {decideCreditNote} from '@/lib/api/creditNote';
+import {CREDIT_NOTE_KEYS} from './creditNote';
 import toast from 'react-hot-toast';
 
 // Expenses
@@ -47,14 +47,16 @@ export const useBranchApprovals = (tab?: string) =>
     },
   });
 
+// Approvals are refund credit notes: decided through the credit note decision (audited), stock back to sellable
 export const useDecideBranchApproval = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({id, decision, note}: {id: string; decision: 'APPROVE' | 'REJECT'; note?: string}) =>
-      decideBranchApproval(id, {decision, note}),
+      decideCreditNote(id, {action: decision, stockTo: 'RESTOCK', note}, 'branch-admin'),
     onSuccess: (res: any) => {
       toast.success(res?.message || 'Decision recorded successfully');
       qc.invalidateQueries({queryKey: ['branch-approvals']});
+      qc.invalidateQueries({queryKey: [CREDIT_NOTE_KEYS.NOTES]});
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || 'Failed to record decision');
@@ -80,20 +82,6 @@ export const useBranchStaffOverview = (params?: {tab?: string; shop?: string; se
       return (await getBranchStaffOverview(params)).data;
     },
   });
-
-export const useInviteBranchStaff = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: inviteBranchStaff,
-    onSuccess: (res: any) => {
-      toast.success(res?.message || 'Staff invitation sent successfully');
-      qc.invalidateQueries({queryKey: ['branch-staff-overview']});
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Failed to send invitation');
-    },
-  });
-};
 
 // Shop Assignment
 export const useBranchShopAssignment = () =>

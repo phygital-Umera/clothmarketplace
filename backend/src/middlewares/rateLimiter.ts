@@ -1,5 +1,6 @@
 import {Request} from 'express';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import {config} from '@config/index';
 
 const WINDOW_MS = 15 * 60 * 1000;
@@ -39,3 +40,15 @@ export const loginLimiter = rateLimit({
 // Login: 50 attempts of any outcome per IP per 15 minutes, so one address
 // cannot try passwords across many accounts.
 export const loginIpLimiter = rateLimit({...common, max: 50});
+
+/** Whose refresh this is (unverified; a forged token fails the check after the limiter) */
+const refreshAccount = (req: Request) => {
+    const token = String(req.body?.refreshToken ?? req.cookies?.refreshToken ?? '');
+    const id = (jwt.decode(token) as {id?: unknown} | null)?.id;
+    return typeof id === 'string' ? `user|${id}` : `ip|${req.ip}`;
+};
+
+// Token refresh: per account, not per address, since many shoppers can share
+// one IP (mobile networks, a proxy) and a refused refresh signs the app out.
+// An open tab refreshes about once per access-token lifetime.
+export const refreshLimiter = rateLimit({...common, max: 30, keyGenerator: refreshAccount});

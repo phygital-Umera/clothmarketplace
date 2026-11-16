@@ -1,6 +1,9 @@
 import {z} from 'zod';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const originsOf = (list?: string) => (list ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
+
 const envVarsSchema = z.object({
     NODE_ENV: z.enum(['production', 'development', 'test']),
     PORT: z.coerce.number().default(3000),
@@ -48,6 +51,10 @@ const envVarsSchema = z.object({
         .string()
         .optional()
         .describe('base URL of the customer store, used in its password reset emails'),
+    HOSTED_BACKEND_URL: z
+        .union([z.string().trim().url('HOSTED_BACKEND_URL must be a full address, e.g. https://files.example.com'), z.literal('')])
+        .optional()
+        .describe('file server that keeps uploaded photos; empty stores them in public/uploads'),
     TRUST_PROXY: z
         .string()
         .optional()
@@ -78,6 +85,23 @@ const envVarsSchema = z.object({
         .string()
         .default('@cf/black-forest-labs/flux-2-klein-4b')
         .describe('Workers AI image-editing model used for color previews'),
+}).superRefine((env, ctx) => {
+    // An empty list lets any website call the API (app.ts), which is only fine on a developer machine
+    if (env.NODE_ENV === 'production' && !originsOf(env.CORS_ORIGINS).length) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['CORS_ORIGINS'],
+            message: 'CORS_ORIGINS is required in production: list the frontend addresses, comma-separated',
+        });
+    }
+    // Production names its own file server; nothing is sent to a server nobody chose
+    if (env.NODE_ENV === 'production' && !env.HOSTED_BACKEND_URL) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['HOSTED_BACKEND_URL'],
+            message: 'HOSTED_BACKEND_URL is required in production: the file server that keeps uploaded photos',
+        });
+    }
 });
 
 const parseEnvVars = () => {
@@ -121,6 +145,8 @@ export default {
     },
     frontendUrl: envVars.FRONTEND_URL?.replace(/\/$/, ''),
     storeUrl: envVars.STORE_URL?.replace(/\/$/, ''),
+    // Empty: uploads are stored in public/uploads and served by this API
+    hostedUploadUrl: envVars.HOSTED_BACKEND_URL?.replace(/\/+$/, '') || undefined,
     // Only trust X-Forwarded-For when a known proxy sits in front; otherwise
     // clients could fake their IP and dodge the login rate limit
     trustProxy: envVars.TRUST_PROXY ? Number(envVars.TRUST_PROXY) : false,
@@ -140,8 +166,6 @@ export default {
         keySecret: envVars.RAZORPAY_KEY_SECRET || undefined,
     },
     cors: {
-        origins: envVars.CORS_ORIGINS
-            ? envVars.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-            : [],
+        origins: originsOf(envVars.CORS_ORIGINS),
     },
 };

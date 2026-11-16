@@ -6,12 +6,7 @@ import httpStatus from 'http-status';
 import cookieParser from 'cookie-parser';
 
 import {config, morgan, swaggerRouter} from '@config/index';
-import {
-    // xss,
-    notFoundHandler,
-    errorConverter,
-    errorHandler,
-} from '@middlewares/index';
+import {auditWrites, notFoundHandler, errorConverter, errorHandler} from '@middlewares/index';
 import routes from '@routes/index';
 import {ApiResponse} from '@utils/index';
 
@@ -25,13 +20,12 @@ app.use(express.json({limit: '16mb'})); // Parse JSON request body with size lim
 app.use(express.urlencoded({extended: true, limit: '16mb'})); // Parse URL-encoded request body with size limit
 app.use(express.static('public')); // Serve static files
 app.use(cookieParser()); // Parse cookies
-// TODO
-// app.use(xss()); // Sanitize request data
+// No input "XSS cleaning": data is stored as typed and escaped where it is shown (React, the print windows)
 app.use(compression()); // Apply gzip compression
 
 // CORS configuration
 app.use(
-    // Only the frontends listed in CORS_ORIGINS (any origin when it is empty)
+    // Only the frontends listed in CORS_ORIGINS (any origin when it is empty; config refuses that in production)
     cors({
         origin: config.cors.origins.length ? config.cors.origins : '*',
         credentials: true,
@@ -48,7 +42,7 @@ if (config.env !== 'test') {
 // Rate limiting: see routes/user.routes.ts (login, register, password reset)
 
 // Routes
-app.use('/api/v1', routes); // API routes
+app.use('/api/v1', auditWrites, routes); // API routes; staff writes are audited
 app.use(swaggerRouter); // Swagger documentation routes
 app.get('/', (req, res) => {
     res.status(httpStatus.OK).json(

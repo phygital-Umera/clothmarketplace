@@ -14,6 +14,7 @@ import {AccountStatus, Role} from '@prisma/client';
 import prisma from '../client';
 import {encryptPassword} from '../utils/encryption';
 import permissionService from '../services/permission.service';
+import {field} from '../validations/custom.validation';
 
 export type SuperAdminInput = {
     phone?: string;
@@ -37,6 +38,9 @@ export const createSuperAdmin = async ({
     if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
         throw new Error('--phone must be a 10-digit Indian mobile number');
     }
+    // Same password rule as everywhere else
+    const strength = field({label: 'Password', kind: 'password'}).safeParse(password);
+    if (!strength.success) throw new Error(strength.error.issues[0].message);
 
     const existing = await prisma.user.findUnique({where: {phoneNumber}});
     if (existing && existing.role !== Role.SUPER_ADMIN && !force) {

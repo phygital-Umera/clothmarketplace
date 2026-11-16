@@ -14,7 +14,9 @@ import {
   useCancelBill,
   useConfirmBill,
   useDeleteBill,
+  useKeepBill,
 } from '@/lib/react-query/queriesAndMutations/bill';
+import useCurrentUser from '@/hooks/useCurrentUser';
 import {Bill, BillKind, BillListParams, BillStatus} from '@/types/bill';
 import {getErrorMessage} from '@/utils/axios';
 import {Link, useSearch} from '@tanstack/react-router';
@@ -26,6 +28,7 @@ import {
   IndianRupee,
   Pencil,
   Plus,
+  ShieldCheck,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -86,6 +89,10 @@ export default function BillsPage({panel, kind}: Props) {
       : '',
   );
   const [paying, setPaying] = useState<Bill | null>(null);
+  // D-16: employees delete drafts only; for a posted bill they ask the shop admin
+  const {data: me} = useCurrentUser();
+  const employee = me?.role === 'EMPLOYEE';
+  const [onlyAsked, setOnlyAsked] = useState(false);
 
   const {data, isPending, isFetching, isError, error, refetch} = useBills(
     panel,
@@ -96,11 +103,13 @@ export default function BillsPage({panel, kind}: Props) {
       from: from || undefined,
       to: to || undefined,
       paymentStatus: payment || undefined,
+      deleteRequested: onlyAsked ? 'true' : undefined,
     },
   );
   const confirm = useConfirmBill(panel, kind);
   const cancel = useCancelBill(panel, kind);
   const remove = useDeleteBill(panel, kind);
+  const keep = useKeepBill(panel, kind);
 
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -111,6 +120,7 @@ export default function BillsPage({panel, kind}: Props) {
   const [returning, setReturning] = useState<string | null>(null);
 
   const stockWord = isPurchase ? 'added to' : 'deducted from';
+  const asking = employee && !!toDelete && toDelete.status !== 'DRAFT';
   const reverseWord = isPurchase ? 'removed from' : 'returned to';
 
   const columns: Column<Bill>[] = [
@@ -185,7 +195,19 @@ export default function BillsPage({panel, kind}: Props) {
     {
       header: 'Status',
       key: 'status',
-      render: (b) => <BillStatusBadge status={b.status} />,
+      render: (b) => (
+        <div>
+          <BillStatusBadge status={b.status} />
+          {b.deleteRequestedAt && (
+            <p
+              className="mt-0.5 text-technical-data font-medium text-amber-700"
+              title={b.deleteRequestReason ?? undefined}
+            >
+              Delete asked
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       header: 'Created By',
@@ -243,7 +265,7 @@ export default function BillsPage({panel, kind}: Props) {
         onRetry={() => refetch()}
         emptyIcon={<FileText size={22} strokeWidth={1.5} />}
         emptyTitle={
-          list.hasFilters || from || to || payment
+          list.hasFilters || from || to || payment || onlyAsked
             ? 'No matching bills'
             : `No ${label.toLowerCase()} yet`
         }
@@ -301,12 +323,29 @@ export default function BillsPage({panel, kind}: Props) {
                 },
               ]
             : []),
-          {
-            label: 'Delete',
-            icon: <Trash2 size={16} />,
-            tone: 'danger',
-            onClick: () => setToDelete(b),
-          },
+          ...(!employee && b.deleteRequestedAt
+            ? [
+                {
+                  label: 'Keep bill',
+                  icon: <ShieldCheck size={16} />,
+                  onClick: () => keep.mutate(b.id),
+                },
+              ]
+            : []),
+          // An employee asks once; the shop admin deletes or keeps the bill
+          ...(employee && b.status !== 'DRAFT' && b.deleteRequestedAt
+            ? []
+            : [
+                {
+                  label:
+                    employee && b.status !== 'DRAFT'
+                      ? 'Ask to delete'
+                      : 'Delete',
+                  icon: <Trash2 size={16} />,
+                  tone: 'danger' as const,
+                  onClick: () => setToDelete(b),
+                },
+              ]),
         ]}
         pagination={data?.pagination}
         onPageChange={list.setPage}
@@ -362,6 +401,17 @@ export default function BillsPage({panel, kind}: Props) {
               <option value="PART_CREDIT">Part credit</option>
               <option value="CREDIT">Credit</option>
             </select>
+            <label className="flex items-center gap-1.5 text-xs text-espresso">
+              <input
+                type="checkbox"
+                checked={onlyAsked}
+                onChange={(e) => {
+                  setOnlyAsked(e.target.checked);
+                  list.setPage(1);
+                }}
+              />
+              Delete asked
+            </label>
           </ListToolbar>
         }
       />
@@ -451,17 +501,30 @@ export default function BillsPage({panel, kind}: Props) {
       <ConfirmDialog
         open={!!toDelete}
         tone="danger"
-        title={`Delete ${toDelete?.billNumber ?? ''}?`}
+        title={`${asking ? 'Ask to delete' : 'Delete'} ${toDelete?.billNumber ?? ''}?`}
         message={
-          toDelete?.status === 'CONFIRMED'
-            ? `Its quantities will be ${reverseWord} stock before it is deleted.`
-            : 'This bill has no stock effect and will be removed.'
+          asking
+            ? 'The shop admin will delete this bill or keep it. Nothing changes until then.'
+            : `${
+                toDelete?.deleteRequestReason
+                  ? `Staff asked to delete it: "${toDelete.deleteRequestReason}". `
+                  : ''
+              }${
+                toDelete?.status === 'CONFIRMED'
+                  ? `Its quantities will be ${reverseWord} stock before it is deleted.`
+                  : 'This bill has no stock effect and will be removed.'
+              }`
         }
-        confirmLabel="Delete"
+        confirmLabel={asking ? 'Send request' : 'Delete'}
+        requireReason={asking}
+        reasonLabel="Why delete it"
         isLoading={remove.isPending}
-        onConfirm={() =>
+        onConfirm={(reason) =>
           toDelete &&
-          remove.mutate(toDelete.id, {onSettled: () => setToDelete(null)})
+          remove.mutate(
+            {id: toDelete.id, reason: asking ? reason : undefined},
+            {onSettled: () => setToDelete(null)},
+          )
         }
         onCancel={() => setToDelete(null)}
       />

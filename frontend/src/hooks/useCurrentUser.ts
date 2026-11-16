@@ -13,6 +13,8 @@ export type CurrentUser = {
   status: 'PENDING_INVITATION' | 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   companyId: string | null;
   mustChangePassword: boolean;
+  /** The PIN itself never leaves the server */
+  hasPosPin?: boolean;
   lastLoginAt: string | null;
   company: {
     id: string;

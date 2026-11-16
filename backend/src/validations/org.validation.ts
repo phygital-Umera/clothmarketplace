@@ -174,7 +174,8 @@ const shopOptionsSchema = z.object({branchId: z.string().uuid().optional()});
 
 const employeeBody = z.object({
     fullname: field({label: 'Full Name', kind: 'name'}),
-    email: field({label: 'Email', kind: 'email'}),
+    // Optional: shop staff sign in with their phone number (as staff requests allowed)
+    email: field({label: 'Email', kind: 'email', required: false}),
     phoneNumber: field({label: 'Phone Number', kind: 'phone'}),
     // Company admins choose; for branch admins it is always their own branch
     branchId: z.preprocess(emptyToUndefined, z.string().uuid('Select a branch').optional()),

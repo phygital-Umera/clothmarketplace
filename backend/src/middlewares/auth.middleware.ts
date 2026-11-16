@@ -7,6 +7,9 @@ import httpStatus from 'http-status';
 import {Role} from '@prisma/client';
 import {commonValidation} from '@validations/index';
 
+// All a user with a password chosen by someone else may do until they change it
+const PASSWORD_CHANGE_ONLY = /\/users\/(me|change-password|logout)$/;
+
 const getTokenFromRequest = (req: Request): string => {
     const token =
         req.cookies?.accessToken || req.headers.authorization?.replace('Bearer ', '') || '';
@@ -41,6 +44,7 @@ const verifyJWT = catchAsync(async (req, res, next) => {
             deletedAt: true,
             permissions: true,
             sessionsRevokedAt: true,
+            mustChangePassword: true,
         },
     });
 
@@ -61,6 +65,10 @@ const verifyJWT = catchAsync(async (req, res, next) => {
         );
     }
     await userService.assertCanSignIn(user);
+    // 403, not 401: the app keeps the session and opens the change-password page
+    if (user.mustChangePassword && !PASSWORD_CHANGE_ONLY.test(req.originalUrl.split('?')[0])) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Change your password before you continue');
+    }
 
     const rolePermissions = await permissionService.getRolePermissions(user.role);
     // Employees also get the permissions their admin gave them

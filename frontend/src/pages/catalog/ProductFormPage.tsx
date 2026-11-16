@@ -16,6 +16,7 @@ import {
   useSaveProduct,
   useSetProductStatus,
 } from '@/lib/react-query/queriesAndMutations/catalog';
+import {useShopOptions} from '@/lib/react-query/queriesAndMutations/org';
 import {applyServerErrors} from '@/lib/validation/fieldRules';
 import {
   EMPTY_PRODUCT,
@@ -39,6 +40,7 @@ const toOptions = (list: readonly string[]) =>
 const fromProduct = (p: Product): ProductValues => ({
   name: p.name,
   categoryId: p.categoryId,
+  shopId: p.shopId ?? '',
   brandId: p.brandId ?? '',
   gender: p.gender,
   productType: p.productType ?? '',
@@ -86,6 +88,17 @@ const ProductForm = ({
   const readOnly = !!product && !product.canEdit;
   const categories = useCategoryOptions(panel);
   const brands = useBrandOptions(panel);
+  // D-01: every product belongs to a shop; it is set once
+  const shopList = useShopOptions(
+    panel === 'branch-admin' ? 'branch-admin' : 'company-admin',
+    undefined,
+    panel === 'company-admin' || panel === 'branch-admin',
+  );
+  const current = product?.shop;
+  const shopOptions =
+    current && !shopList.data?.some((o) => o.value === current.id)
+      ? [{value: current.id, label: current.name}, ...(shopList.data ?? [])]
+      : (shopList.data ?? []);
   const save = useSaveProduct(panel);
   const [formError, setFormError] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -142,6 +155,21 @@ const ProductForm = ({
                 options={categories.data ?? []}
               />
               <GenericDropdown
+                name="shopId"
+                label="Shop"
+                required
+                disabled={!!product?.shopId}
+                loading={shopList.isPending}
+                options={shopOptions}
+                hint={
+                  product?.shopId
+                    ? 'The shop that sells it (set once)'
+                    : product
+                      ? 'Not in any shop yet: pick one so it can be sold'
+                      : 'The shop that sells it'
+                }
+              />
+              <GenericDropdown
                 name="brandId"
                 label="Brand"
                 placeholder="No brand"
@@ -164,6 +192,8 @@ const ProductForm = ({
                 kind="price"
                 prefix="₹"
                 required
+                disabled={!!product}
+                hint={product ? 'Changed in the shop' : undefined}
               />
               <GenericInputField
                 name="sellingPrice"
@@ -171,12 +201,14 @@ const ProductForm = ({
                 kind="price"
                 prefix="₹"
                 required
+                disabled={!!product}
+                hint={product ? 'Changed in the shop' : undefined}
               />
             </div>
           </FormGroup>
 
           <FormGroup title="Variants">
-            <VariantEditor disabled={readOnly} />
+            <VariantEditor disabled={readOnly} lockSavedPrices={!!product} />
           </FormGroup>
 
           <FormGroup title="Clothing details">

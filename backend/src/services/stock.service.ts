@@ -2,9 +2,10 @@ import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
-import { MovementType, Prisma, StockSourceType } from '@prisma/client';
+import { MovementType, Prisma } from '@prisma/client';
 import { dayKey, dayRange } from '../utils/day';
 import accountService from './account.service';
+import inventoryService, { LONG_ADJUST_TX, MAX_ADJUST_LINES } from './inventory.service';
 import { financialYear } from './bill.service';
 
 const SLOW_DAYS = 60;
@@ -281,7 +282,7 @@ class StockService {
   }
 
   /**
-   * Adjust Physical Stock for a Variant
+   * Adjust Physical Stock for a Variant (through the one manual-adjust path)
    */
   public async adjustStock(scope: Scope, actorId: string, payload: AdjustStockPayload) {
     const branchId = await this.resolveBranchId(scope);
@@ -297,141 +298,123 @@ class StockService {
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
 
-    const inv = await prisma.inventory.findUnique({
-      where: {
-        branchId_variantId: {
-          branchId,
-          variantId: payload.variantId,
-        },
-      },
-    });
-
-    const currentQty = inv?.physicalQty || 0;
-    let newQty = currentQty;
-    let movementType: MovementType = MovementType.ADJUSTMENT_INCREASE;
-    let movementQty = payload.quantity;
-
-    if (payload.type === 'INCREASE') {
-      newQty = currentQty + payload.quantity;
-      movementType = MovementType.ADJUSTMENT_INCREASE;
-    } else if (payload.type === 'DECREASE') {
-      newQty = Math.max(0, currentQty - payload.quantity);
-      movementType = MovementType.ADJUSTMENT_DECREASE;
-    } else if (payload.type === 'CORRECTION') {
-      newQty = payload.quantity;
-      const diff = newQty - currentQty;
-      movementQty = Math.abs(diff);
-      movementType = diff >= 0 ? MovementType.ADJUSTMENT_INCREASE : MovementType.ADJUSTMENT_DECREASE;
-    } else if (payload.type === 'DAMAGE') {
-      newQty = Math.max(0, currentQty - payload.quantity);
-      movementType = MovementType.DAMAGE_WRITE_OFF;
-      // Increment damagedQty
-      await prisma.$executeRawUnsafe(`
-        UPDATE "Inventory" SET "damagedQty" = "damagedQty" + $1 WHERE "branchId" = $2 AND "variantId" = $3
-      `, payload.quantity, branchId, payload.variantId);
-    }
-
-    // Upsert Inventory
-    const invId = inv?.id || `inv-${payload.variantId}-${branchId.slice(0, 8)}`;
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Inventory" ("id", "branchId", "variantId", "physicalQty", "reservedQty", "threshold", "damagedQty", "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, 0, 5, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT ("branchId", "variantId")
-      DO UPDATE SET "physicalQty" = $4, "updatedAt" = CURRENT_TIMESTAMP
-    `, invId, branchId, payload.variantId, newQty);
-
-    // Record Stock Movement
-    await prisma.stockMovement.create({
-      data: {
+    const { previousQty, newQty } = await prisma.$transaction(async (tx) => {
+      const [done] = await inventoryService.recordAdjustments(tx, {
         branchId,
-        variantId: payload.variantId,
-        type: movementType,
-        quantity: movementQty,
-        prevPhysical: currentQty,
-        newPhysical: newQty,
-        reason: payload.reason,
-        reference: payload.notes || null,
-        sourceType: StockSourceType.ADJUSTMENT,
-        performedById: actorId,
-      },
-    });
-
-    // Record in StockAdjustment
-    await prisma.stockAdjustment.create({
-      data: {
-        branchId,
-        variantId: payload.variantId,
-        type: payload.type,
-        quantity: movementQty,
+        shopId: scope.shopId,
+        companyId: scope.companyId,
         reason: payload.reason,
         notes: payload.notes || null,
-        createdById: actorId,
-      },
+        performedById: actorId,
+        lines: [
+          {
+            variantId: payload.variantId,
+            productId: variant.productId,
+            label: `"${variant.product.name}" (${variant.size})`,
+            type: payload.type === 'DAMAGE' ? 'MARK_DAMAGED' : payload.type,
+            quantity: payload.quantity,
+          },
+        ],
+      });
+      if (done) return { previousQty: done.availableBefore, newQty: done.availableAfter };
+      // A count that matches the system changes nothing
+      const inv = await tx.inventory.findUnique({
+        where: { branchId_variantId: { branchId, variantId: payload.variantId } },
+      });
+      return { previousQty: inv?.physicalQty ?? 0, newQty: inv?.physicalQty ?? 0 };
     });
 
     return {
       success: true,
       variantId: payload.variantId,
-      previousQty: currentQty,
+      previousQty,
       newQty,
       message: `Stock adjusted successfully for ${variant.product.name} (${variant.size}). New stock: ${newQty}`,
     };
   }
 
   /**
-   * Record Physical Stock Count / Audit
+   * Record Physical Stock Count / Audit: every counted line in one transaction
    */
   public async recordPhysicalStockCount(scope: Scope, actorId: string, payload: PhysicalStockCountPayload) {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    const auditNumber = await accountService.nextCode(prisma, `AUD-${financialYear()}/`, 4, async (prefix) =>
-      (
-        await prisma.physicalStockAudit.findMany({
-          where: { branchId, auditNumber: { startsWith: prefix } },
-          select: { auditNumber: true },
-        })
-      ).map((a) => a.auditNumber),
-    );
-    const auditId = randomUUID();
-
-    let totalItemsCounted = 0;
-    let discrepanciesCount = 0;
-
-    for (const item of payload.items) {
-      totalItemsCounted += 1;
-      const variance = item.countedQty - item.systemQty;
-      if (variance !== 0) {
-        discrepanciesCount += 1;
-        // Adjust inventory to match physical count
-        await this.adjustStock(scope, actorId, {
-          variantId: item.variantId,
-          type: 'CORRECTION',
-          quantity: item.countedQty,
-          reason: item.reason || `Physical audit reconciliation (${auditNumber})`,
-          notes: payload.notes,
-        });
-      }
+    if (payload.items.length > MAX_ADJUST_LINES) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `Count at most ${MAX_ADJUST_LINES} items at a time`);
     }
+    // Only the caller's own products, checked for every line before anything changes
+    const ids = [...new Set(payload.items.map((i) => i.variantId))];
+    if (ids.length !== payload.items.length) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'An item appears twice in this count');
+    }
+    const variants = await prisma.productVariant.findMany({
+      where: {
+        id: { in: ids },
+        product: { companyId: scope.companyId, deletedAt: null, ...this.ownProducts(scope, branchId) },
+      },
+      select: { id: true, productId: true, size: true, product: { select: { name: true } } },
+    });
+    if (variants.length !== ids.length) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
+    const byId = new Map(variants.map((v) => [v.id, v]));
 
-    // Save PhysicalStockAudit
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "PhysicalStockAudit" (
-        "id", "auditNumber", "shopId", "branchId", "companyId", "conductedById",
-        "status", "totalItemsCounted", "discrepanciesCount", "notes", "auditItems", "createdAt"
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, 'COMPLETED', $7, $8, $9, $10::jsonb, CURRENT_TIMESTAMP
-      )
-    `, auditId, auditNumber, scope.shopId || null, branchId, scope.companyId, actorId,
-       totalItemsCounted, discrepanciesCount, payload.notes || null, JSON.stringify(payload.items));
+    return prisma.$transaction(async (tx) => {
+      // One count at a time per branch, so two saves can't take the same audit number
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stock-audit:' + branchId}))`;
+      const auditNumber = await accountService.nextCode(tx, `AUD-${financialYear()}/`, 4, async (prefix) =>
+        (
+          await tx.physicalStockAudit.findMany({
+            where: { branchId, auditNumber: { startsWith: prefix } },
+            select: { auditNumber: true },
+          })
+        ).map((a) => a.auditNumber),
+      );
 
-    return {
-      success: true,
-      auditNumber,
-      totalItemsCounted,
-      discrepanciesCount,
-      message: `Physical stock count ${auditNumber} completed. ${totalItemsCounted} items audited, ${discrepanciesCount} variances reconciled.`,
-    };
+      // A line that matches what the screen showed changes nothing (uncounted rows come in that way).
+      // A counted line applies counted − shown, so sales made after the count was opened still count.
+      const done = await inventoryService.recordAdjustments(tx, {
+        branchId,
+        shopId: scope.shopId,
+        companyId: scope.companyId,
+        reason: `Physical audit reconciliation (${auditNumber})`,
+        notes: payload.notes || null,
+        performedById: actorId,
+        lines: payload.items
+          .filter((i) => i.countedQty !== i.systemQty)
+          .map((item) => {
+            const v = byId.get(item.variantId)!;
+            return {
+              variantId: v.id,
+              productId: v.productId,
+              label: `"${v.product.name}" (${v.size})`,
+              type: 'CORRECTION' as const,
+              quantity: item.countedQty,
+              expected: item.systemQty,
+              reason: item.reason,
+            };
+          }),
+      });
+      const discrepanciesCount = done.length;
+      const totalItemsCounted = payload.items.length;
+
+      await tx.$executeRawUnsafe(`
+        INSERT INTO "PhysicalStockAudit" (
+          "id", "auditNumber", "shopId", "branchId", "companyId", "conductedById",
+          "status", "totalItemsCounted", "discrepanciesCount", "notes", "auditItems", "createdAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, 'COMPLETED', $7, $8, $9, $10::jsonb, CURRENT_TIMESTAMP
+        )
+      `, randomUUID(), auditNumber, scope.shopId || null, branchId, scope.companyId, actorId,
+         totalItemsCounted, discrepanciesCount, payload.notes || null, JSON.stringify(payload.items));
+
+      return {
+        success: true,
+        auditNumber,
+        totalItemsCounted,
+        discrepanciesCount,
+        message: `Physical stock count ${auditNumber} completed. ${totalItemsCounted} items audited, ${discrepanciesCount} variances reconciled.`,
+      };
+    }, LONG_ADJUST_TX);
   }
 }
 

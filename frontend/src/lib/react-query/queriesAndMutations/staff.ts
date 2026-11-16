@@ -1,5 +1,4 @@
 import {
-  createStaffRequest,
   decideStaffRequest,
   getStaff,
   getStaffRequests,
@@ -7,7 +6,7 @@ import {
   updateStaffRights,
   updateStaffShift,
 } from '@/lib/api/staff';
-import {AttendanceStatus, Shift, StaffList, StaffRequestPayload} from '@/types/staff';
+import {AttendanceStatus, Shift, StaffList} from '@/types/staff';
 import {getErrorMessage} from '@/utils/axios';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -85,17 +84,6 @@ export const useMarkAttendance = (panel: string) => {
       qc.invalidateQueries({queryKey: STAFF_KEYS.list(panel)});
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Could not mark attendance')),
-  });
-};
-
-export const useCreateStaffRequest = (panel: string) => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: StaffRequestPayload) => createStaffRequest(panel, data),
-    onSuccess: (res: any) => {
-      toast.success(res?.message || 'Request sent');
-      qc.invalidateQueries({queryKey: STAFF_KEYS.all});
-    },
   });
 };
 

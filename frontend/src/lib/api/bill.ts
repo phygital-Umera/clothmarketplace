@@ -59,8 +59,20 @@ export const cancelBill = (
 ) =>
   (api.post(`${base(panel, kind)}/${id}/cancel`, {reason}) as unknown as Promise<Res<Bill>>);
 
-export const deleteBill = (panel: string, kind: BillKind, id: string) =>
-  api.delete(`${base(panel, kind)}/${id}`).then((res: any) => res);
+/** An employee's delete of a posted bill sends a request with the reason */
+export const deleteBill = (
+  panel: string,
+  kind: BillKind,
+  id: string,
+  reason?: string,
+) =>
+  api.delete(`${base(panel, kind)}/${id}`, {
+    data: reason ? {reason} : undefined,
+  });
+
+/** The shop admin turns down an employee's delete request */
+export const keepBill = (panel: string, kind: BillKind, id: string) =>
+  api.post(`${base(panel, kind)}/${id}/keep`);
 
 /** Due collected from a customer (sales) or a payment to the supplier (purchase) */
 export const recordBillPayment = (

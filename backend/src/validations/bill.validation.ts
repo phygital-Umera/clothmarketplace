@@ -161,6 +161,10 @@ const cancelBillSchema = z.object({
     reason: field({label: 'Cancel Reason', kind: 'text', max: 300}),
 });
 
+const deleteRequestSchema = z.object({
+    reason: field({label: 'Reason', kind: 'text', max: 300}),
+});
+
 /** Due collection from a customer, or a payment to a supplier */
 const recordPaymentSchema = z.object({
     mode: paymentMode,
@@ -180,6 +184,8 @@ const billListSchema = listQuerySchema(
         emptyToUndefined,
         z.enum(['PAID', 'PART_CREDIT', 'CREDIT', 'DUE']).optional(),
     ),
+    /** Only bills an employee asked to delete */
+    deleteRequested: z.preprocess(emptyToUndefined, z.enum(['true']).optional()),
 });
 
 /** Branch admin: sales bills of every shop in the branch (view only) */
@@ -203,6 +209,7 @@ export default {
     createSalesBillSchema,
     updateSalesBillSchema,
     cancelBillSchema,
+    deleteRequestSchema,
     recordPaymentSchema,
     billListSchema,
     branchSalesListSchema,

@@ -61,6 +61,8 @@ const TABS: {label: string; value: string; countKey?: string}[] = [
 ];
 
 export default function ShopOrdersPage({panel}: Props) {
+  // D-03: the selling shop (its login, the owner in shop mode, staff) changes orders; branch and company only view
+  const canAct = panel === 'shop-admin';
   const [activeTab, setActiveTab] = useState<string>('');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -251,17 +253,19 @@ export default function ShopOrdersPage({panel}: Props) {
             <Eye size={16} />
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedOrder(o);
-              setIsStatusUpdateOpen(true);
-            }}
-            className="rounded p-1.5 text-burgundy hover:bg-burgundy/10"
-            title="Update Order Status"
-          >
-            <CheckCircle2 size={16} />
-          </button>
+          {canAct && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedOrder(o);
+                setIsStatusUpdateOpen(true);
+              }}
+              className="rounded p-1.5 text-burgundy hover:bg-burgundy/10"
+              title="Update Order Status"
+            >
+              <CheckCircle2 size={16} />
+            </button>
+          )}
 
           <button
             type="button"
@@ -350,7 +354,10 @@ export default function ShopOrdersPage({panel}: Props) {
     },
     {
       header: 'Action',
-      render: (r) => (
+      render: (r) =>
+        !canAct ? (
+          <span className="text-xs text-outline">The shop reviews it</span>
+        ) : (
         <button
           type="button"
           onClick={() => {
@@ -374,6 +381,11 @@ export default function ShopOrdersPage({panel}: Props) {
           breadcrumbs={[{label: 'Sales & Fulfillment'}, {label: 'Order Management'}]}
           title="Order Management"
         />
+        {!canAct && (
+          <p className="w-full text-xs text-outline -mt-2 order-last">
+            View only: each order is updated by the shop that sells it.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleRefreshAll}

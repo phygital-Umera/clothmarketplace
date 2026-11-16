@@ -112,6 +112,8 @@ class EmployeeService {
                             phoneNumber: data.phoneNumber,
                             username: data.phoneNumber,
                             password,
+                            // The admin chose it: the employee replaces it at first sign-in (P2-07)
+                            mustChangePassword: true,
                             role: Role.EMPLOYEE,
                             companyId: scope.companyId,
                             branchId,
@@ -172,7 +174,8 @@ class EmployeeService {
                 ...(fields.phoneNumber ? {username: fields.phoneNumber} : {}),
                 ...(shopId ? {shopId} : {}),
                 ...(branchId ? {branchId} : {}),
-                ...(password ? {password} : {}),
+                // A password the admin set is replaced at the next sign-in (P2-07)
+                ...(password ? {password, mustChangePassword: true} : {}),
                 // New password, other branch or other permissions: sign in again
                 ...(password || branchId || permissionsChanged
                     ? {refreshToken: null, sessionsRevokedAt: new Date()}

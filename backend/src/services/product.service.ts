@@ -7,6 +7,7 @@ import {listArgs, toListResult} from '../utils/list';
 import {catalogValidation} from '@validations/index';
 import accountService from './account.service';
 import categoryBrandService from './categoryBrand.service';
+import masterService from './master.service';
 
 type CreateProduct = z.infer<typeof catalogValidation.createProductSchema>;
 type UpdateProduct = z.infer<typeof catalogValidation.updateProductSchema>;
@@ -20,6 +21,7 @@ const PRODUCT_INCLUDE = {
     brand: {select: {id: true, name: true}},
     company: {select: {id: true, name: true, code: true}},
     createdBy: {select: {id: true, fullname: true, branchId: true}},
+    shop: {select: {id: true, name: true, branchId: true}},
     images: {orderBy: [{isMain: 'desc' as const}, {order: 'asc' as const}]},
     variants: {
         orderBy: {createdAt: 'asc' as const},
@@ -43,7 +45,8 @@ const slugify = (s: string) =>
 /**
  * Who may edit a product:
  *   company admin -> any product of the company
- *   branch admin  -> products created in their branch
+ *   branch admin  -> products of the shops in their branch (a product with no
+ *                    shop: its creator's branch, until every product has a shop, P3-01)
  *   employee      -> products they created (and only with products.manage)
  *   super admin   -> nobody's (monitors, can unpublish)
  */
@@ -51,11 +54,16 @@ const canEdit = (
     actor: Actor,
     product: Pick<ProductRow, 'companyId' | 'createdById'> & {
         createdBy: {branchId: string | null} | null;
+        shop: {branchId: string} | null;
     },
 ) => {
     if (product.companyId !== actor.companyId) return false;
     if (actor.role === Role.ADMIN) return true;
-    if (actor.role === Role.SUB_ADMIN) return product.createdBy?.branchId === actor.branchId;
+    if (actor.role === Role.SUB_ADMIN) {
+        // The product's shop decides, so moving its creator moves no rights
+        const branchId = product.shop ? product.shop.branchId : product.createdBy?.branchId;
+        return !!actor.branchId && branchId === actor.branchId;
+    }
     if (actor.role === Role.EMPLOYEE) {
         return product.createdById === actor.id && actor.permissions.includes('products.manage');
     }
@@ -108,6 +116,7 @@ class ProductService {
             categoryId: query.categoryId,
             brandId: query.brandId,
             gender: query.gender,
+            ...(query.shopId ? {shopId: query.shopId === 'none' ? null : query.shopId} : {}),
             ...(query.search
                 ? {
                       OR: [
@@ -140,6 +149,25 @@ class ProductService {
         return present(actor, product);
     }
 
+    /** One of the caller's shops (a branch admin: a shop of their branch) */
+    private async ownShop(actor: Actor, shopId: string) {
+        const shop = await prisma.shop.findFirst({
+            where: {
+                id: shopId,
+                companyId: actor.companyId ?? '__none__',
+                deletedAt: null,
+                ...(actor.role === Role.SUB_ADMIN ? {branchId: actor.branchId ?? '__none__'} : {}),
+            },
+            select: {id: true},
+        });
+        if (!shop) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Pick one of your shops', [
+                {field: 'shopId', message: 'Pick one of your shops'},
+            ]);
+        }
+        return shop.id;
+    }
+
     private async editable(actor: Actor, id: string) {
         const product = await this.get(actor, id);
         if (!product.canEdit)
@@ -156,6 +184,8 @@ class ProductService {
         }
         const companyId = actor.companyId;
         await categoryBrandService.assertUsable(companyId, data.categoryId, data.brandId);
+        const shopId = await this.ownShop(actor, data.shopId);
+        await masterService.ensureShopMasters(shopId);
         const company = await prisma.company.findUniqueOrThrow({
             where: {id: companyId},
             select: {code: true},
@@ -183,11 +213,12 @@ class ProductService {
                     if (await tx.product.findUnique({where: {slug}, select: {id: true}})) {
                         slug = `${slug}-${Date.now().toString(36)}`;
                     }
-                    return tx.product.create({
+                    const made = await tx.product.create({
                         data: {
                             ...fields,
                             tags: fields.tags.map((t) => t.toLowerCase()),
                             companyId,
+                            shopId,
                             sku,
                             slug,
                             // New products are drafts until they are complete and published
@@ -207,6 +238,9 @@ class ProductService {
                         },
                         select: {id: true},
                     });
+                    // The shop's product form works with its size and colour rows (D-02)
+                    await masterService.linkVariantNames(tx, shopId, made.id, variants);
+                    return made;
                 }),
             'sku',
         );
@@ -220,17 +254,58 @@ class ProductService {
     public async update(actor: Actor, id: string, data: UpdateProduct) {
         const before = await this.editable(actor, id);
         await categoryBrandService.assertUsable(before.companyId, data.categoryId, data.brandId);
-        const {variants, ...fields} = data;
+        const {variants, shopId, ...fields} = data;
+        // A shop is set once: stock and bills already belong to it
+        if (shopId && before.shopId && shopId !== before.shopId) {
+            throw new ApiError(httpStatus.BAD_REQUEST, "A product's shop can't be changed", [
+                {field: 'shopId', message: "A product's shop can't be changed"},
+            ]);
+        }
+        const newShopId = shopId && !before.shopId ? await this.ownShop(actor, shopId) : undefined;
+        // D-13: prices are changed by the shop; this form sets them only for a new product or variant
+        const same = (a?: number | null, b?: number | null) => (a ?? null) === (b ?? null);
+        const priceChanged =
+            (fields.mrp !== undefined && fields.mrp !== before.mrp) ||
+            (fields.sellingPrice !== undefined && fields.sellingPrice !== before.sellingPrice) ||
+            variants?.some((v) => {
+                // A row without an id reuses a saved variant of the same size and colour
+                const old = v.id
+                    ? before.variants.find((b) => b.id === v.id)
+                    : before.variants.find(
+                          (o) =>
+                              !variants.some((k) => k.id === o.id) &&
+                              o.size.toLowerCase() === v.size.toLowerCase() &&
+                              o.color.toLowerCase() === v.color.toLowerCase(),
+                      );
+                return !!old && (!same(v.mrp, old.mrp) || !same(v.sellingPrice, old.sellingPrice));
+            });
+        if (priceChanged) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Prices are changed in the shop', [
+                {field: 'sellingPrice', message: 'Prices are changed in the shop'},
+            ]);
+        }
+        const linkShop = newShopId ?? before.shopId;
+        if (linkShop) await masterService.ensureShopMasters(linkShop);
 
         await prisma.$transaction(async (tx) => {
             await tx.product.update({
                 where: {id},
                 data: {
                     ...fields,
+                    ...(newShopId ? {shopId: newShopId} : {}),
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
                 },
             });
-            if (!variants) return;
+            if (!variants) {
+                if (newShopId) {
+                    const rows = await tx.productVariant.findMany({
+                        where: {productId: id, isActive: true},
+                        select: {size: true, color: true, colorHex: true},
+                    });
+                    await masterService.linkVariantNames(tx, newShopId, id, rows);
+                }
+                return;
+            }
 
             const keep = new Set(variants.filter((v) => v.id).map((v) => v.id));
             const unknown = [...keep].filter((vid) => !before.variants.some((v) => v.id === vid));
@@ -276,6 +351,14 @@ class ProductService {
                 where: {productId: id, id: {notIn: [...keep] as string[]}},
                 data: {isActive: false},
             });
+            if (linkShop) {
+                await masterService.linkVariantNames(
+                    tx,
+                    linkShop,
+                    id,
+                    variants.filter((v) => v.isActive),
+                );
+            }
             if (before.status === ProductStatus.PUBLISHED && !variants.some((v) => v.isActive)) {
                 throw new ApiError(
                     httpStatus.BAD_REQUEST,

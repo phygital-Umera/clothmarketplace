@@ -33,7 +33,7 @@
         "prisma:reset": "prisma migrate reset --force",
         "create:superadmin": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/createSuperAdmin.ts",
         "seed:org": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedOrg.ts",
-        "seed:demo":"node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedDemo.ts"
+        "seed:demo": "node --env-file=.env -r ts-node/register/transpile-only -r tsconfig-paths/register src/cli/seedDemo.ts"
     },
     "lint-staged": {
         "src/**/*.{ts,tsx,js,jsx}": [
@@ -83,7 +83,6 @@
         "swagger-jsdoc": "^6.2.8",
         "swagger-ui-express": "^5.0.1",
         "winston": "^3.14.2",
-        "xss-filters": "^1.2.7",
         "zod": "^3.23.8"
     },
     "devDependencies": {
@@ -102,7 +101,6 @@
         "@types/nodemailer": "^6.4.15",
         "@types/swagger-jsdoc": "^6.0.4",
         "@types/swagger-ui-express": "^4.1.6",
-        "@types/xss-filters": "^0.0.30",
         "@typescript-eslint/eslint-plugin": "^8.3.0",
         "@typescript-eslint/parser": "^8.3.0",
         "eslint": "^9.9.1",

@@ -1,11 +1,11 @@
-import {CreditNoteStatus, ReturnSettlement, ReturnStockTo} from '@prisma/client';
+import {CreditNoteStatus, ReturnSettlement} from '@prisma/client';
 import prisma from '../client';
-import creditNoteService, {REFUND_APPROVAL_LIMIT} from './creditNote.service';
+import {REFUND_APPROVAL_LIMIT} from './creditNote.service';
 import {BranchScope} from './customerDue.service';
 
 export type ApprovalItem = {
     id: string;
-    type: 'DISCOUNT' | 'CREDIT' | 'CANCEL_BILL' | 'WRITE_OFF' | 'REFUND';
+    type: 'REFUND';
     title: string;
     description: string;
     shopAndStaff: string;
@@ -19,8 +19,8 @@ export type ApprovalItem = {
 /*
  * The branch admin's approval queue, built from real requests. Today the one
  * action the shops hand up to the branch is a refund credit note (any cash
- * refund, or one above the approval limit); deciding here approves or rejects
- * that credit note, which also puts the stock back.
+ * refund, or one above the approval limit). It is decided through the credit
+ * note decision (POST /credit-notes/:id/decision), which is audited.
  */
 
 const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -60,7 +60,7 @@ class BranchApprovalService {
         const [pending, doneToday] = await Promise.all([prisma.creditNote.count({where: pendingWhere}), prisma.creditNote.count({where: doneWhere})]);
 
         const showDone = tab === 'DONE_TODAY';
-        // Only refunds exist as approval requests; other tabs are empty
+        // Refund credit notes are the only requests the shops hand up to the branch
         const notes =
             !tab || tab === 'REFUND' || showDone
                 ? await prisma.creditNote.findMany({
@@ -98,7 +98,7 @@ class BranchApprovalService {
         }));
 
         return {
-            counts: {pending, discount: 0, credit: 0, cancelBill: 0, writeOff: 0, refund: pending, doneToday},
+            counts: {pending, refund: pending, doneToday},
             items,
             // The rules the system actually enforces
             limitsTable: [
@@ -110,22 +110,6 @@ class BranchApprovalService {
                 },
             ],
         };
-    }
-
-    public async decide(
-        scope: BranchScope & {actorId: string},
-        id: string,
-        decision: 'APPROVE' | 'REJECT',
-        note?: string,
-    ) {
-        await creditNoteService.decide(
-            {companyId: scope.companyId, branchId: scope.branchId},
-            scope.actorId,
-            id,
-            {action: decision, stockTo: ReturnStockTo.RESTOCK, note},
-        );
-        const status = decision === 'APPROVE' ? 'approved' : 'rejected';
-        return {success: true, message: `Refund has been ${status}`};
     }
 }
 

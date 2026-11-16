@@ -8,6 +8,7 @@ import {
     customerPhotoUpload,
     loginIpLimiter,
     loginLimiter,
+    refreshLimiter,
     verifyJWT,
 } from '@middlewares/index';
 import {ApiError, ApiResponse, catchAsync} from '@utils/index';
@@ -32,7 +33,7 @@ router.route('/register').post(authLimiter, registerUser);
 router.route('/login').post(loginIpLimiter, loginLimiter, loginUser);
 router.route('/forgot-password').post(authLimiter, forgotPassword);
 router.route('/reset-password').post(authLimiter, resetPassword);
-router.route('/refresh').post(refreshAccessToken);
+router.route('/refresh').post(refreshLimiter, refreshAccessToken);
 
 // Private routes
 router.use(verifyJWT);

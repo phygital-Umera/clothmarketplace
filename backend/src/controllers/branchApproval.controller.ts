@@ -1,4 +1,3 @@
-import {z} from 'zod';
 import {Request} from 'express';
 import {catchAsync, ApiError, ApiResponse} from '@utils/index';
 import httpStatus from 'http-status';
@@ -25,25 +24,8 @@ const list = catchAsync(async (req, res) => {
     return ok(res, data, 'Approvals fetched successfully');
 });
 
-const decideSchema = z.object({
-    decision: z.enum(['APPROVE', 'REJECT'], {errorMap: () => ({message: 'Choose approve or reject'})}),
-    note: z.string().trim().max(500).optional(),
-});
-
-const decide = catchAsync(async (req, res) => {
-    const id = z.string().uuid('Invalid request').parse(req.params.id);
-    const {decision, note} = decideSchema.parse(req.body);
-    const data = await branchApprovalService.decide(
-        {...branchOf(req), actorId: req.user.id},
-        id,
-        decision,
-        note,
-    );
-    return ok(res, data, data.message);
-});
-
+// Deciding is the credit note decision (POST /credit-notes/:id/decision), which is audited
 export default {
     list,
-    decide,
 };
 

@@ -140,8 +140,18 @@ const productRules = (v: ProductShape, ctx: z.RefinementCtx) => {
     });
 };
 
-const createProductSchema = z.object(productFields).superRefine(productRules);
-const updateProductSchema = z.object(productFields).partial().superRefine(productRules);
+// D-01: a product belongs to a shop, or it can never be sold. On edit a
+// product with no shop yet may be given one (once)
+const createProductSchema = z
+    .object({
+        ...productFields,
+        shopId: z.string({required_error: 'Shop is required'}).uuid('Shop is required'),
+    })
+    .superRefine(productRules);
+const updateProductSchema = z
+    .object({...productFields, shopId: optionalId('Shop')})
+    .partial()
+    .superRefine(productRules);
 
 const productListSchema = listQuerySchema(
     ['createdAt', 'name', 'sku', 'sellingPrice', 'status'] as const,
@@ -152,6 +162,8 @@ const productListSchema = listQuerySchema(
     brandId: z.string().uuid().optional(),
     companyId: z.string().uuid().optional(),
     gender: z.nativeEnum(GenderTarget).optional(),
+    /** A shop's products, or "none" for products not in any shop */
+    shopId: z.union([z.literal('none'), z.string().uuid()]).optional(),
 });
 
 const productStatusSchema = z.object({

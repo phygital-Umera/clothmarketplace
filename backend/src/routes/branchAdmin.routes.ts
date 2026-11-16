@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {
     orgController,
     ecommerceController,
+    masterController,
     billController,
     creditNoteController,
     customerDueController,
@@ -52,11 +53,12 @@ router.post('/users/:id/revoke-sessions', c.revokeSessions);
 
 // Catalog: the company's products; edits limited to products of this branch
 mountCatalog(router, {manageProducts: true});
+// Sub-categories for the offer form (read only; edited in the shop panel)
+router.get('/subcategories', masterController.listSubcategories);
 
 // Products & Price List (Branch Pricing)
+// View only (D-13): prices are set by each shop
 router.get('/products-pricing', branchPricingController.list);
-router.post('/products-pricing/save', branchPricingController.savePrices);
-router.post('/products-pricing/bulk', branchPricingController.scheduleBulkPrice);
 
 // Branch Inventory
 router.get('/inventory/dashboard', e.inventoryDashboard);
@@ -131,7 +133,6 @@ router.post('/expenses', branchExpenseController.add);
 
 // Overview: Approvals
 router.get('/approvals', branchApprovalController.list);
-router.post('/approvals/:id/decision', branchApprovalController.decide);
 
 // Reports
 router.get('/reports/pnl', branchReportsController.getPnl);
@@ -140,7 +141,6 @@ router.get('/reports/pnl', branchReportsController.getPnl);
 
 // Setup: Staff Overview
 router.get('/staff-overview', branchStaffController.list);
-router.post('/staff-overview/invite', branchStaffController.invite);
 router.get('/staff-requests', staffController.branch.listRequests);
 router.post('/staff-requests/:id/decision', staffController.branch.decideRequest);
 
@@ -158,19 +158,14 @@ router.get('/credit-notes/summary', creditNoteController.branch.summary);
 router.get('/credit-notes/:id', creditNoteController.branch.get);
 router.post('/credit-notes/:id/decision', creditNoteController.branch.decide);
 
-// Branch Orders
+// Branch Orders: view only; the selling shop changes them (D-03)
 router.get('/orders/dashboard', e.orderDashboard);
 router.route('/orders').get(e.listOrders);
 router.route('/orders/:id').get(e.getOrder);
-router.patch('/orders/:id/status', e.updateOrderStatus);
-router.patch('/orders/:id/shipping', e.updateOrderShipping);
-router.patch('/orders/:id/payment', e.updateOrderPayment);
-router.post('/orders/:id/cancel-review', e.reviewCancellation);
 router.get('/orders/:id/invoice', e.getOrderInvoice);
 
 // Branch Returns
 router.get('/returns', e.listReturns);
-router.patch('/returns/:id', e.updateReturnStatus);
 
 // Promotions & Offers
 mountPromotions(router);

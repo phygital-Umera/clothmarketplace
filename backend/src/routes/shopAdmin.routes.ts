@@ -43,20 +43,25 @@ router.route('/employees/:id').get(c.getEmployee).patch(c.updateEmployee);
 router.patch('/users/:id/status', c.setUserStatus);
 router.post('/users/:id/revoke-sessions', c.revokeSessions);
 
-// ---- 1. Categories ----
+// ---- 1. Categories and 2. Subcategories: one list for the whole company (D-02),
+// so only the owner (company admin in shop mode) changes them; shops and staff read
 router.get('/categories/options', m.categoryOptions);
-router.route('/categories').get(m.listCategories).post(m.createCategory);
-router.route('/categories/:id').get(m.getCategory).patch(m.updateCategory).delete(m.deleteCategory);
+router.route('/categories').get(m.listCategories).post(ownerOnly, m.createCategory);
+router
+    .route('/categories/:id')
+    .get(m.getCategory)
+    .patch(ownerOnly, m.updateCategory)
+    .delete(ownerOnly, m.deleteCategory);
+router.route('/subcategories').get(m.listSubcategories).post(ownerOnly, m.createSubcategory);
+router
+    .route('/subcategories/:id')
+    .get(m.getSubcategory)
+    .patch(ownerOnly, m.updateSubcategory)
+    .delete(ownerOnly, m.deleteSubcategory);
 
-// ---- 2. Subcategories ----
-router.route('/subcategories').get(m.listSubcategories).post(m.createSubcategory);
-router.route('/subcategories/:id').get(m.getSubcategory).patch(m.updateSubcategory).delete(m.deleteSubcategory);
-
-// ---- 3. Colors ----
+// ---- 3. Colors and 4. Sizes: each shop's own (D-02) ----
 router.route('/colors').get(m.listColors).post(m.createColor);
 router.route('/colors/:id').get(m.getColor).patch(m.updateColor).delete(m.deleteColor);
-
-// ---- 4. Sizes ----
 router.route('/sizes').get(m.listSizes).post(m.createSize);
 router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSize);
 
@@ -176,12 +181,13 @@ ownerRoutes.post('/day-close/resolve-difference', ownerOnly, dayCloseController.
 ownerRoutes.get('/transfers/:id/sources', ownerOnly, stockTransferController.branch.sources);
 ownerRoutes.post('/transfers/:id/decision', ownerOnly, stockTransferController.branch.decide);
 
-// Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management).
-// A company admin works in one of their shops via X-Shop-Id (companyAdminShopMode).
+// Only the shop login and the company admin in shop mode (D-08): a company admin
+// works in one of their shops via X-Shop-Id (companyAdminShopMode). The super
+// admin and branch admins use their own panels; employees use /employee.
 const shopAdminRouter = Router();
 shopAdminRouter.use(
     verifyJWT,
-    checkRole([Role.SHOP_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.SUB_ADMIN]),
+    checkRole([Role.SHOP_ADMIN, Role.ADMIN]),
     companyAdminShopMode,
     ownerRoutes,
     shopRoutes,

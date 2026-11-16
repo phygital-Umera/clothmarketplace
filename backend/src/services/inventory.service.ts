@@ -1,8 +1,9 @@
+import {randomUUID} from 'crypto';
 import {Prisma, MovementType, StockSourceType} from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
-import {Scope} from './account.service';
+import accountService, {Scope} from './account.service';
 
 export interface AdjustStockInput {
     branchId?: string;
@@ -58,6 +59,40 @@ export interface ApplyStockChangesInput {
     sourceType?: StockSourceType;
     sourceId?: string;
     performedById?: string | null;
+    /** A stock count records what is on the shelf, even below what online orders have reserved */
+    allowBelowReserved?: boolean;
+}
+
+/** Most lines one manual save may change (physical count, batch adjust) */
+export const MAX_ADJUST_LINES = 500;
+/** About 8 queries per line: a full 500-line save needs more than Prisma's 5 s default on a hosted database */
+export const LONG_ADJUST_TX = {timeout: 60_000, maxWait: 10_000};
+
+/** CORRECTION sets the count: its quantity is what was counted, not a change */
+export type ManualAdjustType = 'INCREASE' | 'DECREASE' | 'MARK_DAMAGED' | 'WRITE_OFF' | 'CORRECTION';
+
+export interface ManualAdjustInput {
+    branchId: string;
+    shopId?: string | null;
+    companyId?: string | null;
+    reason: string;
+    reference?: string | null;
+    photoUrl?: string | null;
+    notes?: string | null;
+    approvalStatus?: string;
+    performedById: string;
+    /** Variants already checked to be the caller's; label is for messages, e.g. "Kurti (M)" */
+    lines: {
+        variantId: string;
+        productId: string;
+        label: string;
+        type: ManualAdjustType;
+        quantity: number;
+        /** CORRECTION only: the count the screen showed when counting started (see recordAdjustments) */
+        expected?: number;
+        /** This line's own reason, instead of the input's */
+        reason?: string;
+    }[];
 }
 
 class InventoryService {
@@ -101,7 +136,7 @@ class InventoryService {
                     UPDATE "Inventory"
                     SET "physicalQty" = "physicalQty" - ${qty}, "updatedAt" = NOW()
                     WHERE "branchId" = ${branchId} AND "variantId" = ${c.variantId}
-                      AND "physicalQty" - "reservedQty" >= ${qty}
+                      AND "physicalQty" - CASE WHEN ${!input.allowBelowReserved} THEN "reservedQty" ELSE 0 END >= ${qty}
                     RETURNING "physicalQty"`;
 
                 if (!rows.length) {
@@ -148,6 +183,140 @@ class InventoryService {
 
         await this.syncProductStock(tx, branchId, [...new Set(changes.map((c) => c.productId))]);
         return changes;
+    };
+
+    /** Adjustment numbers run per branch: ADJ-0001, ADJ-0002... */
+    public nextAdjustmentNumber = (tx: Prisma.TransactionClient, branchId: string) =>
+        accountService.nextCode(tx, 'ADJ-', 4, async (prefix) =>
+            (
+                await tx.stockAdjustment.findMany({
+                    where: {branchId, adjustmentNumber: {startsWith: prefix}},
+                    select: {adjustmentNumber: true},
+                })
+            ).map((a) => a.adjustmentNumber ?? ''),
+        );
+
+    /**
+     * The one path for manual stock changes (Stock Adjustment, Stock page, physical count,
+     * Inventory adjust and batch). Each line gets an ADJ number, a stock movement through
+     * applyStockChanges and an adjustment record with the counts before and after.
+     * Runs in the caller's transaction; lines that change nothing are skipped.
+     */
+    public recordAdjustments = async (tx: Prisma.TransactionClient, input: ManualAdjustInput) => {
+        const {branchId, performedById} = input;
+        // One adjustment at a time per branch, so two saves can't take the same number
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stock-adjustment:' + branchId}))`;
+        // Numbered once per save and counted up (the lock above holds the series): reading every
+        // ADJ number of the branch per line is too slow for a big count
+        let next = Number((await this.nextAdjustmentNumber(tx, branchId)).slice('ADJ-'.length));
+
+        const results = [];
+        for (const line of input.lines) {
+            let {type, quantity: qty} = line;
+            const reason = line.reason || input.reason;
+            if (type === 'CORRECTION') {
+                // Lock the row so a sale in between is not counted over
+                const [row] = await tx.$queryRaw<{physicalQty: number}[]>`
+                    SELECT "physicalQty" FROM "Inventory"
+                    WHERE "branchId" = ${branchId} AND "variantId" = ${line.variantId} FOR UPDATE`;
+                const physical = row?.physicalQty ?? 0;
+                // Counted against what the screen showed: apply only the difference, so sales made
+                // after the count was opened are not undone. Without it the count is set as is.
+                const diff = line.quantity - (line.expected ?? physical);
+                if (!diff) continue;
+                if (physical + diff < 0) {
+                    throw new ApiError(
+                        httpStatus.CONFLICT,
+                        `The stock of ${line.label} changed since the count was opened (now ${physical}). Reload and count it again.`,
+                    );
+                }
+                type = diff > 0 ? 'INCREASE' : 'DECREASE';
+                qty = Math.abs(diff);
+            }
+            // Damaged units sit outside the sellable count: marking damaged moves them out, writing off removes them
+            const delta = type === 'INCREASE' ? qty : type === 'WRITE_OFF' ? 0 : -qty;
+            const damagedDelta = type === 'MARK_DAMAGED' ? qty : type === 'WRITE_OFF' ? -qty : 0;
+            const movementType =
+                type === 'INCREASE'
+                    ? MovementType.ADJUSTMENT_INCREASE
+                    : type === 'MARK_DAMAGED'
+                      ? MovementType.DAMAGE_WRITE_OFF
+                      : MovementType.ADJUSTMENT_DECREASE;
+            const adjustmentNumber = `ADJ-${String(next++).padStart(4, '0')}`;
+            const id = randomUUID();
+
+            if (delta) {
+                await this.applyStockChanges(tx, {
+                    branchId,
+                    changes: [{variantId: line.variantId, productId: line.productId, delta, type: movementType}],
+                    reason,
+                    reference: adjustmentNumber,
+                    sourceType: StockSourceType.ADJUSTMENT,
+                    sourceId: id,
+                    performedById,
+                    allowBelowReserved: line.type === 'CORRECTION',
+                });
+            }
+            if (damagedDelta) {
+                const {count} = await tx.inventory.updateMany({
+                    where: {
+                        branchId,
+                        variantId: line.variantId,
+                        ...(damagedDelta < 0 ? {damagedQty: {gte: qty}} : {}),
+                    },
+                    data: {damagedQty: {increment: damagedDelta}},
+                });
+                if (!count) {
+                    const inv = await tx.inventory.findUnique({
+                        where: {branchId_variantId: {branchId, variantId: line.variantId}},
+                    });
+                    throw new ApiError(
+                        httpStatus.BAD_REQUEST,
+                        `Only ${inv?.damagedQty ?? 0} damaged unit(s) of ${line.label} can be written off`,
+                    );
+                }
+            }
+
+            // Read after the change: the row is locked by now, so before = after - change
+            const inv = await tx.inventory.findUniqueOrThrow({
+                where: {branchId_variantId: {branchId, variantId: line.variantId}},
+            });
+            const result = {
+                adjustmentNumber,
+                variantId: line.variantId,
+                type,
+                quantity: qty,
+                availableBefore: inv.physicalQty - delta,
+                availableAfter: inv.physicalQty,
+                damagedBefore: inv.damagedQty - damagedDelta,
+                damagedAfter: inv.damagedQty,
+                inventory: inv,
+            };
+            await tx.stockAdjustment.create({
+                data: {
+                    id,
+                    adjustmentNumber,
+                    reference: input.reference || null,
+                    photoUrl: input.photoUrl || null,
+                    branchId,
+                    shopId: input.shopId || null,
+                    companyId: input.companyId || null,
+                    variantId: line.variantId,
+                    type,
+                    quantity: qty,
+                    availableBefore: result.availableBefore,
+                    availableAfter: result.availableAfter,
+                    damagedBefore: result.damagedBefore,
+                    damagedAfter: result.damagedAfter,
+                    reason,
+                    approvalStatus: input.approvalStatus ?? 'AUTO',
+                    notes: input.notes || null,
+                    createdById: performedById,
+                },
+            });
+            results.push(result);
+        }
+        return results;
     };
 
     /** Recompute Product.stockQuantity from its active variants' inventory in the branch. */
@@ -756,10 +925,13 @@ class InventoryService {
 
         const branchId = await this.resolveBranchId(scope, input.branchId, input.variantId);
 
+        if (!['INCREASE', 'DECREASE', 'CORRECTION'].includes(input.type)) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Select an adjustment type');
+        }
         // Validate quantity
         const qty = Number(input.quantity);
-        if (isNaN(qty)) {
-            throw new ApiError(httpStatus.BAD_REQUEST, 'Quantity must be a valid number');
+        if (!Number.isInteger(qty)) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Quantity must be a whole number');
         }
 
         if (input.type === 'CORRECTION') {
@@ -777,88 +949,35 @@ class InventoryService {
         }
 
         return prisma.$transaction(async (tx) => {
-            const existing = await tx.inventory.findUnique({
-                where: {branchId_variantId: {branchId, variantId: input.variantId}},
+            const [done] = await this.recordAdjustments(tx, {
+                branchId,
+                shopId: scope.shopId,
+                companyId: variant.product.companyId,
+                reason: input.reason.trim(),
+                notes: input.notes?.trim() || null,
+                performedById,
+                lines: [
+                    {
+                        variantId: input.variantId,
+                        productId: variant.productId,
+                        label: `"${variant.product.name}" (${variant.size})`,
+                        type: input.type,
+                        quantity: qty,
+                    },
+                ],
             });
-
-            const prevPhysical = existing?.physicalQty ?? 0;
-            let newPhysical = prevPhysical;
-
-            if (input.type === 'INCREASE') {
-                newPhysical = prevPhysical + qty;
-            } else if (input.type === 'DECREASE') {
-                if (qty > prevPhysical) {
-                    throw new ApiError(
-                        httpStatus.BAD_REQUEST,
-                        `Cannot reduce stock by ${qty}. Only ${prevPhysical} units in stock.`,
-                    );
-                }
-                newPhysical = prevPhysical - qty;
-            } else if (input.type === 'CORRECTION') {
-                newPhysical = qty;
-            }
-
-            // Upsert inventory
-            const updatedInventory = await tx.inventory.upsert({
-                where: {branchId_variantId: {branchId, variantId: input.variantId}},
-                create: {
-                    branchId,
-                    variantId: input.variantId,
-                    physicalQty: newPhysical,
-                    reservedQty: existing?.reservedQty ?? 0,
-                    threshold: existing?.threshold ?? 5,
-                },
-                update: {
-                    physicalQty: newPhysical,
-                },
-            });
-
-            const diff = newPhysical - prevPhysical;
-            const movementType =
-                input.type === 'INCREASE'
-                    ? MovementType.ADJUSTMENT_INCREASE
-                    : input.type === 'DECREASE'
-                      ? MovementType.ADJUSTMENT_DECREASE
-                      : diff >= 0
-                        ? MovementType.ADJUSTMENT_INCREASE
-                        : MovementType.ADJUSTMENT_DECREASE;
-
-            // Record Movement History
-            await tx.stockMovement.create({
-                data: {
-                    branchId,
-                    variantId: input.variantId,
-                    type: movementType,
-                    quantity: Math.abs(diff),
-                    prevPhysical,
-                    newPhysical,
-                    reason: input.reason.trim(),
-                    reference: input.notes?.trim() || null,
-                    sourceType: StockSourceType.ADJUSTMENT,
-                    performedById,
-                },
-            });
-
-            // Record Stock Adjustment Audit
-            await tx.stockAdjustment.create({
-                data: {
-                    branchId,
-                    variantId: input.variantId,
-                    type: input.type,
-                    quantity: qty,
-                    reason: input.reason.trim(),
-                    notes: input.notes?.trim() || null,
-                    createdById: performedById,
-                },
-            });
-
-            // Sync parent Product total stockQuantity
-            await this.syncProductStock(tx, branchId, [variant.productId]);
-
+            // A count that matches the system changes nothing and records nothing
+            const inv =
+                done?.inventory ??
+                (await tx.inventory.findUnique({
+                    where: {branchId_variantId: {branchId, variantId: input.variantId}},
+                }));
+            const physicalQty = inv?.physicalQty ?? 0;
             return {
-                ...updatedInventory,
-                availableStock: Math.max(0, updatedInventory.physicalQty - updatedInventory.reservedQty),
-                diff,
+                ...inv,
+                physicalQty,
+                availableStock: Math.max(0, physicalQty - (inv?.reservedQty ?? 0)),
+                diff: done ? done.availableAfter - done.availableBefore : 0,
             };
         });
     };
@@ -868,11 +987,20 @@ class InventoryService {
      */
     public batchAdjust = async (scope: Scope, input: BatchAdjustInput, performedById: string) => {
         const {type, reason, reference, items} = input;
+        if (type !== 'INCREASE' && type !== 'DECREASE') {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Select inward or outward');
+        }
 
         // Filter valid items with quantity > 0
         const validItems = (items || []).filter((item) => Number(item.quantity) > 0);
         if (!validItems.length) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Please enter quantity greater than 0 for at least one item');
+        }
+        if (validItems.some((item) => !Number.isInteger(Number(item.quantity)))) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Quantity must be a whole number');
+        }
+        if (validItems.length > MAX_ADJUST_LINES) {
+            throw new ApiError(httpStatus.BAD_REQUEST, `Adjust at most ${MAX_ADJUST_LINES} items at a time`);
         }
 
         if (!reason?.trim()) {
@@ -908,86 +1036,31 @@ class InventoryService {
         );
 
         return prisma.$transaction(async (tx) => {
-            const affectedProductIds = new Set<string>();
-            const movementType =
-                type === 'INCREASE'
-                    ? MovementType.ADJUSTMENT_INCREASE
-                    : MovementType.ADJUSTMENT_DECREASE;
-
-            for (const item of validItems) {
-                const variant = variants.find((v) => v.id === item.variantId)!;
-                affectedProductIds.add(variant.product.id);
-
-                const existing = await tx.inventory.findUnique({
-                    where: {branchId_variantId: {branchId, variantId: item.variantId}},
-                });
-
-                const prevPhysical = existing?.physicalQty ?? 0;
-                let newPhysical: number;
-
-                if (type === 'INCREASE') {
-                    newPhysical = prevPhysical + item.quantity;
-                } else {
-                    if (item.quantity > prevPhysical) {
-                        throw new ApiError(
-                            httpStatus.BAD_REQUEST,
-                            `Cannot outward ${item.quantity} for "${variant.product.name} (${variant.size}/${variant.color})". Only ${prevPhysical} currently available.`,
-                        );
-                    }
-                    newPhysical = prevPhysical - item.quantity;
-                }
-
-                await tx.inventory.upsert({
-                    where: {branchId_variantId: {branchId, variantId: item.variantId}},
-                    create: {
-                        branchId,
-                        variantId: item.variantId,
-                        physicalQty: newPhysical,
-                        reservedQty: existing?.reservedQty ?? 0,
-                        threshold: existing?.threshold ?? 5,
-                    },
-                    update: {
-                        physicalQty: newPhysical,
-                    },
-                });
-
-                await tx.stockMovement.create({
-                    data: {
-                        branchId,
-                        variantId: item.variantId,
-                        type: movementType,
-                        quantity: item.quantity,
-                        prevPhysical,
-                        newPhysical,
-                        reason: reason.trim(),
-                        reference: reference?.trim() || null,
-                        sourceType: StockSourceType.ADJUSTMENT,
-                        performedById,
-                    },
-                });
-
-                await tx.stockAdjustment.create({
-                    data: {
-                        branchId,
-                        variantId: item.variantId,
+            await this.recordAdjustments(tx, {
+                branchId,
+                shopId: scope.shopId,
+                companyId: variants[0].product.companyId,
+                reason: reason.trim(),
+                reference: reference?.trim() || null,
+                performedById,
+                lines: validItems.map((item) => {
+                    const v = variants.find((x) => x.id === item.variantId)!;
+                    return {
+                        variantId: v.id,
+                        productId: v.product.id,
+                        label: `"${v.product.name}" (${v.size}/${v.color})`,
                         type,
-                        quantity: item.quantity,
-                        reason: reason.trim(),
-                        notes: reference?.trim() || null,
-                        createdById: performedById,
-                    },
-                });
-            }
-
-            // Sync total stockQuantity on each affected Product
-            await this.syncProductStock(tx, branchId, [...affectedProductIds]);
+                        quantity: Number(item.quantity),
+                    };
+                }),
+            });
 
             return {
                 adjustedCount: validItems.length,
                 type,
                 reason,
             };
-        });
+        }, LONG_ADJUST_TX);
     };
 
     /**

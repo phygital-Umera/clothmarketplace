@@ -9,6 +9,9 @@ export type Scope = {
   shopId?: string;
 };
 
+// A shop sees only its own bills and print jobs; the branch sees all of its shops'
+const ownShop = (column: string) => `($2::text IS NULL OR ${column} = $2)`;
+
 class BarcodeLabelService {
   /**
    * Get purchase bills list for dropdown
@@ -20,10 +23,10 @@ class BarcodeLabelService {
              COUNT(bi."id")::int as "itemsCount"
       FROM "PurchaseBill" b
       LEFT JOIN "PurchaseBillItem" bi ON bi."billId" = b."id"
-      WHERE b."branchId" = $1
+      WHERE b."branchId" = $1 AND ${ownShop('b."shopId"')}
       GROUP BY b."id", b."billNumber", b."supplierName", b."billDate", b."status"
       ORDER BY b."billDate" DESC
-    `, scope.branchId);
+    `, scope.branchId, scope.shopId ?? null);
 
     return {
       bills: bills.map((b) => ({
@@ -45,9 +48,9 @@ class BarcodeLabelService {
     const bills: any[] = await prisma.$queryRawUnsafe(`
       SELECT "id", "billNumber", "supplierName"
       FROM "PurchaseBill"
-      WHERE "branchId" = $1 AND ("id" = $2 OR "billNumber" = $2)
+      WHERE "branchId" = $1 AND ${ownShop('"shopId"')} AND ("id" = $3 OR "billNumber" = $3)
       LIMIT 1
-    `, scope.branchId, billIdOrNumber);
+    `, scope.branchId, scope.shopId ?? null, billIdOrNumber);
 
     if (!bills.length) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Purchase bill not found');
@@ -105,9 +108,13 @@ class BarcodeLabelService {
   public async searchProductsForLabels(scope: Scope, search?: string) {
     // Values go in as query parameters ($1, $2), never into the SQL text
     const q = search?.trim();
-    const whereClause = q
-      ? `WHERE p."companyId" = $1 AND p."deletedAt" IS NULL AND (p."name" ILIKE $2 OR p."sku" ILIKE $2 OR v."variantSku" ILIKE $2)`
-      : `WHERE p."companyId" = $1 AND p."deletedAt" IS NULL`;
+    // Same products as the Stock page: a shop its own, the branch the catalog and its shops' products
+    const own = scope.shopId
+      ? `p."shopId" = $2`
+      : `(p."shopId" IS NULL OR p."shopId" IN (SELECT "id" FROM "Shop" WHERE "branchId" = $2))`;
+    const whereClause =
+      `WHERE p."companyId" = $1 AND p."deletedAt" IS NULL AND ${own}` +
+      (q ? ` AND (p."name" ILIKE $3 OR p."sku" ILIKE $3 OR v."variantSku" ILIKE $3)` : '');
 
     const rows: any[] = await prisma.$queryRawUnsafe(`
       SELECT p."id" as "productId", p."name" as "productName",
@@ -120,7 +127,7 @@ class BarcodeLabelService {
       ${whereClause}
       ORDER BY p."name" ASC, v."size" ASC
       LIMIT 50
-    `, scope.companyId, ...(q ? [`%${q}%`] : []));
+    `, scope.companyId, scope.shopId ?? scope.branchId, ...(q ? [`%${q}%`] : []));
 
     return {
       items: rows.map((r) => ({
@@ -144,10 +151,10 @@ class BarcodeLabelService {
   public async getReprintBatches(scope: Scope) {
     const batches: any[] = await prisma.$queryRawUnsafe(`
       SELECT * FROM "BarcodePrintJob"
-      WHERE "branchId" = $1
+      WHERE "branchId" = $1 AND ${ownShop('"shopId"')}
       ORDER BY "createdAt" DESC
       LIMIT 20
-    `, scope.branchId);
+    `, scope.branchId, scope.shopId ?? null);
 
     return {
       batches: batches.map((b) => ({

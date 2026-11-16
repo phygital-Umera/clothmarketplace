@@ -76,6 +76,20 @@ export interface ListOrdersParams {
 }
 
 class OrderService {
+    /**
+     * D-03: an online order is handled by the shop that sells it (its login, the owner in
+     * shop mode, or employees with orders edit). Branch, company and super admin only view.
+     * With a shop scope, the order lookups below also keep it to that shop's own orders.
+     */
+    private assertSellingShop(scope: Scope) {
+        if (!scope.shopId) {
+            throw new ApiError(
+                httpStatus.FORBIDDEN,
+                'Online orders are handled by the selling shop. Open the shop to change this order.',
+            );
+        }
+    }
+
     private buildScopeWhere(scope: Scope): Prisma.OrderWhereInput {
         if (scope.shopId) {
             return {shopId: scope.shopId};
@@ -399,6 +413,7 @@ class OrderService {
         },
         actorId?: string,
     ) => {
+        this.assertSellingShop(scope);
         const order = await this.get(scope, id);
 
         const nextStatus = data.status;
@@ -493,6 +508,7 @@ class OrderService {
         },
         actorId?: string,
     ) => {
+        this.assertSellingShop(scope);
         const order = await this.get(scope, id);
 
         const targetStatus = data.status || 'SHIPPED';
@@ -547,6 +563,7 @@ class OrderService {
         },
         actorId?: string,
     ) => {
+        this.assertSellingShop(scope);
         const order = await this.get(scope, id);
 
         return prisma.$transaction(async (tx) => {
@@ -601,6 +618,7 @@ class OrderService {
         },
         actorId?: string,
     ) => {
+        this.assertSellingShop(scope);
         const order = await this.get(scope, id);
 
         if (!order.cancelRequested) {
@@ -762,6 +780,7 @@ class OrderService {
         },
         actorId?: string,
     ) => {
+        this.assertSellingShop(scope);
         const item = await prisma.returnRequest.findFirst({
             where: {
                 id: returnId,

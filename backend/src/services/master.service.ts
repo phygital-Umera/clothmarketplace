@@ -20,10 +20,14 @@ type MasterList = z.infer<typeof masterValidation.masterListSchema>;
 /*
  * Shop masters: categories, subcategories, colors and sizes.
  *
- * Each company keeps its own masters, shared by all of its branches and shops.
+ * Categories and subcategories: one list per company, shared by its shops.
  * Rows with companyId = null are platform-wide (made by the super admin): every
  * company can pick them, but only the super admin can change them. A company
  * can never see or change another company's masters.
+ *
+ * Sizes and colours belong to each shop (D-02): the first time a shop uses
+ * them it gets its own copy of the platform list and the company's own rows,
+ * and from then on it sees and changes only its own, never another shop's.
  */
 
 const codeFrom = (name: string) =>
@@ -53,9 +57,349 @@ const readOnly = (what: string) =>
         `This ${what} is shared across the platform and can only be changed by the super admin`,
     );
 
-const withFlag = <T extends {companyId: string | null}>(row: T) => ({...row, isGlobal: !row.companyId});
+const withFlag = <T extends {companyId: string | null}>(row: T) => ({
+    ...row,
+    isGlobal: !row.companyId,
+});
+
+/** Sizes and colours: a shop's own (D-02); without a shop, the shared company and platform rows */
+export type MasterScope = {companyId: string; shopId?: string | null};
+
+const ownRows = (scope: MasterScope) =>
+    scope.shopId ? {shopId: scope.shopId} : {shopId: null, ...visible(scope.companyId)};
+
+const inScope = (row: {companyId: string | null; shopId: string | null}, scope: MasterScope) =>
+    scope.shopId
+        ? row.shopId === scope.shopId
+        : !row.shopId && (!row.companyId || row.companyId === scope.companyId);
+
+type Tx = Prisma.TransactionClient;
+
+/** One copy per name (case-insensitive); the company's own row wins over the platform one */
+const firstByName = <T extends {id: string; name: string; companyId: string | null}>(rows: T[]) => {
+    const groups = new Map<string, T[]>();
+    for (const row of rows) {
+        const key = row.name.trim().toLowerCase();
+        groups.set(key, [...(groups.get(key) ?? []), row]);
+    }
+    return [...groups.values()].map((group) => ({
+        keep: group.find((r) => r.companyId) ?? group[0],
+        ids: group.map((r) => r.id),
+    }));
+};
+
+/** Product links (productId + master id) moved from the shared rows to the shop's copies */
+const remap = <T extends {productId: string}>(
+    links: T[],
+    idOf: (l: T) => string,
+    map: Map<string, string>,
+) => {
+    const seen = new Set<string>();
+    return links
+        .filter((l) => map.has(idOf(l)))
+        .map((l) => ({productId: l.productId, id: map.get(idOf(l)) as string}))
+        .filter((l) => !seen.has(`${l.productId}:${l.id}`) && !!seen.add(`${l.productId}:${l.id}`));
+};
 
 class MasterService {
+    /**
+     * D-02: the first time a shop uses sizes or colours it gets its own copy of
+     * the platform list and the company's own rows, and its products move to
+     * the copies (links and AI colour previews). Once per shop, in one
+     * transaction; a second request waits for the first and then skips.
+     */
+    public async ensureShopMasters(shopId: string) {
+        const shop = await prisma.shop.findUnique({
+            where: {id: shopId},
+            select: {mastersCopiedAt: true},
+        });
+        if (!shop || shop.mastersCopiedAt) return;
+        await prisma.$transaction(
+            async (tx) => {
+                const {count} = await tx.shop.updateMany({
+                    where: {id: shopId, mastersCopiedAt: null},
+                    data: {mastersCopiedAt: new Date()},
+                });
+                if (!count) return;
+                const {companyId, code} = await tx.shop.findUniqueOrThrow({
+                    where: {id: shopId},
+                    select: {companyId: true, code: true},
+                });
+                const shared = {shopId: null, ...visible(companyId)};
+                const taken = async (model: 'size' | 'color') =>
+                    new Set(
+                        (model === 'size'
+                            ? await tx.size.findMany({
+                                  where: {code: {startsWith: `${code}-`}},
+                                  select: {code: true},
+                              })
+                            : await tx.color.findMany({
+                                  where: {code: {startsWith: `${code}-`}},
+                                  select: {code: true},
+                              })
+                        ).map((r) => r.code),
+                    );
+                const codeOf = (used: Set<string>, base: string) => {
+                    let next = `${code}-${base}`;
+                    for (let n = 2; used.has(next); n++) next = `${code}-${base}-${n}`;
+                    used.add(next);
+                    return next;
+                };
+
+                const sizeMap = new Map<string, string>();
+                const usedSizes = await taken('size');
+                for (const {keep, ids} of firstByName(await tx.size.findMany({where: shared}))) {
+                    const copy = await tx.size.create({
+                        data: {
+                            companyId,
+                            shopId,
+                            name: keep.name,
+                            code: codeOf(usedSizes, keep.code),
+                            description: keep.description,
+                            displayOrder: keep.displayOrder,
+                            isActive: keep.isActive,
+                        },
+                        select: {id: true},
+                    });
+                    ids.forEach((id) => sizeMap.set(id, copy.id));
+                }
+                const colorMap = new Map<string, string>();
+                const usedColors = await taken('color');
+                for (const {keep, ids} of firstByName(await tx.color.findMany({where: shared}))) {
+                    const copy = await tx.color.create({
+                        data: {
+                            companyId,
+                            shopId,
+                            name: keep.name,
+                            code: codeOf(usedColors, keep.code),
+                            hexCode: keep.hexCode,
+                            isActive: keep.isActive,
+                        },
+                        select: {id: true},
+                    });
+                    ids.forEach((id) => colorMap.set(id, copy.id));
+                }
+                await this.moveLinks(tx, shopId, sizeMap, colorMap);
+            },
+            {timeout: 60_000},
+        );
+    }
+
+    private async moveLinks(
+        tx: Tx,
+        shopId: string,
+        sizeMap: Map<string, string>,
+        colorMap: Map<string, string>,
+    ) {
+        const ofShop = {product: {shopId}};
+        const sizeLinks = await tx.productSize.findMany({
+            where: {...ofShop, sizeId: {in: [...sizeMap.keys()]}},
+        });
+        if (sizeLinks.length) {
+            await tx.productSize.deleteMany({
+                where: {...ofShop, sizeId: {in: [...sizeMap.keys()]}},
+            });
+            await tx.productSize.createMany({
+                data: remap(sizeLinks, (l) => l.sizeId, sizeMap).map((l) => ({
+                    productId: l.productId,
+                    sizeId: l.id,
+                })),
+                skipDuplicates: true,
+            });
+        }
+        const colorLinks = await tx.productColor.findMany({
+            where: {...ofShop, colorId: {in: [...colorMap.keys()]}},
+        });
+        if (colorLinks.length) {
+            await tx.productColor.deleteMany({
+                where: {...ofShop, colorId: {in: [...colorMap.keys()]}},
+            });
+            await tx.productColor.createMany({
+                data: remap(colorLinks, (l) => l.colorId, colorMap).map((l) => ({
+                    productId: l.productId,
+                    colorId: l.id,
+                })),
+                skipDuplicates: true,
+            });
+        }
+        // Two old colours can map to one copy: keep one preview per product, image and copy
+        const previews = await tx.productColorPreview.findMany({
+            where: {...ofShop, colorId: {in: [...colorMap.keys()]}},
+            select: {id: true, productId: true, colorId: true, sourceImageId: true},
+        });
+        const taken = new Set<string>();
+        for (const pv of previews) {
+            const to = colorMap.get(pv.colorId) as string;
+            const key = `${pv.productId}:${to}:${pv.sourceImageId}`;
+            if (taken.has(key)) {
+                await tx.productColorPreview.delete({where: {id: pv.id}});
+            } else {
+                taken.add(key);
+                await tx.productColorPreview.update({where: {id: pv.id}, data: {colorId: to}});
+            }
+        }
+    }
+
+    /**
+     * D-02: a product copied into another shop (stock transfer) uses that
+     * shop's own sizes and colours with the same names, made when missing.
+     * Call ensureShopMasters(shopId) first, outside the transaction.
+     */
+    public async sameInShop(tx: Tx, shopId: string, sizeIds: string[], colorIds: string[]) {
+        const shop = await tx.shop.findUniqueOrThrow({
+            where: {id: shopId},
+            select: {companyId: true, code: true, mastersCopiedAt: true},
+        });
+        if (!shop.mastersCopiedAt) throw new Error('ensureShopMasters must run before sameInShop');
+        const freeCode = async (model: 'size' | 'color', base: string) => {
+            for (let n = 1; ; n++) {
+                const code = n === 1 ? `${shop.code}-${base}` : `${shop.code}-${base}-${n}`;
+                const taken =
+                    model === 'size'
+                        ? await tx.size.findUnique({where: {code}, select: {id: true}})
+                        : await tx.color.findUnique({where: {code}, select: {id: true}});
+                if (!taken) return code;
+            }
+        };
+        const mine = {shopId};
+        const outSizes: string[] = [];
+        for (const src of await tx.size.findMany({where: {id: {in: sizeIds}}})) {
+            const found = await tx.size.findFirst({
+                where: {...mine, name: {equals: src.name, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            outSizes.push(
+                found?.id ??
+                    (
+                        await tx.size.create({
+                            data: {
+                                companyId: shop.companyId,
+                                shopId,
+                                name: src.name,
+                                code: await freeCode('size', src.code),
+                                description: src.description,
+                                displayOrder: src.displayOrder,
+                            },
+                            select: {id: true},
+                        })
+                    ).id,
+            );
+        }
+        const outColors: string[] = [];
+        for (const src of await tx.color.findMany({where: {id: {in: colorIds}}})) {
+            const found = await tx.color.findFirst({
+                where: {...mine, name: {equals: src.name, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            outColors.push(
+                found?.id ??
+                    (
+                        await tx.color.create({
+                            data: {
+                                companyId: shop.companyId,
+                                shopId,
+                                name: src.name,
+                                code: await freeCode('color', src.code),
+                                hexCode: src.hexCode,
+                            },
+                            select: {id: true},
+                        })
+                    ).id,
+            );
+        }
+        return {sizeIds: [...new Set(outSizes)], colorIds: [...new Set(outColors)]};
+    }
+
+    /**
+     * Products made in the company or branch panel have free-text variants:
+     * link the product to its shop's size and colour rows with those names
+     * (made when missing), so the shop's product form shows and keeps them.
+     * Call ensureShopMasters(shopId) first, outside the transaction.
+     */
+    public async linkVariantNames(
+        tx: Tx,
+        shopId: string,
+        productId: string,
+        variants: {size: string; color: string; colorHex?: string | null}[],
+    ) {
+        const sizeIds: string[] = [];
+        const colorIds: string[] = [];
+        for (const v of variants) {
+            const size = await tx.size.findFirst({
+                where: {shopId, name: {equals: v.size, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            const color = await tx.color.findFirst({
+                where: {shopId, name: {equals: v.color, mode: 'insensitive'}},
+                select: {id: true},
+            });
+            sizeIds.push(size?.id ?? (await this.newRow(tx, 'size', shopId, v.size)));
+            colorIds.push(
+                color?.id ?? (await this.newRow(tx, 'color', shopId, v.color, v.colorHex)),
+            );
+        }
+        // Exactly the active variants' names, so a removed size doesn't come back on the shop's next save
+        await tx.productSize.deleteMany({where: {productId, sizeId: {notIn: sizeIds}}});
+        await tx.productColor.deleteMany({where: {productId, colorId: {notIn: colorIds}}});
+        await tx.productSize.createMany({
+            data: [...new Set(sizeIds)].map((sizeId) => ({productId, sizeId})),
+            skipDuplicates: true,
+        });
+        await tx.productColor.createMany({
+            data: [...new Set(colorIds)].map((colorId) => ({productId, colorId})),
+            skipDuplicates: true,
+        });
+    }
+
+    /** A new size or colour of a shop, named as typed on a product */
+    private async newRow(
+        tx: Tx,
+        model: 'size' | 'color',
+        shopId: string,
+        name: string,
+        hex?: string | null,
+    ) {
+        const shop = await tx.shop.findUniqueOrThrow({
+            where: {id: shopId},
+            select: {companyId: true, code: true},
+        });
+        const base = `${shop.code}-${codeFrom(name)}`;
+        let code = base;
+        for (let n = 2; ; n++) {
+            const taken =
+                model === 'size'
+                    ? await tx.size.findUnique({where: {code}, select: {id: true}})
+                    : await tx.color.findUnique({where: {code}, select: {id: true}});
+            if (!taken) break;
+            code = `${base}-${n}`;
+        }
+        const data = {companyId: shop.companyId, shopId, name, code};
+        return model === 'size'
+            ? (await tx.size.create({data, select: {id: true}})).id
+            : (
+                  await tx.color.create({
+                      data: {...data, hexCode: (hex ?? '#9E9E9E').toUpperCase()},
+                      select: {id: true},
+                  })
+              ).id;
+    }
+
+    /** Ensure the shop's copies exist before any size / colour work in a shop */
+    private async ready(scope: MasterScope) {
+        if (scope.shopId) await this.ensureShopMasters(scope.shopId);
+    }
+
+    /** A size / colour the caller may change: the shop's own (or, without a shop, the company's own) */
+    private ownedRow<T extends {companyId: string | null; shopId: string | null} | null>(
+        row: T,
+        scope: MasterScope,
+        what: string,
+    ): NonNullable<T> {
+        if (!row || !inScope(row, scope)) throw notFound(what);
+        if (!row.companyId) throw readOnly(what.toLowerCase());
+        return row as NonNullable<T>;
+    }
+
     /** A row the company may change: its own, never a platform-wide one */
     private async owned<T extends {companyId: string | null} | null>(
         row: T,
@@ -303,7 +647,12 @@ class MasterService {
             await this.assertParent(companyId, data.categoryId);
         }
         if (data.name || data.categoryId) {
-            await this.assertSubcategoryNameFree(companyId, categoryId, data.name ?? before.name, id);
+            await this.assertSubcategoryNameFree(
+                companyId,
+                categoryId,
+                data.name ?? before.name,
+                id,
+            );
         }
         const after = await prisma.subcategory.update({
             where: {id},
@@ -331,13 +680,14 @@ class MasterService {
     }
 
     // ==========================================
-    // 3. COLORS
+    // 3. COLORS (per shop, D-02)
     // ==========================================
 
-    public async listColors(companyId: string, query: MasterList) {
+    public async listColors(scope: MasterScope, query: MasterList) {
+        await this.ready(scope);
         const where: Prisma.ColorWhereInput = {
             AND: [
-                visible(companyId),
+                ownRows(scope),
                 {OR: searchWhere(query.search, ['name', 'code', 'hexCode'] as const)},
             ],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
@@ -349,14 +699,15 @@ class MasterService {
         return toListResult(items.map(withFlag), total, query);
     }
 
-    public async getColor(companyId: string, id: string) {
-        const color = await prisma.color.findFirst({where: {id, ...visible(companyId)}});
+    public async getColor(scope: MasterScope, id: string) {
+        await this.ready(scope);
+        const color = await prisma.color.findFirst({where: {id, ...ownRows(scope)}});
         if (!color) throw notFound('Color');
         return withFlag(color);
     }
 
     private async assertColorFree(
-        companyId: string,
+        scope: MasterScope,
         data: {name?: string; hexCode?: string},
         exceptId?: string,
     ) {
@@ -364,10 +715,12 @@ class MasterService {
         const clash = await prisma.color.findFirst({
             where: {
                 AND: [
-                    visible(companyId),
+                    ownRows(scope),
                     {
                         OR: [
-                            ...(data.name ? [{name: {equals: data.name, mode: 'insensitive' as const}}] : []),
+                            ...(data.name
+                                ? [{name: {equals: data.name, mode: 'insensitive' as const}}]
+                                : []),
                             ...(data.hexCode
                                 ? [{hexCode: {equals: data.hexCode, mode: 'insensitive' as const}}]
                                 : []),
@@ -386,8 +739,9 @@ class MasterService {
         }
     }
 
-    public async createColor(companyId: string, data: ColorInput) {
-        await this.assertColorFree(companyId, data);
+    public async createColor(scope: MasterScope, data: ColorInput) {
+        await this.ready(scope);
+        await this.assertColorFree(scope, data);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -399,7 +753,8 @@ class MasterService {
             );
             return prisma.color.create({
                 data: {
-                    companyId,
+                    companyId: scope.companyId,
+                    shopId: scope.shopId ?? null,
                     name: data.name,
                     code,
                     hexCode: data.hexCode.toUpperCase(),
@@ -409,12 +764,16 @@ class MasterService {
         }, 'code');
     }
 
-    public async updateColor(companyId: string, id: string, data: ColorUpdate) {
-        const before = await this.owned(await prisma.color.findUnique({where: {id}}), companyId, 'Color');
+    public async updateColor(scope: MasterScope, id: string, data: ColorUpdate) {
+        await this.ready(scope);
+        const before = this.ownedRow(await prisma.color.findUnique({where: {id}}), scope, 'Color');
         await this.assertColorFree(
-            companyId,
+            scope,
             {
-                name: data.name && data.name.toLowerCase() !== before.name.toLowerCase() ? data.name : undefined,
+                name:
+                    data.name && data.name.toLowerCase() !== before.name.toLowerCase()
+                        ? data.name
+                        : undefined,
                 hexCode:
                     data.hexCode && data.hexCode.toUpperCase() !== before.hexCode.toUpperCase()
                         ? data.hexCode
@@ -422,15 +781,30 @@ class MasterService {
             },
             id,
         );
-        const after = await prisma.color.update({
-            where: {id},
-            data: {...data, ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {})},
+        const after = await prisma.$transaction(async (tx) => {
+            const row = await tx.color.update({
+                where: {id},
+                data: {...data, ...(data.hexCode ? {hexCode: data.hexCode.toUpperCase()} : {})},
+            });
+            // Variants are matched by name: the products using this colour follow the
+            // rename, so saving them later keeps the same variants and their stock
+            if (row.name !== before.name || row.hexCode !== before.hexCode) {
+                await tx.productVariant.updateMany({
+                    where: {
+                        color: {equals: before.name, mode: 'insensitive'},
+                        product: {colors: {some: {colorId: id}}},
+                    },
+                    data: {color: row.name, colorHex: row.hexCode},
+                });
+            }
+            return row;
         });
         return {before, after};
     }
 
-    public async deleteColor(companyId: string, id: string) {
-        const color = await this.owned(await prisma.color.findUnique({where: {id}}), companyId, 'Color');
+    public async deleteColor(scope: MasterScope, id: string) {
+        await this.ready(scope);
+        const color = this.ownedRow(await prisma.color.findUnique({where: {id}}), scope, 'Color');
         const used = await prisma.productColor.count({where: {colorId: id}});
         if (used) {
             throw new ApiError(
@@ -443,12 +817,13 @@ class MasterService {
     }
 
     // ==========================================
-    // 4. SIZES
+    // 4. SIZES (per shop, D-02)
     // ==========================================
 
-    public async listSizes(companyId: string, query: MasterList) {
+    public async listSizes(scope: MasterScope, query: MasterList) {
+        await this.ready(scope);
         const where: Prisma.SizeWhereInput = {
-            AND: [visible(companyId), {OR: searchWhere(query.search, ['name', 'code'] as const)}],
+            AND: [ownRows(scope), {OR: searchWhere(query.search, ['name', 'code'] as const)}],
             ...(query.active ? {isActive: query.active === 'true'} : {}),
         };
         const [items, total] = await prisma.$transaction([
@@ -458,17 +833,18 @@ class MasterService {
         return toListResult(items.map(withFlag), total, query);
     }
 
-    public async getSize(companyId: string, id: string) {
-        const size = await prisma.size.findFirst({where: {id, ...visible(companyId)}});
+    public async getSize(scope: MasterScope, id: string) {
+        await this.ready(scope);
+        const size = await prisma.size.findFirst({where: {id, ...ownRows(scope)}});
         if (!size) throw notFound('Size');
         return withFlag(size);
     }
 
-    private async assertSizeNameFree(companyId: string, name: string, exceptId?: string) {
+    private async assertSizeNameFree(scope: MasterScope, name: string, exceptId?: string) {
         const clash = await prisma.size.findFirst({
             where: {
                 name: {equals: name, mode: 'insensitive'},
-                ...visible(companyId),
+                ...ownRows(scope),
                 ...(exceptId ? {NOT: {id: exceptId}} : {}),
             },
             select: {id: true},
@@ -476,8 +852,9 @@ class MasterService {
         if (clash) throw conflict('A size with this name already exists');
     }
 
-    public async createSize(companyId: string, data: SizeInput) {
-        await this.assertSizeNameFree(companyId, data.name);
+    public async createSize(scope: MasterScope, data: SizeInput) {
+        await this.ready(scope);
+        await this.assertSizeNameFree(scope, data.name);
         return accountService.withRetry(async () => {
             const code = await uniqueCode(codeFrom(data.name), async (prefix) =>
                 (
@@ -489,7 +866,8 @@ class MasterService {
             );
             return prisma.size.create({
                 data: {
-                    companyId,
+                    companyId: scope.companyId,
+                    shopId: scope.shopId ?? null,
                     name: data.name,
                     code,
                     description: data.description,
@@ -500,17 +878,33 @@ class MasterService {
         }, 'code');
     }
 
-    public async updateSize(companyId: string, id: string, data: SizeUpdate) {
-        const before = await this.owned(await prisma.size.findUnique({where: {id}}), companyId, 'Size');
+    public async updateSize(scope: MasterScope, id: string, data: SizeUpdate) {
+        await this.ready(scope);
+        const before = this.ownedRow(await prisma.size.findUnique({where: {id}}), scope, 'Size');
         if (data.name && data.name.toLowerCase() !== before.name.toLowerCase()) {
-            await this.assertSizeNameFree(companyId, data.name, id);
+            await this.assertSizeNameFree(scope, data.name, id);
         }
-        const after = await prisma.size.update({where: {id}, data});
+        const after = await prisma.$transaction(async (tx) => {
+            const row = await tx.size.update({where: {id}, data});
+            // Variants are matched by name: the products using this size follow the
+            // rename, so saving them later keeps the same variants and their stock
+            if (row.name !== before.name) {
+                await tx.productVariant.updateMany({
+                    where: {
+                        size: {equals: before.name, mode: 'insensitive'},
+                        product: {sizes: {some: {sizeId: id}}},
+                    },
+                    data: {size: row.name},
+                });
+            }
+            return row;
+        });
         return {before, after};
     }
 
-    public async deleteSize(companyId: string, id: string) {
-        const size = await this.owned(await prisma.size.findUnique({where: {id}}), companyId, 'Size');
+    public async deleteSize(scope: MasterScope, id: string) {
+        await this.ready(scope);
+        const size = this.ownedRow(await prisma.size.findUnique({where: {id}}), scope, 'Size');
         const used = await prisma.productSize.count({where: {sizeId: id}});
         if (used) {
             throw new ApiError(

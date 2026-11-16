@@ -9,8 +9,9 @@ import bcrypt from 'bcryptjs';
  */
 export const encryptPassword = async (password: string): Promise<string> => {
     try {
-        // Retrieve saltRounds from environment variable or use a default value
-        const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
+        // BCRYPT_SALT_ROUNDS: 12 when unset or not a number, and never below 10
+        const rounds = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '', 10);
+        const saltRounds = Number.isNaN(rounds) ? 12 : Math.max(rounds, 10);
         const encryptedPassword = await bcrypt.hash(password, saltRounds);
         return encryptedPassword;
     } catch (error) {

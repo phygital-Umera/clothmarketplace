@@ -109,12 +109,7 @@ const EmployeeForm = ({
                 required
                 autoFocus={mode === 'create'}
               />
-              <GenericInputField
-                name="email"
-                label="Email"
-                kind="email"
-                required
-              />
+              <GenericInputField name="email" label="Email" kind="email" />
               <GenericInputField
                 name="phoneNumber"
                 label="Phone Number"

@@ -22,6 +22,8 @@ export default function BranchApprovalsPage() {
     activeTab === 'PENDING' ? undefined : activeTab,
   );
   const decide = useDecideBranchApproval();
+  // A rejection needs a reason (the shop sees it on the credit note)
+  const [rejecting, setRejecting] = useState<{id: string; reason: string} | null>(null);
 
   const items = data?.items ?? [];
   const limits = data?.limitsTable ?? [];
@@ -99,10 +101,40 @@ export default function BranchApprovalsPage() {
                 </div>
                 <div className="text-sm font-bold text-[#2a2220]">{item.amountLabel}</div>
               </div>
-              {item.status === 'PENDING' ? (
+              {item.status === 'PENDING' && rejecting?.id === item.id ? (
+                <>
+                  <input
+                    autoFocus
+                    aria-label="Reason for rejecting"
+                    placeholder="Why is it rejected?"
+                    maxLength={500}
+                    value={rejecting.reason}
+                    onChange={(e) => setRejecting({id: item.id, reason: e.target.value})}
+                    className="w-56 rounded border border-[#ded5ce] px-2 py-1.5 text-xs"
+                  />
+                  <button
+                    onClick={() => setRejecting(null)}
+                    className="rounded px-2 py-1.5 text-xs font-semibold text-[#554e48] hover:bg-black/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() =>
+                      decide.mutate(
+                        {id: item.id, decision: 'REJECT', note: rejecting.reason.trim()},
+                        {onSuccess: () => setRejecting(null)},
+                      )
+                    }
+                    disabled={decide.isPending || !rejecting.reason.trim()}
+                    className="rounded border border-[#832729] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#832729] transition hover:bg-[#832729]/5 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : item.status === 'PENDING' ? (
                 <>
                   <button
-                    onClick={() => decide.mutate({id: item.id, decision: 'REJECT'})}
+                    onClick={() => setRejecting({id: item.id, reason: ''})}
                     disabled={decide.isPending}
                     className="rounded border border-[#ded5ce] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#832729] transition hover:bg-[#832729]/5 disabled:opacity-50"
                   >
