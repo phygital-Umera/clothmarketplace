@@ -15,10 +15,9 @@ import {
   STOCK_TO_LABEL,
 } from '@/types/creditNote';
 import {getErrorMessage} from '@/utils/axios';
+import {useCompanyRules} from '@/lib/react-query/queriesAndMutations/companySettings';
 import {useEffect, useMemo, useState} from 'react';
 
-/** Mirrors the server rule; the server decides in the end */
-const APPROVAL_LIMIT = 2000;
 
 const inputCls =
   'mt-1 w-full border border-ivory-300 bg-ivory-100 px-3 py-2 text-body-sm text-espresso focus:border-burgundy focus:outline-none';
@@ -49,6 +48,8 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
 
   const {data: bill, error, isFetching} = useReturnableBill(lookup);
   const create = useCreateCreditNote();
+  // The company's refund limit (P4-08); the server decides in the end
+  const APPROVAL_LIMIT = useCompanyRules('shop-admin').data?.refundApprovalLimit ?? 2000;
 
   useEffect(() => {
     if (!open) return;

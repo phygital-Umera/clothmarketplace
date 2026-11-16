@@ -21,6 +21,7 @@ import {dayKey, financialYear} from '../utils/day';
 import {rateFor, taxBreakup} from '../utils/gst';
 import {stateCodeOfGstin, stateCodeOfName, stateName} from '../utils/gstStates';
 import shopGstService from './shopGst.service';
+import companySettingsService from './companySettings.service';
 
 type Tx = Prisma.TransactionClient;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
@@ -1429,8 +1430,11 @@ class BillService {
             cashiers.set(b.createdById, row);
         });
 
+        const {discountApprovalPct} = await companySettingsService.get(scope.companyId);
         return {
             range: {from, to},
+            /** The company's discount level for the watch list (P4-08) */
+            discountApprovalPct,
             kpis: {
                 bills: bills.length,
                 creditBills: onCredit.length,
@@ -1452,9 +1456,10 @@ class BillService {
                 .map((c) => ({...c, sales: round2(c.sales), discount: round2(c.discount)}))
                 .sort((a, b) => b.sales - a.sales),
             watch: {
-                /** Discount above 10% of the amount before discount */
+                /** Discount above the company's % of the amount before discount */
                 highDiscount: live.filter(
-                    (b) => discountOf(b) > 0.1 * (b.totalAmount + discountOf(b)),
+                    (b) =>
+                        discountOf(b) > (discountApprovalPct / 100) * (b.totalAmount + discountOf(b)),
                 ).length,
                 edited,
                 cancelled,
@@ -1533,6 +1538,8 @@ class BillService {
             if (c) c.due = round2(c.due + r.balanceDue);
             else seen.set(r.customerPhone!, {name: r.customerName ?? '', due: r.balanceDue});
         }
+        // Not saved as a customer yet: the company's default credit days (P4-08)
+        const {defaultCreditDays} = await companySettingsService.get(scope.companyId);
         for (const [phone, c] of seen) {
             if (result.length >= 10) break;
             result.push({
@@ -1540,7 +1547,7 @@ class BillService {
                 phone,
                 previousDue: round2(c.due),
                 creditLimit: 0,
-                creditDays: 15,
+                creditDays: defaultCreditDays,
                 gstin: null,
                 businessName: null,
             });

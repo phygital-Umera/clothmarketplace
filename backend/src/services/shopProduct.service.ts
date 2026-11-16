@@ -9,6 +9,7 @@ import accountService from './account.service';
 import inventoryService from './inventory.service';
 import masterService from './master.service';
 import shopGstService from './shopGst.service';
+import companySettingsService from './companySettings.service';
 
 type CreateShopProduct = z.infer<typeof shopProductValidation.createShopProductSchema>;
 type UpdateShopProduct = z.infer<typeof shopProductValidation.updateShopProductSchema>;
@@ -21,7 +22,6 @@ export type ShopScope = {companyId: string; shopId: string};
 export type ProductScope = {companyId: string; shopId?: string};
 
 const MAX_IMAGES = 8;
-export const LOW_STOCK = 5;
 
 const LIST_INCLUDE = {
     category: {select: {id: true, name: true}},
@@ -96,6 +96,8 @@ class ShopProductService {
 
     public async list(scope: ShopScope, query: ShopProductList) {
         const live = await this.liveStock(scope.shopId);
+        // The company's low-stock level (P4-08)
+        const {lowStockDefault: LOW_STOCK} = await companySettingsService.get(scope.companyId);
         const qty = (id: string) => live.get(id) ?? 0;
         const having = (keep: (n: number) => boolean) =>
             [...live.keys()].filter((id) => keep(qty(id)));
@@ -264,6 +266,7 @@ class ShopProductService {
         const product = await tx.product.findUniqueOrThrow({
             where: {id: productId},
             select: {
+                companyId: true,
                 shop: {select: {branchId: true}},
                 sizes: {select: {sizeId: true, size: {select: {name: true}}}},
                 colors: {select: {colorId: true, color: {select: {name: true, hexCode: true}}}},
@@ -316,6 +319,7 @@ class ShopProductService {
         // Initialize inventory rows for active variants in the shop's branch
         const branchId = product.shop?.branchId;
         if (branchId) {
+            const {lowStockDefault} = await companySettingsService.get(product.companyId, tx);
             for (const variantId of keep) {
                 await tx.inventory.upsert({
                     where: {branchId_variantId: {branchId, variantId}},
@@ -324,7 +328,7 @@ class ShopProductService {
                         variantId,
                         physicalQty: 0,
                         reservedQty: 0,
-                        threshold: 5,
+                        threshold: lowStockDefault,
                     },
                     update: {},
                 });

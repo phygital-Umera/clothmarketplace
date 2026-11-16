@@ -1,4 +1,5 @@
 import {BillStatus, Prisma} from '@prisma/client';
+import companySettingsService from './companySettings.service';
 
 /**
  * Keeps ShopCustomer.balanceDue / totalBought in step with sales bills.
@@ -69,6 +70,7 @@ export const syncCustomerFromBill = async (
                 },
             });
         } else if (due > 0 || bought > 0) {
+            const {defaultCreditDays} = await companySettingsService.get(bill.companyId, tx);
             await tx.shopCustomer.create({
                 data: {
                     shopId: bill.shopId,
@@ -76,8 +78,8 @@ export const syncCustomerFromBill = async (
                     branchId: bill.branchId,
                     name: after?.customerName?.trim() || 'Customer',
                     mobile: phone,
-                    // Not given: the database default (15 days)
-                    creditDays: after?.creditDays ?? undefined,
+                    // Not given: the company's default credit days (P4-08)
+                    creditDays: after?.creditDays ?? defaultCreditDays,
                     balanceDue: Math.max(0, due),
                     totalBought: Math.max(0, bought),
                 },

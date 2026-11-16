@@ -33,3 +33,4 @@ export * as stockAdjustmentController from './stockAdjustment.controller';
 export {default as staffController} from './staff.controller';
 export {default as cashBookController} from './cashBook.controller';
 export {default as shopGstController} from './shopGst.controller';
+export {default as companySettingsController} from './companySettings.controller';

@@ -150,10 +150,28 @@ model Company {
   salesBills    SalesBill[]
   creditNotes   CreditNote[]
 customers     ShopCustomer[]
+  settings      CompanySettings?
 
 
   @@index([name])
   @@index([status])
+}
+
+/// Business rules the owner sets for the whole company (P4-08); no row = the defaults below
+model CompanySettings {
+  companyId           String   @id
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Card / UPI refunds above this need the branch admin or owner (cash refunds always do)
+  refundApprovalLimit Float    @default(2000)
+  /// Bills with a discount above this % of the bill are flagged for the branch
+  discountApprovalPct Float    @default(10)
+  /// Low-stock level for new stock rows and the product list's "Low stock" filter
+  lowStockDefault     Int      @default(5)
+  /// Credit days for a new credit customer when none are given
+  defaultCreditDays   Int      @default(15)
+  /// Products below this margin are flagged on the branch price list
+  minMarginPct        Float    @default(25)
+  updatedAt           DateTime @updatedAt
 }
 
 model RolePermission {

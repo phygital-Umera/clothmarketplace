@@ -8,7 +8,8 @@ import {
   useShopProducts,
 } from '@/lib/react-query/queriesAndMutations/shopProduct';
 import ProductStatusBadge from '@/pages/catalog/ProductStatusBadge';
-import {LOW_STOCK, ShopProduct, StockFilter} from '@/types/shopProduct';
+import {ShopProduct, StockFilter} from '@/types/shopProduct';
+import {useCompanyRules} from '@/lib/react-query/queriesAndMutations/companySettings';
 import {getErrorMessage} from '@/utils/axios';
 import {useNavigate} from '@tanstack/react-router';
 import {Eye, ImageOff, Package, Pencil, Plus, Trash2} from 'lucide-react';
@@ -21,25 +22,30 @@ const STATUS_TABS = [
   {label: 'Unpublished', value: 'UNPUBLISHED'},
 ];
 
-const STOCK_OPTIONS: {value: StockFilter; label: string}[] = [
+/** The company's low-stock level (P4-08) */
+const useLowStock = () => useCompanyRules('shop-admin').data?.lowStockDefault ?? 5;
+
+const stockOptions = (low: number): {value: StockFilter; label: string}[] => [
   {value: 'in', label: 'In stock'},
-  {value: 'low', label: `Low stock (≤ ${LOW_STOCK})`},
+  {value: 'low', label: `Low stock (≤ ${low})`},
   {value: 'out', label: 'Out of stock'},
 ];
 
 const money = (n: number) =>
   `₹${n.toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
 
-export const StockBadge = ({qty}: {qty: number}) =>
-  qty <= 0 ? (
+export const StockBadge = ({qty}: {qty: number}) => {
+  const low = useLowStock();
+  return qty <= 0 ? (
     <span className="badge-inactive">Out of stock</span>
-  ) : qty <= LOW_STOCK ? (
+  ) : qty <= low ? (
     <span className="badge rounded-full border border-hairline bg-blush text-burgundy">
       Low · {qty}
     </span>
   ) : (
     <span className="text-body-sm text-espresso">{qty}</span>
   );
+};
 
 const ShopProductList = () => {
   const navigate = useNavigate();
@@ -51,6 +57,7 @@ const ShopProductList = () => {
       stock: list.filters.stock as StockFilter | undefined,
     });
   const remove = useDeleteShopProduct();
+  const STOCK_OPTIONS = stockOptions(useLowStock());
   const [toDelete, setToDelete] = useState<ShopProduct | null>(null);
 
   const view = (p: ShopProduct) =>

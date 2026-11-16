@@ -12,8 +12,6 @@ export const SHOP_PRODUCT_STATUSES: ShopProductStatus[] = [
 ];
 
 export type StockFilter = 'in' | 'low' | 'out';
-/** Same threshold as backend LOW_STOCK */
-export const LOW_STOCK = 5;
 
 export type PreviewStatus = 'PENDING' | 'READY' | 'FAILED';
 

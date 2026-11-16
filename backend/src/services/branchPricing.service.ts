@@ -3,6 +3,7 @@ import {z} from 'zod';
 import prisma from '../client';
 import {BranchScope} from './customerDue.service';
 import shopGstService from './shopGst.service';
+import companySettingsService from './companySettings.service';
 import {rateFor} from '../utils/gst';
 
 /*
@@ -10,9 +11,6 @@ import {rateFor} from '../utils/gst';
  * their selling price, average purchase cost (from confirmed purchase bills),
  * margin and stock. View only (D-13): each shop sets its own prices.
  */
-
-/** Below this margin a product is flagged */
-export const MIN_MARGIN_PCT = 25;
 
 export const priceQuerySchema = z.object({
     search: z.string().trim().max(100).optional(),
@@ -34,6 +32,8 @@ class BranchPricingService {
     }
 
     public async list(scope: BranchScope, query: PriceQuery) {
+        // Below this margin a product is flagged (the company's setting, P4-08)
+        const {minMarginPct: MIN_MARGIN_PCT} = await companySettingsService.get(scope.companyId);
         const weekAgo = new Date(Date.now() - 7 * 86_400_000);
         const products = await prisma.product.findMany({
             where: this.productWhere(scope, {

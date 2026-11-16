@@ -197,7 +197,7 @@ export default function BranchSalesBillsPage() {
 
   const watch = [
     {
-      label: 'Bills with discount above 10%',
+      label: `Bills with discount above ${summary?.discountApprovalPct ?? 10}%`,
       count: summary?.watch.highDiscount,
     },
     {

@@ -4,6 +4,7 @@ import {
     ecommerceController,
     masterController,
     shopProductController as p,
+    companySettingsController,
 } from '@controllers/index';
 import {checkCompanyAdmin, verifyJWT} from '@middlewares/index';
 import mountCatalog from './catalog.routes';
@@ -19,6 +20,8 @@ router.use(verifyJWT, checkCompanyAdmin);
 router.get('/dashboard', c.scopedDashboard);
 router.get('/profile', c.companyProfile);
 router.post('/branch-mode', c.switchToBranchMode);
+// Business rules: refund limit, discount flag, low stock, credit days, margin (P4-08)
+router.route('/settings').get(companySettingsController.get).patch(companySettingsController.update);
 
 // Branches
 router.get('/branches/options', c.branchOptions);

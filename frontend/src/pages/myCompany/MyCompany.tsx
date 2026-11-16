@@ -6,6 +6,7 @@ import {
   useSwitchToBranchMode,
 } from '@/lib/react-query/queriesAndMutations/org';
 import {getErrorMessage} from '@/utils/axios';
+import CompanyRulesForm from './CompanyRulesForm';
 import {Loader2} from 'lucide-react';
 import {ReactNode, useState} from 'react';
 import toast from 'react-hot-toast';
@@ -128,6 +129,13 @@ const MyCompany = () => {
             Switch to branch mode
           </button>
         )}
+      </section>
+
+      <section className="panel mt-4 p-4 md:p-5">
+        <h2 className="mb-3 border-b border-ivory-300 pb-1.5 text-label-caps uppercase text-burgundy">
+          Settings
+        </h2>
+        <CompanyRulesForm />
       </section>
 
       <ConfirmDialog

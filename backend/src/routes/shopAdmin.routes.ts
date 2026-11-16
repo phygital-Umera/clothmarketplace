@@ -17,6 +17,7 @@ import {
     dayCloseController,
     stockTransferController,
     shopGstController,
+    companySettingsController,
 } from '@controllers/index';
 import {
     checkRole,
@@ -69,6 +70,8 @@ router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSiz
 // ---- GST price rule and slabs (D-18): read by the POS and the product form;
 // changed only under /shop-admin (see adminRoutes) ----
 router.get('/gst-rule', shopGstController.get);
+// The company's rules (refund limit, credit days, low stock…), read only (P4-08)
+router.get('/settings', companySettingsController.get);
 
 // ---- 5. Products ----
 // Create takes form data: the product fields and its photos in one request

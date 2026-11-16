@@ -18,6 +18,7 @@ import inventoryService from './inventory.service';
 import billService, {paymentStatusOf} from './bill.service';
 import {syncCustomerFromBill} from './customerLedger';
 import {dayKey} from '../utils/day';
+import companySettingsService from './companySettings.service';
 
 type Tx = Prisma.TransactionClient;
 type CreateNote = z.infer<typeof creditNoteValidation.createCreditNoteSchema>;
@@ -28,8 +29,6 @@ type NoteSummary = z.infer<typeof creditNoteValidation.creditNoteSummarySchema>;
 /** Shop admin: own shop. Branch admin: every shop of the branch. */
 export type NoteScope = {companyId: string; shopId?: string; branchId?: string};
 
-/** Refunds above this amount (or any cash refund) wait for the branch admin */
-export const REFUND_APPROVAL_LIMIT = 2000;
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -159,6 +158,7 @@ class CreditNoteService {
         data: CreateNote,
         opts: {selfApproved?: boolean} = {},
     ) => {
+        const {refundApprovalLimit} = await companySettingsService.get(scope.companyId);
         const created = await accountService.withRetry(
             () =>
                 prisma.$transaction(async (tx) => {
@@ -226,7 +226,7 @@ class CreditNoteService {
                     const isRefund = data.settlement === ReturnSettlement.REFUND;
                     const overLimit =
                         isRefund &&
-                        (data.refundMode === 'CASH' || totalAmount > REFUND_APPROVAL_LIMIT);
+                        (data.refundMode === 'CASH' || totalAmount > refundApprovalLimit);
                     // needsApproval = went to the branch queue; self-approved notes never do
                     const needsApproval = overLimit && !opts.selfApproved;
                     const selfApproved = overLimit && !needsApproval;
@@ -469,7 +469,7 @@ class CreditNoteService {
                 .reduce((n, t) => n + t._count._all, 0);
 
         return {
-            approvalLimit: REFUND_APPROVAL_LIMIT,
+            approvalLimit: (await companySettingsService.get(scope.companyId)).refundApprovalLimit,
             month: {
                 notes: monthNotes._count._all,
                 value: round2(returned),

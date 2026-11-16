@@ -185,7 +185,7 @@ class CreditService {
       const oldestBillDate = bills.length > 0 ? new Date(bills[0].billDate) : new Date(c.createdAt);
       const diffMs = now.getTime() - oldestBillDate.getTime();
       const daysOld = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-      const isOverdue = daysOld > (c.creditDays || 15);
+      const isOverdue = daysOld > c.creditDays;
 
       let displayAge = '';
       if (daysOld === 0) {
@@ -203,7 +203,7 @@ class CreditService {
         customerType: c.customerType || 'Retail',
         businessName: c.businessName || null,
         creditLimit: Number(c.creditLimit || 0),
-        creditDays: Number(c.creditDays || 15),
+        creditDays: Number(c.creditDays),
         balanceDue: Number(c.balanceDue || 0),
         billsCount,
         oldestBillDate,

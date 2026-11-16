@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import {Prisma} from '@prisma/client';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import companySettingsService from './companySettings.service';
 import {ShopScope} from './shopProduct.service';
 import {
   CreateCustomer,
@@ -107,9 +108,12 @@ class CustomerService {
     });
     if (!shop) throw new ApiError(httpStatus.FORBIDDEN, 'No shop is linked to this account');
 
+    const {defaultCreditDays} = await companySettingsService.get(shop.companyId);
     const created = await prisma.shopCustomer.create({
       data: {
         ...data,
+        // Not given: the company's default credit days (P4-08)
+        creditDays: data.creditDays ?? defaultCreditDays,
         shopId: scope.shopId,
         companyId: shop.companyId,
         branchId: shop.branchId,

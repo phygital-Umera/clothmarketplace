@@ -176,6 +176,8 @@ export interface BranchSalesParams extends BillListParams {
 
 export interface BranchSalesSummary {
   range: {from: string; to: string};
+  /** The company's high-discount level (P4-08) */
+  discountApprovalPct?: number;
   kpis: {
     bills: number;
     creditBills: number;

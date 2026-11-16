@@ -9,6 +9,7 @@ import {useCreateCustomer} from '@/lib/react-query/queriesAndMutations/customer'
 import {useShopDashboard} from '@/lib/react-query/queriesAndMutations/shopOps';
 import {CustomerSuggestion} from '@/lib/api/bill';
 import useSalesPreview from '@/hooks/useSalesPreview';
+import {useCompanyRules} from '@/lib/react-query/queriesAndMutations/companySettings';
 import {BillPayload, PaymentMethod, SalesBillType} from '@/types/bill';
 import {inr} from '@/utils/money';
 import {printSalesBill} from '@/utils/salesBillInvoice';
@@ -173,7 +174,10 @@ export default function NewBillPOSPage() {
 
   const [upiRef, setUpiRef] = useState<string>('');
   const [cardLast4, setCardLast4] = useState<string>('');
+  // The company's default credit days (P4-08) until a customer's own are picked
+  const defaultCreditDays = useCompanyRules('shop-admin').data?.defaultCreditDays ?? 15;
   const [creditDays, setCreditDays] = useState<number>(15);
+  useEffect(() => setCreditDays(defaultCreditDays), [defaultCreditDays]);
 
   // Held Bills State
   const [heldBills, setHeldBills] = useState<HeldBill[]>(() => {
@@ -451,7 +455,7 @@ export default function NewBillPOSPage() {
     setCustomerGSTIN('');
     setCustomerPreviousDue(0);
     setCustomerCreditLimit(0);
-    setCreditDays(15);
+    setCreditDays(defaultCreditDays);
     setIsWalkIn(true);
   };
 
@@ -507,7 +511,7 @@ export default function NewBillPOSPage() {
     setCustomerGSTIN(bill.customerGstin ?? '');
     setCustomerPreviousDue(bill.previousDue ?? 0);
     setCustomerCreditLimit(bill.creditLimit ?? 0);
-    setCreditDays(bill.creditDays ?? 15);
+    setCreditDays(bill.creditDays ?? defaultCreditDays);
     setIsWalkIn(!bill.customerPhone);
 
     setHeldBills((prev) => prev.filter((b) => b.id !== bill.id));

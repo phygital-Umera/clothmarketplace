@@ -1,6 +1,6 @@
 import {CreditNoteStatus, ReturnSettlement} from '@prisma/client';
 import prisma from '../client';
-import {REFUND_APPROVAL_LIMIT} from './creditNote.service';
+import companySettingsService from './companySettings.service';
 import {BranchScope} from './customerDue.service';
 
 export type ApprovalItem = {
@@ -97,15 +97,16 @@ class BranchApprovalService {
             decisionDate: n.decidedAt?.toISOString(),
         }));
 
+        const {refundApprovalLimit} = await companySettingsService.get(scope.companyId);
         return {
             counts: {pending, refund: pending, doneToday},
             items,
-            // The rules the system actually enforces
+            // The rules the system actually enforces (the company's settings, P4-08)
             limitsTable: [
                 {
                     action: 'Refund (credit note)',
-                    cashierCan: `Card / UPI up to ${rupees(REFUND_APPROVAL_LIMIT)}`,
-                    managerCan: `Card / UPI up to ${rupees(REFUND_APPROVAL_LIMIT)}`,
+                    cashierCan: `Card / UPI up to ${rupees(refundApprovalLimit)}`,
+                    managerCan: `Card / UPI up to ${rupees(refundApprovalLimit)}`,
                     aboveThat: 'Branch Admin (and every cash refund)',
                 },
             ],
