@@ -2,6 +2,7 @@ import {Prisma} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import {shopOpsValidation} from '@validations/index';
+import {financialYear} from '@utils/day';
 import billService from './bill.service';
 import {ShopScope} from './shopProduct.service';
 
@@ -15,12 +16,6 @@ function formatDayMonth(d: Date): string {
     const month = MONTH_NAMES[d.getMonth()] || '';
     return `${day} ${month}`;
 }
-
-/** Indian financial year of a date, as used in expense numbers: April 2026 – March 2027 → "26-27" */
-const financialYear = (d = new Date()) => {
-    const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
-    return `${String(start % 100).padStart(2, '0')}-${String((start + 1) % 100).padStart(2, '0')}`;
-};
 
 /** Shop running expenses; cash ones come out of the counter drawer */
 class ExpenseService {

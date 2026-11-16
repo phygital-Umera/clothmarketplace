@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import { financialYear } from '@utils/day';
 import accountService from './account.service';
 import { ShopScope } from './shopProduct.service';
 import { ReceivePaymentInput } from '../validations/credit.validation';
@@ -35,21 +36,10 @@ export interface StatementTransaction {
 
 class CreditService {
   /**
-   * Helper to compute financial year prefix, e.g. "26-27"
-   */
-  public getFinancialYear(date: Date = new Date()): string {
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-indexed; Apr is 3
-    const startYear = month >= 3 ? year : year - 1;
-    const endYear = startYear + 1;
-    return `${String(startYear).slice(-2)}-${String(endYear).slice(-2)}`;
-  }
-
-  /**
    * Next receipt number in this financial year: RC/26-27/0001
    */
   public getNextReceiptNumber = async (scope: ShopScope): Promise<string> =>
-    accountService.nextCode(prisma, `RC/${this.getFinancialYear()}/`, 4, async (p) =>
+    accountService.nextCode(prisma, `RC/${financialYear()}/`, 4, async (p) =>
       (
         await prisma.customerCreditPayment.findMany({
           where: { shopId: scope.shopId, receiptNumber: { startsWith: p } },

@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
+import { financialYear } from '@utils/day';
 import accountService from './account.service';
 import { ShopScope } from './shopProduct.service';
 import { CreatePurchaseReturnInput } from '../validations/purchaseReturn.validation';
@@ -22,21 +23,10 @@ export interface PurchaseBillReturnItem {
 
 class PurchaseReturnService {
   /**
-   * Financial Year format e.g. "26-27"
-   */
-  public getFinancialYear(date: Date = new Date()): string {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const startYear = month >= 3 ? year : year - 1;
-    const endYear = startYear + 1;
-    return `${String(startYear).slice(-2)}-${String(endYear).slice(-2)}`;
-  }
-
-  /**
    * Next debit note number in this financial year: DN/26-27/0001
    */
   public getNextDebitNoteNumber = async (scope: ShopScope): Promise<string> =>
-    accountService.nextCode(prisma, `DN/${this.getFinancialYear()}/`, 4, async (p) =>
+    accountService.nextCode(prisma, `DN/${financialYear()}/`, 4, async (p) =>
       (
         await prisma.purchaseReturn.findMany({
           where: { shopId: scope.shopId, returnNumber: { startsWith: p } },

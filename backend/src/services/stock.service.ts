@@ -6,7 +6,7 @@ import { MovementType, Prisma } from '@prisma/client';
 import { dayKey, dayRange } from '../utils/day';
 import accountService from './account.service';
 import inventoryService, { LONG_ADJUST_TX, MAX_ADJUST_LINES } from './inventory.service';
-import { financialYear } from './bill.service';
+import { financialYear } from '@utils/day';
 
 const SLOW_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;

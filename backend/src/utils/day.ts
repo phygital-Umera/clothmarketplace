@@ -26,3 +26,14 @@ export const dateOnly = (key: string) => {
 };
 
 export const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * Indian financial year label, April to March, of a local day (server TZ,
+ * India by default): 3 Nov 2026 -> "26-27", 31 Mar 2027 -> "26-27".
+ * Every number series (bills, receipts, debit notes, expenses, audits) uses this.
+ */
+export const financialYear = (d = new Date()) => {
+    const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+    const yy = (y: number) => pad(y % 100);
+    return `${yy(start)}-${yy(start + 1)}`;
+};

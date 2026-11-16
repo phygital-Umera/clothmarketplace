@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import {BillPaymentStatus, BillStatus, Prisma} from '@prisma/client';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
-import {financialYear} from './bill.service';
+import {financialYear} from '@utils/day';
 import {CreateSupplierInput, RecordSupplierPaymentInput} from '../validations/supplier.validation';
 
 export type Scope = {

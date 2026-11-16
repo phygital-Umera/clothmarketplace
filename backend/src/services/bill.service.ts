@@ -16,7 +16,7 @@ import accountService from './account.service';
 import inventoryService, {StockChange} from './inventory.service';
 import {ShopScope} from './shopProduct.service';
 import {syncCustomerFromBill} from './customerLedger';
-import {dayKey} from '../utils/day';
+import {dayKey, financialYear} from '../utils/day';
 
 type Tx = Prisma.TransactionClient;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
@@ -70,13 +70,6 @@ const KIND = {
 type PostedLine = {variantId: string; productId: string; quantity: number};
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
-
-/** Indian financial year label, April to March: 3 Nov 2026 -> "26-27" */
-export const financialYear = (d = new Date()) => {
-    const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
-    const yy = (y: number) => String(y % 100).padStart(2, '0');
-    return `${yy(start)}-${yy(start + 1)}`;
-};
 
 /** Paid / part credit / credit from what is still owed */
 export const paymentStatusOf = (amountPaid: number, balanceDue: number) =>
