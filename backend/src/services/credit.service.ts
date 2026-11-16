@@ -464,9 +464,10 @@ class CreditService {
   public getWhatsAppReminders = async (scope: ShopScope, customerId?: string) => {
     const shop = await prisma.shop.findUnique({
       where: { id: scope.shopId },
-      select: { name: true, phone: true },
+      select: { name: true, phone: true, company: { select: { name: true } } },
     });
-    const shopName = shop?.name || 'Cloth Pro';
+    // The customer's message names the shop (else its company), never the app (P4-10)
+    const shopName = shop?.name || shop?.company?.name || 'your shop';
 
     let customers = await prisma.shopCustomer.findMany({
       where: {

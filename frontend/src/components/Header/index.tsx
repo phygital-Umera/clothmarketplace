@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {setOwnerShop, useOwnerShop} from '@/lib/ownerShop';
 import {useShopOptions} from '@/lib/react-query/queriesAndMutations/org';
@@ -36,7 +37,7 @@ const Header = (props: {
             <Menu size={18} />
           </button>
           <span className="font-serif text-subheading text-burgundy lg:hidden">
-            Cloth Pro
+            {APP_NAME}
           </span>
           {/* Shop staff: which counter they are working on */}
           {me?.shop && (

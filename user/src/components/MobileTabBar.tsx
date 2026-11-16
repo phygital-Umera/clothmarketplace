@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {ReactNode, useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {Link, useRouterState} from '@tanstack/react-router';
@@ -152,7 +153,7 @@ export default function MobileTabBar() {
                   </Link>
                 ) : (
                   <div className="rounded-xl border border-line bg-white p-4 text-center">
-                    <p className="font-serif text-lg text-ink">Welcome to Cloth Pro</p>
+                    <p className="font-serif text-lg text-ink">Welcome to {APP_NAME}</p>
                     <p className="mt-0.5 text-xs text-ink-soft">Sign in to track orders, save your wishlist and check out faster.</p>
                     <div className="mt-3 flex gap-2">
                       <Link to="/signin" className="flex-1 rounded bg-brand py-2.5 text-xs font-bold uppercase tracking-wider text-white">

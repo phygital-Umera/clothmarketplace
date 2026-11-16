@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {useState} from 'react';
 import {createFileRoute, Link, useNavigate} from '@tanstack/react-router';
 import {Heart, Package, RotateCcw} from 'lucide-react';
@@ -67,7 +68,7 @@ function SignUp() {
       photo={AUTH_PHOTOS.signup}
       aside={
         <>
-          <p className="font-serif text-3xl leading-tight">Why join Cloth Pro?</p>
+          <p className="font-serif text-3xl leading-tight">Why join {APP_NAME}?</p>
           <ul className="mt-4 space-y-3">
             {PERKS.map((p) => (
               <li key={p.title} className="flex gap-3">

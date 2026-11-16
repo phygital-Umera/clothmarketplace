@@ -6,6 +6,10 @@ import {Toaster} from 'react-hot-toast';
 import {AuthProvider} from '@/lib/auth';
 import {routeTree} from './routeTree.gen';
 import './index.css';
+import {APP_NAME} from './lib/appName';
+
+// The tab title follows VITE_APP_NAME (P4-10)
+document.title = `${APP_NAME} · Shop clothing from local stores`;
 
 const queryClient = new QueryClient({
   defaultOptions: {queries: {staleTime: 30_000, retry: 1, refetchOnWindowFocus: false}},

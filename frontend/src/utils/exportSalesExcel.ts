@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {salesStateLabel} from '@/components/Bills/BillStatusBadge';
 import {Bill} from '@/types/bill';
 
@@ -12,7 +13,7 @@ const MODE_LABEL: Record<string, string> = {
 export const exportSalesExcel = async (bills: Bill[], fileName: string) => {
   const {default: ExcelJS} = await import('exceljs');
   const book = new ExcelJS.Workbook();
-  book.creator = 'Cloth Pro';
+  book.creator = APP_NAME;
   const sheet = book.addWorksheet('Sales bills', {
     views: [{state: 'frozen', ySplit: 1}],
   });

@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {GenericPasswordField} from '@/components/Forms';
 import {useResetPassword} from '@/lib/react-query/queriesAndMutations/auth';
 import {applyServerErrors, field} from '@/lib/validation/fieldRules';
@@ -48,7 +49,7 @@ const ResetPassword = () => {
 
   return (
     <div>
-      <p className="text-label-caps uppercase text-outline">Cloth Pro</p>
+      <p className="text-label-caps uppercase text-outline">{APP_NAME}</p>
       <h1 className="mt-2 font-serif text-headline-lg-mobile text-burgundy">
         Choose a new password
       </h1>

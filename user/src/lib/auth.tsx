@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {api, setSignedOutHandler, tokens, Tokens} from './api';
@@ -48,7 +49,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
     async (identifier: string, password: string) => {
       const res = await api.post<Tokens & {user: Me}>('/users/login', {username: identifier.trim(), password});
       if (res.user.role !== 'USER') {
-        throw new Error('This is a staff account. Please use the Cloth Pro panel to sign in.');
+        throw new Error(`This is a staff account. Please use the ${APP_NAME} panel to sign in.`);
       }
       tokens.write({accessToken: res.accessToken, refreshToken: res.refreshToken});
       setHasToken(true);

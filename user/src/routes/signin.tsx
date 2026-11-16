@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {useState} from 'react';
 import {createFileRoute, Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useAuth} from '@/lib/auth';
@@ -76,7 +77,7 @@ function SignIn() {
         </button>
       </form>
       <div className="my-6 flex items-center gap-3 text-xs text-ink-faint">
-        <span className="h-px flex-1 bg-line" /> New to Cloth Pro? <span className="h-px flex-1 bg-line" />
+        <span className="h-px flex-1 bg-line" /> New to {APP_NAME}? <span className="h-px flex-1 bg-line" />
       </div>
       <Link to="/signup" search={{redirect}} className={`${btn.outline} w-full py-3`}>
         Create an account

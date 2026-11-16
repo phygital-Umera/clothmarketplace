@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {useAuthContext} from '@/context/AuthContext';
 import {landingFor} from '@/lib/roles';
 import {Navigate, Outlet} from '@tanstack/react-router';
@@ -14,7 +15,7 @@ const AuthLayout = () => {
     <div className="grid min-h-screen bg-ivory lg:grid-cols-2">
       {/* Editorial panel */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-burgundy-deep p-margin-lg text-ivory lg:flex">
-        <span className="font-serif text-headline-sm">Cloth Pro</span>
+        <span className="font-serif text-headline-sm">{APP_NAME}</span>
         <div>
           <p className="text-label-caps uppercase text-blush">Welcome</p>
           <h1 className="mt-4 max-w-md font-serif text-headline-lg">

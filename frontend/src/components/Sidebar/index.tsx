@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {SidebarProps} from '@/types';
@@ -678,7 +679,7 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
             onClick={() => setSidebarOpen(false)}
           >
             <span className="block font-serif text-2xl font-bold tracking-tight text-[#FAF7F5]">
-              Cloth Pro
+              {APP_NAME}
             </span>
             <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wider text-[#C99A9F]">
               {panelLabel}
@@ -733,7 +734,7 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
         </nav>
 
         <p className="border-t border-[#5c1c2b] px-5 py-3 text-[11px] font-medium text-[#A4707A]">
-          © {new Date().getFullYear()} Cloth Pro
+          © {new Date().getFullYear()} {APP_NAME}
         </p>
       </aside>
     </>

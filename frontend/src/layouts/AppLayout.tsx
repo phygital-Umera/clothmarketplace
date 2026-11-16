@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import Header from '@/components/Header';
 import OwnerShopPicker from '@/components/OwnerShopPicker';
 import Sidebar from '@/components/Sidebar';
@@ -68,7 +69,7 @@ const AppLayout = () => {
             No access
           </h1>
           <p className="mt-2 text-body-sm text-on-surface-variant">
-            This account cannot use the Cloth Pro panel, or its role has
+            This account cannot use the {APP_NAME} panel, or its role has
             changed. Please sign in again.
           </p>
           <button onClick={logout} className="btn-primary mt-6">

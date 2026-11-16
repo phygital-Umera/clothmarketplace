@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {ReactNode, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
@@ -193,7 +194,7 @@ function Header() {
           <Menu size={20} />
         </button>
         <Link to="/" className="shrink-0 font-serif text-2xl text-brand">
-          Cloth Pro
+          {APP_NAME}
         </Link>
         <div className="hidden flex-1 md:block">
           <SearchBox />
@@ -231,7 +232,7 @@ function Header() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenu(false)} />
           <div className="absolute inset-y-0 left-0 flex w-[85vw] max-w-xs flex-col overflow-y-auto bg-white p-5 shadow-xl">
             <div className="mb-6 flex items-center justify-between">
-              <span className="font-serif text-xl text-brand">Cloth Pro</span>
+              <span className="font-serif text-xl text-brand">{APP_NAME}</span>
               <button onClick={() => setMenu(false)} aria-label="Close menu">
                 <X size={20} />
               </button>
@@ -296,7 +297,7 @@ function Footer() {
     <footer className="mt-16 bg-brand-dark pb-[calc(3.5rem+env(safe-area-inset-bottom))] text-white/80 lg:pb-0 print:hidden">
       <div className="mx-auto grid max-w-page grid-cols-2 gap-x-6 gap-y-8 px-4 py-10 lg:grid-cols-3">
         <div className="col-span-2 lg:col-span-1">
-          <p className="font-serif text-2xl text-white">Cloth Pro</p>
+          <p className="font-serif text-2xl text-white">{APP_NAME}</p>
           <p className="mt-2 text-sm">Clothing from trusted local brands and stores, delivered to your door.</p>
         </div>
         {cols.map((c) => (
@@ -314,7 +315,7 @@ function Footer() {
           </div>
         ))}
       </div>
-      <p className="border-t border-white/10 py-4 text-center text-xs">© {new Date().getFullYear()} Cloth Pro</p>
+      <p className="border-t border-white/10 py-4 text-center text-xs">© {new Date().getFullYear()} {APP_NAME}</p>
     </footer>
   );
 }

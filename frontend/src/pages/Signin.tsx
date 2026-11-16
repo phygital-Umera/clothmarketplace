@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {Field} from '@/components/ui';
 import {useAuthContext} from '@/context/AuthContext';
 import {useLoginUser} from '@/lib/react-query/queriesAndMutations/auth';
@@ -44,7 +45,7 @@ const Signin = () => {
 
   return (
     <div>
-      <p className="text-label-caps uppercase text-outline">Cloth Pro</p>
+      <p className="text-label-caps uppercase text-outline">{APP_NAME}</p>
       <h1 className="mt-2 font-serif text-headline-lg-mobile text-burgundy">
         Sign in
       </h1>

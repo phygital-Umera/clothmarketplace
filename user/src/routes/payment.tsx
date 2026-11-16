@@ -1,3 +1,4 @@
+import {APP_NAME} from '@/lib/appName';
 import {useState} from 'react';
 import {createFileRoute, Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useQueryClient} from '@tanstack/react-query';
@@ -48,7 +49,7 @@ const payWithRazorpay = async (info: RazorpayInfo) => {
       order_id: info.razorpayOrderId,
       amount: info.amount,
       currency: info.currency,
-      name: 'Cloth Pro',
+      name: APP_NAME,
       description: 'Your order',
       prefill: info.prefill,
       theme: {color: '#7A2232'},
