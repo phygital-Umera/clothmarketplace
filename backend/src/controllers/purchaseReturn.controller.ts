@@ -35,7 +35,10 @@ export const getBillsBySupplier = catchAsync(async (req: Request, res: Response)
 
 export const getEarlierReturns = catchAsync(async (req: Request, res: Response) => {
   const scope = shopOf(req);
-  const earlierReturns = await purchaseReturnService.getEarlierReturns(scope);
+  const earlierReturns = await purchaseReturnService.getEarlierReturns(
+    scope,
+    Number(req.query.limit) || 10,
+  );
   res.status(httpStatus.OK).json({ success: true, data: earlierReturns });
 });
 

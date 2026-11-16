@@ -94,8 +94,16 @@ export default function BranchStockTransfersPage() {
   }, [search]);
 
   const {data: summary} = useStockTransferSummary();
-  const {data, isLoading, isError, error} = useStockTransfers({tab, search: debounced || undefined});
+  // Paged (P4-11): a new tab or search starts at page 1
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [tab, debounced]);
+  const {data, isLoading, isError, error} = useStockTransfers({
+    tab,
+    search: debounced || undefined,
+    page,
+  });
   const transfers = data?.items ?? [];
+  const pages = data?.pagination?.totalPages ?? 1;
   const active =
     transfers.find((t) => t.id === selectedId) ??
     transfers.find((t) => t.status === 'REQUESTED') ??
@@ -212,6 +220,19 @@ export default function BranchStockTransfersPage() {
               </tbody>
             </table>
           </div>
+          {pages > 1 && (
+            <div className="flex items-center justify-end gap-3 border-t border-ivory-300 px-4 py-2 text-body-sm">
+              <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                Newer
+              </button>
+              <span className="text-outline">
+                Page {page} of {pages}
+              </span>
+              <button className="btn-ghost" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+                Older
+              </button>
+            </div>
+          )}
         </section>
 
         <aside className="panel p-4">

@@ -105,7 +105,10 @@ router.post('/uploads', customerPhotoUpload.single('photo'), catchAsync(async (r
 }));
 
 router.get('/orders', catchAsync(async (req, res) =>
-    ok(res, await storeOrders.list(me(req), z.enum(ORDER_TABS).catch('all').parse(req.query.tab), typeof req.query.q === 'string' ? req.query.q : undefined))));
+    ok(res, await storeOrders.list(me(req), z.enum(ORDER_TABS).catch('all').parse(req.query.tab), typeof req.query.q === 'string' ? req.query.q : undefined, {
+        page: Number(req.query.page) || undefined,
+        limit: Number(req.query.limit) || undefined,
+    }))));
 router.get('/orders/:id', catchAsync(async (req, res) => ok(res, await storeOrders.get(me(req), id(req)))));
 router.get('/orders/:id/invoice', catchAsync(async (req, res) => ok(res, await storeOrders.invoice(me(req), id(req)))));
 router.post('/orders/:id/cancel', catchAsync(async (req, res) => {

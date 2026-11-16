@@ -23,7 +23,7 @@ export const TRANSFER_KEYS = {
     [...TRANSFER_KEYS.all, 'variants', panel, search ?? ''] as const,
   shopList: (panel: string, tab: string, search?: string) =>
     [...TRANSFER_KEYS.all, 'shop', panel, tab, search ?? ''] as const,
-  branchList: (params?: {search?: string; tab?: string}) =>
+  branchList: (params?: {search?: string; tab?: string; page?: number}) =>
     [...TRANSFER_KEYS.all, 'branch', params] as const,
   summary: () => [...TRANSFER_KEYS.all, 'summary'] as const,
   sources: (id: string, panel: string) => [...TRANSFER_KEYS.all, 'sources', panel, id] as const,
@@ -109,7 +109,7 @@ export const useReceiveTransfer = (panel: string) => {
 
 // ---- Branch admin ----
 
-export const useStockTransfers = (params?: {search?: string; tab?: string}) =>
+export const useStockTransfers = (params?: {search?: string; tab?: string; page?: number}) =>
   useQuery({
     queryKey: TRANSFER_KEYS.branchList(params),
     queryFn: () => getStockTransfers(params),

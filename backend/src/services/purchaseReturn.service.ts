@@ -138,13 +138,14 @@ class PurchaseReturnService {
   /**
    * Get earlier debit notes / returns
    */
-  public getEarlierReturns = async (scope: ShopScope) => {
+  public getEarlierReturns = async (scope: ShopScope, limit = 10) => {
+    // The page asks for more with "Show more" (P4-11); never more than 100 at once
     const returns = await prisma.purchaseReturn.findMany({
       where: {
         shopId: scope.shopId,
       },
       orderBy: { returnDate: 'desc' },
-      take: 10,
+      take: Math.min(100, Math.max(1, limit)),
     });
 
     return returns.map((r) => {

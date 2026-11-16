@@ -54,7 +54,9 @@ export default function PurchaseReturnPage() {
   const {data: nextDebitNoteNo} = useNextDebitNoteNumber(PANEL);
   const {data: suppliers = []} = useReturnSuppliers(PANEL);
   const {data: bills = [], isLoading: billsLoading} = useBillsBySupplier(PANEL, selectedSupplier);
-  const {data: earlierReturns = []} = useEarlierReturns(PANEL);
+  // The latest 10, and more on "Show more" (P4-11)
+  const [earlierLimit, setEarlierLimit] = useState(10);
+  const {data: earlierReturns = []} = useEarlierReturns(PANEL, earlierLimit);
 
   // Start on the first real supplier once they load
   useEffect(() => {
@@ -548,6 +550,15 @@ export default function PurchaseReturnPage() {
                 ))
               )}
             </div>
+            {earlierReturns.length >= earlierLimit && earlierLimit < 100 && (
+              <button
+                type="button"
+                className="btn-text mt-2 text-xs"
+                onClick={() => setEarlierLimit(earlierLimit + 10)}
+              >
+                Show more
+              </button>
+            )}
           </div>
         </div>
       </div>

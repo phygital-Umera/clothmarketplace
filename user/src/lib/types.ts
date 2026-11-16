@@ -326,7 +326,11 @@ export type Order = {
 };
 
 export type OrderTab = 'all' | 'active' | 'delivered' | 'cancelled' | 'returns';
-export type OrderList = {items: Order[]; counts: Record<OrderTab, number>};
+export type OrderList = {
+  items: Order[];
+  counts: Record<OrderTab, number>;
+  pagination: {page: number; limit: number; total: number; totalPages: number};
+};
 
 export type ReturnRow = OrderReturn & {order: {id: string; orderNumber: string; paymentMethod: string; createdAt: string}};
 

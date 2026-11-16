@@ -710,13 +710,25 @@ class StockTransferService {
                   }
                 : {}),
         };
-        const rows = await prisma.stockTransfer.findMany({
-            where,
-            include: TRANSFER_INCLUDE,
-            orderBy: {createdAt: 'desc'},
-            take: 200,
-        });
-        return {items: await this.serialize(rows)};
+        const [rows, total] = await Promise.all([
+            prisma.stockTransfer.findMany({
+                where,
+                include: TRANSFER_INCLUDE,
+                orderBy: {createdAt: 'desc'},
+                skip: (query.page - 1) * query.limit,
+                take: query.limit,
+            }),
+            prisma.stockTransfer.count({where}),
+        ]);
+        return {
+            items: await this.serialize(rows),
+            pagination: {
+                page: query.page,
+                limit: query.limit,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / query.limit)),
+            },
+        };
     };
 
     public summary = async (scope: BranchScope) => {

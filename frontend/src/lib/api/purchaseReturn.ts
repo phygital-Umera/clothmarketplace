@@ -29,9 +29,9 @@ export const getBillsBySupplier = (panel: string = 'shop-admin', supplierName?: 
     })
     .then((res: any) => res?.data ?? res);
 
-export const getEarlierReturns = (panel: string = 'shop-admin') =>
+export const getEarlierReturns = (panel: string = 'shop-admin', limit = 10) =>
   api
-    .get<Res<EarlierReturnSummary[]>>(`/${panel}/purchase-returns/earlier`)
+    .get<Res<EarlierReturnSummary[]>>(`/${panel}/purchase-returns/earlier`, {params: {limit}})
     .then((res: any) => res?.data ?? res);
 
 export const createPurchaseReturn = (

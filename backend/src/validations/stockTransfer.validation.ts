@@ -72,6 +72,9 @@ const branchListSchema = z.object({
         z.enum(['ALL', 'TO_APPROVE', 'TO_DISPATCH', 'IN_TRANSIT', 'DONE']).optional(),
     ),
     search: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
+    // P4-11: every transfer can be reached, not only the latest 200
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
 const variantSearchSchema = z.object({

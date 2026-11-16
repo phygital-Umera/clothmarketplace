@@ -7,7 +7,7 @@ import {
   getReturnSuppliers,
 } from '@/lib/api/purchaseReturn';
 import {CreatePurchaseReturnPayload} from '@/types/purchaseReturn';
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {keepPreviousData, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 
 export const purchaseReturnKeys = {
   all: ['purchaseReturn'] as const,
@@ -37,10 +37,11 @@ export const useBillsBySupplier = (panel: string = 'shop-admin', supplierName?: 
     queryFn: () => getBillsBySupplier(panel, supplierName),
   });
 
-export const useEarlierReturns = (panel: string = 'shop-admin') =>
+export const useEarlierReturns = (panel: string = 'shop-admin', limit = 10) =>
   useQuery({
-    queryKey: purchaseReturnKeys.earlier(panel),
-    queryFn: () => getEarlierReturns(panel),
+    queryKey: [...purchaseReturnKeys.earlier(panel), limit],
+    queryFn: () => getEarlierReturns(panel, limit),
+    placeholderData: keepPreviousData,
   });
 
 export const useCreatePurchaseReturn = (panel: string = 'shop-admin') => {

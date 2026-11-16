@@ -23,7 +23,15 @@ function OrdersPage() {
   const navigate = useNavigate({from: '/account/orders'});
   const [q, setQ] = useState('');
   const [debounced] = useDebounceValue(q.trim(), 300);
-  const {data, isLoading, error, refetch, isFetching} = useOrderList(tab, debounced);
+  // Paged, so older orders can be reached (P4-11); a new tab or search starts at page 1
+  const [page, setPage] = useState(1);
+  const [pageOf, setPageOf] = useState(`${tab}|${debounced}`);
+  if (pageOf !== `${tab}|${debounced}`) {
+    setPageOf(`${tab}|${debounced}`);
+    setPage(1);
+  }
+  const {data, isLoading, error, refetch, isFetching} = useOrderList(tab, debounced, page);
+  const pages = data?.pagination?.totalPages ?? 1;
   const [cancelling, setCancelling] = useState<Order | null>(null);
 
   return (
@@ -61,6 +69,19 @@ function OrdersPage() {
             <OrderCard key={o.id} order={o} onCancel={() => setCancelling(o)} />
           ))}
         </ul>
+      )}
+      {pages > 1 && (
+        <nav className="mt-6 flex items-center justify-center gap-3 text-sm" aria-label="Order pages">
+          <button className={btn.outline} disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            Newer
+          </button>
+          <span className="text-ink-soft">
+            Page {page} of {pages}
+          </span>
+          <button className={btn.outline} disabled={page >= pages} onClick={() => setPage(page + 1)}>
+            Older
+          </button>
+        </nav>
       )}
       <CancelDialog order={cancelling} onClose={() => setCancelling(null)} />
     </div>

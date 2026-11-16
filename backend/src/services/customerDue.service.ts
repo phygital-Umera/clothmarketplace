@@ -176,8 +176,17 @@ class CustomerDueService {
         };
     }
 
+    /** Every customer with a due; over the cap the export is refused, never cut short (P4-11) */
     public async export(scope: BranchScope, query: CustomerDueQuery) {
-        return (await this.list(scope, {...query, page: 1, limit: 1000})).items;
+        const EXPORT_CAP = 1000;
+        const result = await this.list(scope, {...query, page: 1, limit: EXPORT_CAP});
+        if (result.pagination.total > EXPORT_CAP) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `${result.pagination.total} customers match; an export can have at most ${EXPORT_CAP}. Filter by shop or search first.`,
+            );
+        }
+        return result.items;
     }
 }
 

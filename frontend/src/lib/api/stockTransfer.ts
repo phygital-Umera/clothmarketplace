@@ -40,8 +40,10 @@ export const receiveTransfer = (
 
 // ---- Branch admin: approve / reject, overview ----
 
-export const getStockTransfers = (params?: {search?: string; tab?: string}) =>
-  api.get('/branch-admin/transfers', {params}).then((res: any) => res as Res<{items: StockTransfer[]}>);
+export type Paging = {page: number; limit: number; total: number; totalPages: number};
+
+export const getStockTransfers = (params?: {search?: string; tab?: string; page?: number}) =>
+  api.get('/branch-admin/transfers', {params}).then((res: any) => res as Res<{items: StockTransfer[]; pagination?: Paging}>);
 
 export const getStockTransferSummary = () =>
   api.get('/branch-admin/transfers/summary').then((res: any) => res as Res<TransferSummary>);

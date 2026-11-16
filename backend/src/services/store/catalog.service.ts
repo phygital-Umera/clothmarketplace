@@ -6,6 +6,10 @@ import ApiError from '@utils/ApiError';
 import {rateFor} from '../../utils/gst';
 import shopGstService from '../shopGst.service';
 import storeSettingsService, {StoreRules} from '../storeSettings.service';
+import {logger} from '@config/index';
+
+/** Most products the in-memory catalog loads at once (P4-11) */
+const CATALOG_CAP = 2000;
 
 /*
  * Customer storefront catalog (public, no sign-in).
@@ -219,7 +223,14 @@ class CatalogService {
     }
 
     private async cards(where: Prisma.ProductWhereInput) {
-        const rows = await prisma.product.findMany({where: {...LISTED, ...where}, select: CARD_SELECT, take: 2000});
+        // Facets are counted in memory over every listed product. Past the cap the
+        // store would hide products, so it is logged loudly (P4-11); move the
+        // filtering into the database before the catalog grows that big
+        const rows = await prisma.product.findMany({where: {...LISTED, ...where}, select: CARD_SELECT, take: CATALOG_CAP + 1});
+        if (rows.length > CATALOG_CAP) {
+            logger.warn(`Store catalog has more than ${CATALOG_CAP} listed products; only the first ${CATALOG_CAP} are shown`);
+            rows.length = CATALOG_CAP;
+        }
         const stats = await this.stats(rows.map((r) => r.id));
         // Bestsellers: the top tenth by units sold (at least 1 sold)
         const ranked = [...stats.sold.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);

@@ -255,11 +255,11 @@ export const paymentApi = {
 
 /* Orders, returns, reviews ------------------------------------------------ */
 
-export const useOrderList = (tab: OrderTab, q = '') => {
+export const useOrderList = (tab: OrderTab, q = '', page = 1) => {
   const {signedIn} = useAuth();
   return useQuery({
-    queryKey: [PRIVATE, 'orders', tab, q],
-    queryFn: () => api.get<OrderList>('/store/orders', {tab, q: q || undefined}),
+    queryKey: [PRIVATE, 'orders', tab, q, page],
+    queryFn: () => api.get<OrderList>('/store/orders', {tab, q: q || undefined, page}),
     enabled: signedIn,
     placeholderData: keepPreviousData,
   });

@@ -24,6 +24,9 @@ import shopGstService from './shopGst.service';
 import companySettingsService from './companySettings.service';
 
 type Tx = Prisma.TransactionClient;
+
+/** Most rows one Excel export may have (P4-11) */
+const EXPORT_CAP = 5000;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
 type UpdatePurchase = z.infer<typeof billValidation.updatePurchaseBillSchema>;
 type CreateSales = z.infer<typeof billValidation.createSalesBillSchema>;
@@ -1344,14 +1347,25 @@ class BillService {
         };
     }
 
-    /** Every matching bill for the Excel export (no paging, capped) */
-    public exportSales = (scope: BillScope, query: BranchSalesList) =>
-        prisma.salesBill.findMany({
-            where: this.salesWhere(scope, query),
+    /**
+     * Every matching bill for the Excel export. Over the cap the export is
+     * refused with a clear message (P4-11), never cut short without saying so.
+     */
+    public exportSales = async (scope: BillScope, query: BranchSalesList) => {
+        const where = this.salesWhere(scope, query);
+        const total = await prisma.salesBill.count({where});
+        if (total > EXPORT_CAP) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                `${total.toLocaleString('en-IN')} bills match; an export can have at most ${EXPORT_CAP.toLocaleString('en-IN')}. Pick a shorter date range or one shop.`,
+            );
+        }
+        return prisma.salesBill.findMany({
+            where,
             include: BILL_INCLUDE,
             orderBy: {billDate: 'desc'},
-            take: 5000,
         });
+    };
 
     /**
      * Branch sales summary for a date range (default: today): KPIs, bills

@@ -265,7 +265,15 @@ class StoreOrderService {
         return invoice;
     }
 
-    public async list(userId: string, tab: (typeof ORDER_TABS)[number], q?: string) {
+    /** One page of the customer's orders (P4-11: every order can be reached, not only the latest 50) */
+    public async list(
+        userId: string,
+        tab: (typeof ORDER_TABS)[number],
+        q?: string,
+        paging: {page?: number; limit?: number} = {},
+    ) {
+        const limit = Math.min(50, Math.max(1, paging.limit ?? 20));
+        const page = Math.max(1, paging.page ?? 1);
         const search = q?.trim();
         const where: Prisma.OrderWhereInput = {
             customerId: userId,
@@ -286,8 +294,15 @@ class StoreOrderService {
                   }
                 : {}),
         };
-        const [rows, all] = await Promise.all([
-            prisma.order.findMany({where, include: ORDER_INCLUDE, orderBy: {createdAt: 'desc'}, take: 50}),
+        const [rows, total, all] = await Promise.all([
+            prisma.order.findMany({
+                where,
+                include: ORDER_INCLUDE,
+                orderBy: {createdAt: 'desc'},
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            prisma.order.count({where}),
             prisma.order.findMany({
                 where: {customerId: userId},
                 select: {status: true, _count: {select: {returns: true}}},
@@ -301,7 +316,11 @@ class StoreOrderService {
             returns: all.filter((o) => o.status === OrderStatus.RETURNED || o._count.returns > 0).length,
         };
         const settings = await storeSettingsService.get();
-        return {items: rows.map((o) => shape(o, settings)), counts};
+        return {
+            items: rows.map((o) => shape(o, settings)),
+            counts,
+            pagination: {page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit))},
+        };
     }
 
     public async get(userId: string, id: string) {
