@@ -126,10 +126,10 @@ const salesFields = {
         .optional(),
     discount: money('Discount').default(0),
     notes: text('Notes', 1000),
+    // No GST rate: the server works it out per line (D-18); a sent rate is dropped
     items: items({
         unitPrice: money('Unit Price'),
         discount: money('Item Discount').default(0),
-        taxRate,
     }),
 };
 

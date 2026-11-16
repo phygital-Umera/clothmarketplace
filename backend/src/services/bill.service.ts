@@ -17,6 +17,8 @@ import inventoryService, {StockChange} from './inventory.service';
 import {ShopScope} from './shopProduct.service';
 import {syncCustomerFromBill} from './customerLedger';
 import {dayKey, financialYear} from '../utils/day';
+import {rateFor} from '../utils/gst';
+import shopGstService from './shopGst.service';
 
 type Tx = Prisma.TransactionClient;
 type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
@@ -135,7 +137,7 @@ class BillService {
                 variantSku: true,
                 size: true,
                 color: true,
-                product: {select: {name: true, hsnCode: true}},
+                product: {select: {name: true, hsnCode: true, taxRate: true}},
             },
         });
         if (variants.length !== variantIds.length) {
@@ -358,13 +360,30 @@ class BillService {
      *
      * Older bills (GST added on top) keep their original maths so editing them
      * never changes what was charged.
+     *
+     * The GST rate of each line is the server's (D-18), never the one sent:
+     * the product's fixed rate, or the shop's price rule on what one piece
+     * sells for after the item and bill discounts. Lines of an older bill keep
+     * the rate they were saved with (`keptRates`, by variant).
      */
-    private async salesLines(tx: Tx, scope: ShopScope, data: CreateSales | UpdateSales, inclusive = true) {
+    private async salesLines(
+        tx: Tx,
+        scope: ShopScope,
+        data: Pick<CreateSales, 'items' | 'discount'>,
+        inclusive = true,
+        keptRates?: Map<string, number>,
+    ) {
         const variants = await this.loadVariants(
             tx,
             scope,
             data.items.map((i) => i.variantId),
         );
+        const rule = await shopGstService.ruleOf(scope.shopId, tx);
+        const rateOf = (variantId: string, pieceValue: number, taxIncluded: boolean) => {
+            const kept = keptRates?.get(variantId);
+            if (kept !== undefined) return kept;
+            return rateFor(rule, variants.get(variantId)!.product.taxRate, pieceValue, taxIncluded);
+        };
         const nets = data.items.map((item) => {
             const v = variants.get(item.variantId)!;
             const gross = round2(item.quantity * item.unitPrice);
@@ -376,7 +395,7 @@ class BillService {
             }
             return round2(gross - item.discount);
         });
-        const describe = (item: (typeof data.items)[number], totalPrice: number) => {
+        const describe = (item: (typeof data.items)[number], taxRate: number, totalPrice: number) => {
             const v = variants.get(item.variantId)!;
             return {
                 productId: v.productId,
@@ -384,7 +403,7 @@ class BillService {
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 discount: item.discount,
-                taxRate: item.taxRate,
+                taxRate,
                 hsnCode: v.product.hsnCode,
                 totalPrice,
                 productName: v.product.name,
@@ -398,10 +417,11 @@ class BillService {
             let subtotal = 0;
             let taxAmount = 0;
             const lines = data.items.map((item, i) => {
-                const tax = round2((nets[i] * item.taxRate) / 100);
+                const rate = rateOf(item.variantId, nets[i] / item.quantity, false);
+                const tax = round2((nets[i] * rate) / 100);
                 subtotal += nets[i];
                 taxAmount += tax;
-                return describe(item, round2(nets[i] + tax));
+                return describe(item, rate, round2(nets[i] + tax));
             });
             return {lines, totals: {...this.totalsCheck(subtotal, taxAmount, data.discount), roundOff: 0, pricesIncludeTax: false}};
         }
@@ -424,10 +444,11 @@ class BillService {
                       : 0;
             shared = round2(shared + share);
             const pays = round2(nets[i] - share);
-            const taxable = round2(pays / (1 + item.taxRate / 100));
+            const rate = rateOf(item.variantId, pays / item.quantity, true);
+            const taxable = round2(pays / (1 + rate / 100));
             subtotal += taxable;
             taxAmount += round2(pays - taxable);
-            return describe(item, pays);
+            return describe(item, rate, pays);
         });
         const exact = round2(lines.reduce((t, l) => t + l.totalPrice, 0));
         const totalAmount = Math.round(exact);
@@ -859,14 +880,20 @@ class BillService {
             noteNumber: string;
             creditValue: number;
             topUpMode: 'CASH' | 'UPI' | 'CARD';
-            items: {variantId: string; quantity: number; unitPrice: number; taxRate: number}[];
+            /** GST is worked out by salesLines (D-18) */
+            items: {variantId: string; quantity: number; unitPrice: number}[];
         },
     ) => {
         const shop = await this.shopContext(scope);
         const {lines, totals} = await this.salesLines(tx, scope, {
-            items: data.items.map((i) => ({...i, discount: 0})),
+            items: data.items.map(({variantId, quantity, unitPrice}) => ({
+                variantId,
+                quantity,
+                unitPrice,
+                discount: 0,
+            })),
             discount: 0,
-        } as CreateSales);
+        });
         if (totals.totalAmount < data.creditValue) {
             throw new ApiError(
                 httpStatus.BAD_REQUEST,
@@ -936,7 +963,17 @@ class BillService {
                 include: {items: true},
             });
             await this.assertNoReturns(tx, id);
-            const {lines, totals} = await this.salesLines(tx, scope, data, before.pricesIncludeTax);
+            // Older bills (GST on top) keep each item's saved rate, so an edit never re-taxes them
+            const kept = before.pricesIncludeTax
+                ? undefined
+                : new Map(before.items.map((i) => [i.variantId, i.taxRate]));
+            const {lines, totals} = await this.salesLines(
+                tx,
+                scope,
+                data,
+                before.pricesIncludeTax,
+                kept,
+            );
             const paidNow = this.salesPaidNow(data, totals.totalAmount);
             const later = await this.collected(tx, 'SALES', id);
             const settled = this.settle('SALES', totals.totalAmount, paidNow, later, {
