@@ -1,5 +1,9 @@
 import {Router} from 'express';
-import {orgController, ecommerceController} from '@controllers/index';
+import {
+    orgController,
+    ecommerceController,
+    companySettingsController as s,
+} from '@controllers/index';
 import {checkPermission, checkSuperAdmin, verifyJWT} from '@middlewares/index';
 import mountCatalog from './catalog.routes';
 import {mountPromotions} from './promotion.routes';
@@ -12,6 +16,8 @@ const router = Router();
 router.use(verifyJWT, checkSuperAdmin);
 
 router.get('/dashboard', checkPermission('dashboard.view'), c.superAdminDashboard);
+// Store-wide settings: delivery fees and days, badges (P4-08b)
+router.route('/store-settings').get(s.getStore).patch(s.updateStore);
 router.get('/branches', checkPermission('branches.view'), c.listBranches);
 router.get('/branches/:id', checkPermission('branches.view'), c.getBranch);
 router.get('/shops', checkPermission('branches.view'), c.listShops);

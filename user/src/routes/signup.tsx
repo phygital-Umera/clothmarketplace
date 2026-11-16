@@ -17,7 +17,7 @@ const EMPTY = {fullname: '', email: '', phoneNumber: '', password: '', confirmPa
 
 const PERKS = [
   {icon: Package, title: 'Track every order', text: 'Live updates from packing to your door'},
-  {icon: RotateCcw, title: 'Easy returns', text: '7-day returns and free size exchange'},
+  {icon: RotateCcw, title: 'Easy returns', text: 'Easy returns and free size exchange'},
   {icon: Heart, title: 'Save a wishlist', text: 'Keep what you love for later'},
 ];
 

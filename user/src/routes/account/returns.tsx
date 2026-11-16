@@ -39,7 +39,7 @@ function ReturnsPage() {
     <div>
       <PageHead
         title="Returns & refunds"
-        sub="Easy 7-day returns and size exchanges on most items"
+        sub="Easy returns and size exchanges on most items, within each item's return window"
         action={
           eligible.length > 0 && (
             <button onClick={() => navigate({search: {order: eligible[0].id}})} className={btn.primary}>
@@ -68,7 +68,7 @@ function ReturnsPage() {
         <Empty
           icon={<RotateCcw size={28} />}
           title="No returns yet"
-          text={eligible.length ? 'Something not right? You can return or exchange delivered items within 7 days.' : 'Delivered orders can be returned or exchanged within 7 days.'}
+          text={eligible.length ? 'Something not right? You can return or exchange delivered items within their return window.' : "Delivered orders can be returned or exchanged within each item's return window."}
           action={eligible.length > 0 && <button onClick={() => navigate({search: {order: eligible[0].id}})} className={btn.primary}>Request a return</button>}
         />
       ) : (
@@ -177,7 +177,7 @@ function ReturnCard({r}: {r: ReturnRow}) {
 
 function HowItWorks() {
   const steps = [
-    {t: 'Request', d: 'Pick the items and tell us why, within 7 days of delivery.'},
+    {t: 'Request', d: 'Pick the items and tell us why, before the last return date shown on the item.'},
     {t: 'Pickup', d: 'Once approved, our courier collects it from your door. Keep tags on.'},
     {t: 'Refund or exchange', d: 'Refunds reach you in 5–7 working days after the shop checks the item.'},
   ];

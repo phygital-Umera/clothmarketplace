@@ -143,6 +143,12 @@ const NAV: Record<Role, NavGroup[]> = {
           ShoppingBag,
           'Online store orders across all companies',
         ),
+        item(
+          'Store Settings',
+          '/super-admin/store-settings',
+          SlidersHorizontal,
+          'Delivery fees and days, "New" and "Only a few left" badges',
+        ),
       ],
     },
   ],

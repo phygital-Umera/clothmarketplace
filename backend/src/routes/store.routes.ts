@@ -8,6 +8,7 @@ import {storeUpload} from '@utils/fileStore';
 import {userValidation} from '../validations';
 import userService from '../services/user.service';
 import notificationService from '../services/notification.service';
+import storeSettingsService from '../services/storeSettings.service';
 import storeOrders, {ORDER_TABS, RETURN_REASONS, cancelSchema, returnSchema} from '../services/store/orders.service';
 import storeAccount, {SUPPORT_TOPICS, profileSchema, supportSchema} from '../services/store/account.service';
 import catalogService, {productQuerySchema} from '../services/store/catalog.service';
@@ -42,7 +43,9 @@ router.get('/products', catchAsync(async (req, res) => ok(res, await catalogServ
 router.get('/products/:idOrSlug', catchAsync(async (req, res) => ok(res, await catalogService.getProduct(String(req.params.idOrSlug)))));
 router.get('/search/suggest', catchAsync(async (req, res) => ok(res, await catalogService.suggest(String(req.query.q ?? '')))));
 router.get('/coupons', catchAsync(async (_req, res) => ok(res, await customerService.publicCoupons())));
-router.get('/delivery/:pincode', catchAsync(async (req, res) => ok(res, catalogService.deliveryEstimate(String(req.params.pincode)))));
+router.get('/delivery/:pincode', catchAsync(async (req, res) => ok(res, await catalogService.deliveryEstimate(String(req.params.pincode)))));
+// Store-wide settings the store pages show: delivery fees and days (P4-08b)
+router.get('/config', catchAsync(async (_req, res) => ok(res, await storeSettingsService.get())));
 router.get('/payment-config', catchAsync(async (_req, res) => ok(res, checkoutService.paymentConfig())));
 router.get('/help', catchAsync(async (_req, res) => ok(res, {topics: SUPPORT_TOPICS, returnReasons: RETURN_REASONS})));
 router.post('/support', authLimiter, catchAsync(async (req, res) => ok(res, await storeAccount.support(null, supportSchema.parse(req.body)), 'Message sent. We reply within one working day.', httpStatus.CREATED)));

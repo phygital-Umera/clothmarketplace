@@ -6,6 +6,7 @@ import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
 import {gstRuleOf, rateFor} from '../../utils/gst';
 import orderInvoiceService from '../orderInvoice.service';
+import storeSettingsService, {DEFAULT_STORE_RULES, StoreRules} from '../storeSettings.service';
 import inventoryService from '../inventory.service';
 import {notify} from '../notification.service';
 import {returnedLines} from '../order.service';
@@ -118,7 +119,7 @@ const returnedQty = (o: OrderRow) => {
 const refundFor = (o: {subtotal: number; couponDiscount: number}, unitPrice: number, quantity: number) =>
     o.subtotal > 0 ? round2(((unitPrice * quantity) / o.subtotal) * (o.subtotal - o.couponDiscount)) : 0;
 
-const shape = (o: OrderRow) => {
+const shape = (o: OrderRow, s: StoreRules = DEFAULT_STORE_RULES) => {
     const delivered = deliveredAt(o);
     const used = returnedQty(o);
     const now = Date.now();
@@ -163,7 +164,7 @@ const shape = (o: OrderRow) => {
         current: i === currentIdx,
     }));
     const expected =
-        delivery === 'PICKUP' ? null : new Date(o.createdAt.getTime() + (delivery === 'EXPRESS' ? 2 : 5) * DAY);
+        delivery === 'PICKUP' ? null : new Date(o.createdAt.getTime() + (delivery === 'EXPRESS' ? s.deliveryDaysExpress : s.deliveryDaysStd) * DAY);
 
     const cancellable =
         (o.status === OrderStatus.PENDING || o.status === OrderStatus.CONFIRMED) && !o.cancelRequested;
@@ -299,11 +300,12 @@ class StoreOrderService {
             cancelled: all.filter((o) => o.status === OrderStatus.CANCELLED).length,
             returns: all.filter((o) => o.status === OrderStatus.RETURNED || o._count.returns > 0).length,
         };
-        return {items: rows.map(shape), counts};
+        const settings = await storeSettingsService.get();
+        return {items: rows.map((o) => shape(o, settings)), counts};
     }
 
     public async get(userId: string, id: string) {
-        return shape(await this.load(userId, id));
+        return shape(await this.load(userId, id), await storeSettingsService.get());
     }
 
     /**
@@ -355,7 +357,7 @@ class StoreOrderService {
     }
 
     public async requestReturn(userId: string, id: string, data: z.infer<typeof returnSchema>) {
-        const order = shape(await this.load(userId, id));
+        const order = shape(await this.load(userId, id), await storeSettingsService.get());
         if (order.status !== OrderStatus.DELIVERED) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'You can return items once the order is delivered');
         }

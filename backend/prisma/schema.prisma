@@ -1918,3 +1918,20 @@ model SupportRequest {
 
   @@index([status, createdAt])
 }
+
+/// Store-wide settings (P4-08b): one row, id "store"; the super admin changes them. No row = these defaults
+model StoreSettings {
+  id                  String   @id @default("store")
+  /// Standard delivery fee below the free-delivery amount
+  deliveryFee         Float    @default(49)
+  freeDeliveryAbove   Float    @default(999)
+  expressFee          Float    @default(99)
+  /// Days shown as "usually delivered by"
+  deliveryDaysStd     Int      @default(4)
+  deliveryDaysExpress Int      @default(1)
+  /// "Only a few left" badge at this stock or below
+  limitedBadgeAt      Int      @default(3)
+  /// A product is "New" for this many days (badge and the New filter)
+  newProductDays      Int      @default(30)
+  updatedAt           DateTime @updatedAt
+}

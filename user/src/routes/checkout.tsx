@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {createFileRoute, Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {Plus} from 'lucide-react';
 import {useAuth} from '@/lib/auth';
-import {useAddresses, useCart} from '@/lib/queries';
+import {rupees, StoreConfig, useAddresses, useCart, useStoreConfig} from '@/lib/queries';
 import {inr} from '@/lib/format';
 import type {DeliveryOption} from '@/lib/types';
 import AddressForm, {AddressLines} from '@/components/AddressForm';
@@ -17,9 +17,21 @@ export const Route = createFileRoute('/checkout')({
   ),
 });
 
-const OPTIONS: {key: DeliveryOption; title: string; note: (free: boolean) => string}[] = [
-  {key: 'STANDARD', title: 'Standard', note: (free) => (free ? 'Free · 3–5 days' : '₹49 · free above ₹999 · 3–5 days')},
-  {key: 'EXPRESS', title: 'Express', note: () => '₹99 · next day in most cities'},
+// Fees and days are the store settings (P4-08b); days are "usually", there is no courier data yet
+const OPTIONS: {key: DeliveryOption; title: string; note: (free: boolean, c: StoreConfig) => string}[] = [
+  {
+    key: 'STANDARD',
+    title: 'Standard',
+    note: (free, c) =>
+      free
+        ? `Free · usually ${c.deliveryDaysStd} days`
+        : `${rupees(c.deliveryFee)} · free above ${rupees(c.freeDeliveryAbove)} · usually ${c.deliveryDaysStd} days`,
+  },
+  {
+    key: 'EXPRESS',
+    title: 'Express',
+    note: (_free, c) => `${rupees(c.expressFee)} · usually ${c.deliveryDaysExpress === 1 ? 'next day' : `${c.deliveryDaysExpress} days`}`,
+  },
   {key: 'PICKUP', title: 'Store pickup', note: () => 'Free · collect from the shop when ready'},
 ];
 
@@ -38,6 +50,7 @@ function CheckoutPage() {
   const {me} = useAuth();
   const navigate = useNavigate();
   const {choice, update} = useCheckoutChoice();
+  const storeConfig = useStoreConfig();
   const {data: cart, isLoading} = useCart({coupon: choice.coupon, delivery: choice.delivery});
   const {data: addresses, isLoading: loadingAddr} = useAddresses();
   const [adding, setAdding] = useState(false);
@@ -125,7 +138,7 @@ function CheckoutPage() {
                 >
                   <input type="radio" name="delivery" className="sr-only" checked={choice.delivery === o.key} onChange={() => update({delivery: o.key})} />
                   <p className="text-sm font-semibold">{o.title}</p>
-                  <p className="text-xs text-ink-soft">{o.note(cart.summary.itemsTotal >= cart.summary.freeDeliveryAbove)}</p>
+                  <p className="text-xs text-ink-soft">{o.note(cart.summary.itemsTotal >= cart.summary.freeDeliveryAbove, storeConfig)}</p>
                 </label>
               ))}
             </div>

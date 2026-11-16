@@ -37,3 +37,4 @@ export {default as cashBookService} from './cashBook.service';
 export {default as staffService} from './staff.service';
 export {default as shopGstService} from './shopGst.service';
 export {default as companySettingsService} from './companySettings.service';
+export {default as storeSettingsService} from './storeSettings.service';

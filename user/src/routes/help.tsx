@@ -3,7 +3,7 @@ import {createFileRoute, Link} from '@tanstack/react-router';
 import {CheckCircle2, ChevronDown, Clock, CreditCard, Package, Ruler, RotateCcw, Search, User} from 'lucide-react';
 import {errorMessage, fieldErrors} from '@/lib/api';
 import {useAuth} from '@/lib/auth';
-import {sendSupport, SupportInput, useHelpInfo} from '@/lib/queries';
+import {rupees, sendSupport, StoreConfig, SupportInput, useHelpInfo, useStoreConfig} from '@/lib/queries';
 import {btn, input, label} from '@/components/ui';
 import {FieldError} from '@/components/account';
 
@@ -21,12 +21,13 @@ const TOPICS: {key: Topic; icon: typeof Package; text: string}[] = [
   {key: 'My account', icon: User, text: 'Sign in, password, addresses'},
 ];
 
-const FAQ: {topic: Topic; q: string; a: string; link?: {to: string; text: string}}[] = [
+// Delivery fees and days are the store settings (P4-08b); return windows are per product
+const faqList = (c: StoreConfig): {topic: Topic; q: string; a: string; link?: {to: string; text: string}}[] => [
   {topic: 'Order & delivery', q: 'Where is my order?', a: 'Open My orders and tap Track order. You will see each step, the courier name and the tracking number once it ships. We also notify you at every step.', link: {to: '/account/orders', text: 'Go to My orders'}},
-  {topic: 'Order & delivery', q: 'How long does delivery take?', a: 'Standard delivery takes 3–5 days and is free above ₹999 (₹49 below that). Express delivery reaches in 1–2 days for ₹99.'},
+  {topic: 'Order & delivery', q: 'How long does delivery take?', a: `Standard delivery usually takes ${c.deliveryDaysStd} days and is free above ${rupees(c.freeDeliveryAbove)} (${rupees(c.deliveryFee)} below that). Express delivery usually reaches in ${c.deliveryDaysExpress === 1 ? 'a day' : `${c.deliveryDaysExpress} days`} for ${rupees(c.expressFee)}.`},
   {topic: 'Order & delivery', q: 'Can I cancel my order?', a: 'Yes, until the shop packs it. Open the order and tap Cancel order. If you paid online, the shop confirms the cancellation and refunds you in 5–7 working days.'},
   {topic: 'Order & delivery', q: 'Why did my bag become two orders?', a: 'Items from different shops ship separately, so each shop gets its own order with its own tracking. You paid once; delivery is charged only once.'},
-  {topic: 'Returns & refunds', q: 'What is the return policy?', a: 'Most items can be returned or exchanged within 7 days of delivery, unused and with tags on. The last return date is shown on each item in your order.', link: {to: '/account/returns', text: 'Returns & refunds'}},
+  {topic: 'Returns & refunds', q: 'What is the return policy?', a: 'Most items can be returned or exchanged within their return window, unused and with tags on. Each product shows its window, and the last return date is shown on each item in your order.', link: {to: '/account/returns', text: 'Returns & refunds'}},
   {topic: 'Returns & refunds', q: 'How do I exchange for another size?', a: 'Go to Returns & refunds, pick the item, choose Exchange and tell us the size you want. Our courier picks up the old one and brings the new one. No extra charge.'},
   {topic: 'Returns & refunds', q: 'When will I get my refund?', a: 'Once the shop receives and checks the item (usually 2–3 days after pickup), we send the refund. Banks take 5–7 working days to show it. Cash on delivery refunds go to your UPI or bank account.'},
   {topic: 'Returns & refunds', q: 'Is delivery charge refunded?', a: 'Delivery charges are not refunded for returns, but are refunded in full if your whole order is cancelled before it ships.'},
@@ -45,9 +46,10 @@ function HelpPage() {
   const [topic, setTopic] = useState<Topic | null>(order ? 'Order & delivery' : null);
   const [openQ, setOpenQ] = useState<string | null>(null);
   const term = q.trim().toLowerCase();
+  const config = useStoreConfig();
   const faqs = useMemo(
-    () => FAQ.filter((f) => (!topic || f.topic === topic) && (!term || `${f.q} ${f.a}`.toLowerCase().includes(term))),
-    [topic, term],
+    () => faqList(config).filter((f) => (!topic || f.topic === topic) && (!term || `${f.q} ${f.a}`.toLowerCase().includes(term))),
+    [topic, term, config],
   );
 
   return (

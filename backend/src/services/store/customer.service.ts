@@ -4,14 +4,8 @@ import {z} from 'zod';
 import prisma from '../../client';
 import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
-import {
-    EXPRESS_FEE,
-    FREE_DELIVERY_ABOVE,
-    LISTED,
-    STANDARD_FEE,
-    sortSizes,
-    stockOf,
-} from './catalog.service';
+import {LISTED, sortSizes, stockOf} from './catalog.service';
+import storeSettingsService, {StoreRules} from '../storeSettings.service';
 
 /*
  * Signed-in customer: bag, wishlist, addresses, coupons and reviews.
@@ -188,10 +182,11 @@ class StoreCustomerService {
         };
     }
 
-    public deliveryFee(itemsTotal: number, option: DeliveryOption) {
+    /** Delivery fee from the store settings (P4-08b) */
+    public deliveryFee(itemsTotal: number, option: DeliveryOption, s: StoreRules) {
         if (option === 'PICKUP') return 0;
-        if (option === 'EXPRESS') return EXPRESS_FEE;
-        return itemsTotal >= FREE_DELIVERY_ABOVE ? 0 : STANDARD_FEE;
+        if (option === 'EXPRESS') return s.expressFee;
+        return itemsTotal >= s.freeDeliveryAbove ? 0 : s.deliveryFee;
     }
 
     /** The bag with totals; `couponCode` and `delivery` are what the customer chose so far */
@@ -213,7 +208,8 @@ class StoreCustomerService {
             }
         }
         const delivery = opts.delivery ?? 'STANDARD';
-        const deliveryFee = ok.length ? this.deliveryFee(itemsTotal, delivery) : 0;
+        const settings = await storeSettingsService.get();
+        const deliveryFee = ok.length ? this.deliveryFee(itemsTotal, delivery, settings) : 0;
         const total = round2(itemsTotal - (coupon?.discount ?? 0) + deliveryFee);
         return {
             items: lines,
@@ -226,7 +222,7 @@ class StoreCustomerService {
                 couponError,
                 delivery,
                 deliveryFee,
-                freeDeliveryAbove: FREE_DELIVERY_ABOVE,
+                freeDeliveryAbove: settings.freeDeliveryAbove,
                 total,
                 savings: round2(totalMrp - itemsTotal + (coupon?.discount ?? 0)),
             },

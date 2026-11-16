@@ -25,6 +25,30 @@ import type {
   WishlistItem,
 } from './types';
 
+/* Store settings (P4-08b) ---------------------------------------------------- */
+
+/** Delivery fees and days the super admin sets; until loaded, the old defaults */
+export type StoreConfig = {
+  deliveryFee: number;
+  freeDeliveryAbove: number;
+  expressFee: number;
+  deliveryDaysStd: number;
+  deliveryDaysExpress: number;
+};
+export const STORE_CONFIG_FALLBACK: StoreConfig = {
+  deliveryFee: 49,
+  freeDeliveryAbove: 999,
+  expressFee: 99,
+  deliveryDaysStd: 4,
+  deliveryDaysExpress: 1,
+};
+export const useStoreConfig = (): StoreConfig =>
+  useQuery({queryKey: ['storeConfig'], queryFn: () => api.get<StoreConfig>('/store/config'), staleTime: 10 * 60_000})
+    .data ?? STORE_CONFIG_FALLBACK;
+
+/** "₹999" */
+export const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+
 /* Public catalog ----------------------------------------------------------- */
 
 export type ListParams = {

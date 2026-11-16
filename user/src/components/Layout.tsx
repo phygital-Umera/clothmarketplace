@@ -4,7 +4,7 @@ import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
 import {Bell, Heart, Menu, Search, ShoppingBag, User, X} from 'lucide-react';
 import {useDebounceValue} from 'usehooks-ts';
 import {useAuth} from '@/lib/auth';
-import {useCart, useSuggest, useUnreadCount, useWishlistIds} from '@/lib/queries';
+import {rupees, useCart, useStoreConfig, useSuggest, useUnreadCount, useWishlistIds} from '@/lib/queries';
 import {inr} from '@/lib/format';
 import {ProductVisual} from './ui';
 import MobileTabBar from './MobileTabBar';
@@ -155,6 +155,7 @@ function Header() {
   const {data: cart} = useCart();
   const {data: wish} = useWishlistIds();
   const {data: unread} = useUnreadCount();
+  const storeConfig = useStoreConfig();
   const [menu, setMenu] = useState(false);
   const pathname = useRouterState({select: (s) => s.location.pathname});
   useEffect(() => setMenu(false), [pathname]);
@@ -174,7 +175,7 @@ function Header() {
     <header className="sticky top-0 z-30 border-b border-line bg-canvas/95 backdrop-blur print:hidden">
       {/* Desktop only: on phones it took two lines above every page */}
       <div className="hidden bg-brand px-4 py-1.5 text-center text-[11px] font-medium text-white lg:block">
-        Free delivery above ₹999 · Easy 7-day returns · Cash on delivery available
+        Free delivery above {rupees(storeConfig.freeDeliveryAbove)} · Easy returns and size exchange · Cash on delivery available
       </div>
       <div className="mx-auto flex max-w-page items-center gap-3 px-4 py-3 sm:gap-6">
         <button className="p-1 lg:hidden" onClick={() => setMenu(true)} aria-label="Open menu">

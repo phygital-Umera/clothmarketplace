@@ -18,4 +18,15 @@ const companyRulesSchema = z.object({
     minMarginPct: num('Minimum margin', 0, 100),
 });
 
-export default {companyRulesSchema};
+/** Store-wide settings, super admin (P4-08b) */
+const storeRulesSchema = z.object({
+    deliveryFee: num('Delivery fee', 0, 10_000),
+    freeDeliveryAbove: num('Free delivery above', 0, 1_000_000),
+    expressFee: num('Express fee', 0, 10_000),
+    deliveryDaysStd: num('Standard delivery days', 1, 60, true),
+    deliveryDaysExpress: num('Express delivery days', 1, 30, true),
+    limitedBadgeAt: num('"Only a few left" at', 0, 100, true),
+    newProductDays: num('"New" for', 1, 365, true),
+});
+
+export default {companyRulesSchema, storeRulesSchema};

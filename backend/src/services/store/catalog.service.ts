@@ -5,6 +5,7 @@ import prisma from '../../client';
 import ApiError from '@utils/ApiError';
 import {rateFor} from '../../utils/gst';
 import shopGstService from '../shopGst.service';
+import storeSettingsService, {StoreRules} from '../storeSettings.service';
 
 /*
  * Customer storefront catalog (public, no sign-in).
@@ -169,6 +170,7 @@ class CatalogService {
         p: Row,
         stats: {rating: Map<string, {avg: number; count: number}>; sold: Map<string, number>},
         bestsellerIds: Set<string>,
+        settings: StoreRules,
     ) {
         const branchId = p.shop!.branchId;
         const stock = p.variants.reduce((t, v) => t + stockOf(v, branchId), 0);
@@ -179,8 +181,18 @@ class CatalogService {
         const colors = [...new Map(p.variants.map((v) => [v.color, v.colorHex ?? null])).entries()].map(
             ([name, hex]) => ({name, hex}),
         );
-        const isNew = Date.now() - p.createdAt.getTime() < 21 * DAY;
-        const badge = stock === 0 ? 'OUT_OF_STOCK' : bestsellerIds.has(p.id) ? 'BESTSELLER' : stock <= 3 ? 'LIMITED' : isNew ? 'NEW' : null;
+        // Store settings (P4-08b): one "New" window for the badge and the New filter
+        const isNew = Date.now() - p.createdAt.getTime() < settings.newProductDays * DAY;
+        const badge =
+            stock === 0
+                ? 'OUT_OF_STOCK'
+                : bestsellerIds.has(p.id)
+                  ? 'BESTSELLER'
+                  : stock <= settings.limitedBadgeAt
+                    ? 'LIMITED'
+                    : isNew
+                      ? 'NEW'
+                      : null;
         return {
             id: p.id,
             slug: p.slug,
@@ -212,7 +224,8 @@ class CatalogService {
         // Bestsellers: the top tenth by units sold (at least 1 sold)
         const ranked = [...stats.sold.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
         const best = new Set(ranked.slice(0, Math.max(1, Math.ceil(rows.length / 10))).map(([id]) => id));
-        return rows.map((r) => this.toCard(r, stats, best));
+        const settings = await storeSettingsService.get();
+        return rows.map((r) => this.toCard(r, stats, best, settings));
     }
 
     private genderWhere(gender?: 'WOMEN' | 'MEN' | 'KIDS'): Prisma.ProductWhereInput {
@@ -240,6 +253,7 @@ class CatalogService {
             .map((w) => (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
 
         // Search and gender narrow the set the facets are counted on
+        const {newProductDays} = await storeSettingsService.get();
         const base = (
             await this.cards({
                 ...this.genderWhere(query.gender),
@@ -260,7 +274,11 @@ class CatalogService {
                       }
                     : {}),
             })
-        ).filter((c) => !query.newOnly || Date.now() - c.createdAt.getTime() < 30 * DAY);
+        ).filter(
+            (c) =>
+                !query.newOnly ||
+                Date.now() - c.createdAt.getTime() < newProductDays * DAY,
+        );
 
         const matches = (c: (typeof base)[number], skip?: string) =>
             (skip === 'category' || !cats.length || cats.includes((c.category ?? '').toLowerCase())) &&
@@ -550,27 +568,28 @@ class CatalogService {
         };
     }
 
-    /** Delivery estimate for a pincode (all shops ship India-wide) */
-    public deliveryEstimate(pincode: string) {
+    /**
+     * Delivery estimate for a pincode (all shops ship India-wide). The days and
+     * fees are the store settings (P4-08b); there is no courier data yet, so the
+     * dates are "usually by". Returns follow each product's own return window.
+     */
+    public async deliveryEstimate(pincode: string) {
         if (!/^[1-9]\d{5}$/.test(pincode)) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Enter a valid 6-digit pincode');
         }
+        const s = await storeSettingsService.get();
         const by = (days: number) => {
             const d = new Date(Date.now() + days * DAY);
             return d.toLocaleDateString('en-IN', {weekday: 'short', day: 'numeric', month: 'short'});
         };
         return {
             pincode,
-            standard: {by: by(4), fee: 0, freeAbove: FREE_DELIVERY_ABOVE, feeBelow: STANDARD_FEE},
-            express: {by: by(1), fee: EXPRESS_FEE},
+            standard: {by: by(s.deliveryDaysStd), fee: 0, freeAbove: s.freeDeliveryAbove, feeBelow: s.deliveryFee},
+            express: {by: by(s.deliveryDaysExpress), fee: s.expressFee},
             cod: true,
-            returns: '7-day returns and size exchange',
+            returns: 'Returns and size exchange as shown on each product',
         };
     }
 }
-
-export const FREE_DELIVERY_ABOVE = 999;
-export const STANDARD_FEE = 49;
-export const EXPRESS_FEE = 99;
 
 export default new CatalogService();
