@@ -118,6 +118,13 @@ const salesFields = {
     /** Split payment; omitted = paid in full by paymentMethod */
     payments,
     dueDate,
+    /** Credit days for a customer this bill creates (not stored on the bill) */
+    creditDays: z
+        .number({invalid_type_error: 'Credit days must be a number'})
+        .int('Credit days must be a whole number')
+        .min(0, 'Credit days cannot be negative')
+        .max(365, 'Credit days can be at most 365')
+        .optional(),
     discount: money('Discount').default(0),
     notes: text('Notes', 1000),
     items: items({

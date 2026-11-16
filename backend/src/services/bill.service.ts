@@ -793,7 +793,8 @@ class BillService {
     public createSales = async (scope: ShopScope, actorId: string, data: CreateSales) => {
         const shop = await this.shopContext(scope);
         await this.assertDayOpen(shop.id);
-        const {items, status, paidAmount, payments, ...header} = data as any;
+        // creditDays only seeds a customer this bill creates; SalesBill has no column
+        const {items, status, paidAmount, payments, creditDays, ...header} = data as any;
         void items;
         void paidAmount;
         void payments;
@@ -839,7 +840,7 @@ class BillService {
                     if (status === BillStatus.CONFIRMED) {
                         await this.post(tx, 'SALES', bill, [], lines, 'confirmed', actorId);
                     }
-                    await syncCustomerFromBill(tx, null, bill);
+                    await syncCustomerFromBill(tx, null, {...bill, creditDays});
                     return bill;
                 }),
             'billNumber',
@@ -921,7 +922,7 @@ class BillService {
         id: string,
         data: UpdateSales,
     ) => {
-        const {items, version, paidAmount, payments, ...header} = data as any;
+        const {items, version, paidAmount, payments, creditDays, ...header} = data as any;
         void items;
         void paidAmount;
         void payments;
@@ -992,7 +993,7 @@ class BillService {
             if (before.status === BillStatus.CONFIRMED) {
                 await this.post(tx, 'SALES', before, before.items, lines, 'edited', actorId);
             }
-            await syncCustomerFromBill(tx, before, after);
+            await syncCustomerFromBill(tx, before, {...after, creditDays});
         });
         return this.getSales(scope, id);
     };
