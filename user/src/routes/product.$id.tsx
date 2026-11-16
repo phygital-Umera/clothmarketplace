@@ -12,15 +12,6 @@ import {btn, Empty, ErrorBox, Price, ProductVisual, SectionTitle, Spinner, Stars
 
 export const Route = createFileRoute('/product/$id')({component: ProductPage});
 
-const SIZE_CHART: Record<string, [number, number, number]> = {
-  XS: [32, 26, 34],
-  S: [34, 28, 36],
-  M: [36, 30, 38],
-  L: [38, 32, 40],
-  XL: [40, 34, 42],
-  XXL: [42, 36, 44],
-};
-
 /** "10% off (up to ₹300) on orders above ₹1,999", or the shop's own wording */
 const offerText = (c: Coupon) => {
   if (c.description) return c.description;
@@ -30,7 +21,7 @@ const offerText = (c: Coupon) => {
   return `${off}${cap}${min}`;
 };
 
-const TABS = ['Description', 'Fabric & care', 'Size chart', 'Returns'] as const;
+const TABS = ['Description', 'Fabric & care', 'Sizes', 'Returns'] as const;
 
 function DeliveryCheck() {
   const [pin, setPin] = useState('');
@@ -265,11 +256,6 @@ function ProductPage() {
           <div>
             <div className="mb-2 flex justify-between">
               <p className="text-[11px] font-bold uppercase tracking-wider">Select size</p>
-              {p.sizes.some((s) => SIZE_CHART[s]) && (
-                <button onClick={() => setTab('Size chart')} className="tap text-[11px] font-semibold uppercase text-brand hover:underline">
-                  Size chart
-                </button>
-              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {forColor.map((v) => (
@@ -361,36 +347,12 @@ function ProductPage() {
               {p.careInstructions ?? 'Follow the care label on the garment.'}
             </p>
           )}
-          {tab === 'Size chart' &&
-            (p.sizes.some((s) => SIZE_CHART[s]) ? (
-              <div className="overflow-x-auto">
-                <table className="w-full max-w-md text-left text-sm">
-                  <caption className="mb-2 text-left text-xs text-ink-faint">Body measurements in inches</caption>
-                  <thead>
-                    <tr className="border-b border-line text-[11px] uppercase tracking-wider text-ink-faint">
-                      <th className="py-2">Size</th>
-                      <th>Bust / chest</th>
-                      <th>Waist</th>
-                      <th>Hip</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {p.sizes
-                      .filter((s) => SIZE_CHART[s])
-                      .map((s) => (
-                        <tr key={s} className="border-b border-line/60">
-                          <td className="py-2 font-semibold text-ink">{s}</td>
-                          {SIZE_CHART[s].map((n, i) => (
-                            <td key={i}>{n}</td>
-                          ))}
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>Sizes for this item: {p.sizes.join(', ')}.</p>
-            ))}
+          {/* No size chart: one fixed chart for every product was wrong; a per-category chart is a feature for later */}
+          {tab === 'Sizes' && (
+            <p>
+              Sizes for this item: {p.sizes.join(', ')}. If you are between sizes, check the fit notes from other buyers or ask the shop.
+            </p>
+          )}
           {tab === 'Returns' && (
             <p>
               {p.returnEligible

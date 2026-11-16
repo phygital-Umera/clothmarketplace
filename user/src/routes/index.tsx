@@ -34,8 +34,13 @@ function HomePage() {
             {data.cities.length ? ` in ${data.cities.join(', ')}` : ''}.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/products" search={{category: 'Ethnic'}} className={btn.primary}>
-              Shop the edit
+            {/* The store's biggest real category; "Ethnic" existed only in the demo data */}
+            <Link
+              to="/products"
+              search={data.categories[0] ? {category: data.categories[0].name} : {}}
+              className={btn.primary}
+            >
+              {data.categories[0] ? `Shop ${data.categories[0].name}` : 'Shop all'}
             </Link>
             <Link to="/products" search={{newOnly: true, sort: 'new'}} className={btn.outline}>
               New arrivals

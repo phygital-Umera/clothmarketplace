@@ -6,6 +6,7 @@ import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
 import {LISTED, sortSizes, stockOf} from './catalog.service';
 import storeSettingsService, {StoreRules} from '../storeSettings.service';
+import {stateCodeOfName} from '../../utils/gstStates';
 
 /*
  * Signed-in customer: bag, wishlist, addresses, coupons and reviews.
@@ -30,7 +31,11 @@ export const addressSchema = z.object({
     address2: field({label: 'Area, Street, Landmark', kind: 'text', max: 200, required: false}),
     city: field({label: 'City', kind: 'text', max: 60}),
     district: field({label: 'District', kind: 'text', max: 60, required: false}),
-    state: field({label: 'State', kind: 'text', max: 60}),
+    // One of the 36 states / UTs, so the invoice's place of supply has a GST state code
+    state: field({label: 'State', kind: 'text', max: 60}).refine(
+        (v) => !!stateCodeOfName(v),
+        'Choose a state from the list',
+    ),
     label: z.enum(['HOME', 'WORK', 'OTHER']).default('HOME'),
     isDefault: z.boolean().default(false),
 });

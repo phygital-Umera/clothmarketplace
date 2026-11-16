@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import {useAuth} from '@/lib/auth';
 import {useCart, useUnreadCount, useWishlistIds} from '@/lib/queries';
-import {NAV} from './Layout';
+import {useNav} from './Layout';
 
 /** Pages where the bar would only get in the way (paying, the printable invoice) */
 const HIDDEN_ON = ['/checkout', '/payment', '/order-placed', '/invoice', '/signin', '/signup', '/forgot-password', '/reset-password'];
@@ -69,6 +69,7 @@ export default function MobileTabBar() {
   const {data: cart} = useCart();
   const {data: wish} = useWishlistIds();
   const {data: unread} = useUnreadCount();
+  const nav = useNav();
   const pathname = useRouterState({select: (s) => s.location.pathname});
   const [more, setMore] = useState(false);
 
@@ -183,7 +184,7 @@ export default function MobileTabBar() {
                 <section>
                   <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-faint">Shop by</p>
                   <div className="flex flex-wrap gap-2">
-                    {NAV.map((n) => (
+                    {nav.map((n) => (
                       <Link
                         key={n.label}
                         to={n.to}

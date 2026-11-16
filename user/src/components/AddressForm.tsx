@@ -2,14 +2,10 @@ import {useState} from 'react';
 import {errorMessage, fieldErrors} from '@/lib/api';
 import {useSaveAddress} from '@/lib/queries';
 import type {Address, AddressInput} from '@/lib/types';
+import {STATES} from '@/lib/states';
 import {btn, input, label} from './ui';
 
-const STATES = [
-  'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
-  'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan',
-  'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-];
-
+// All 36 states and UTs; no default, so nobody ships to Maharashtra by mistake
 const EMPTY: AddressInput = {
   recipient: '',
   phone: '',
@@ -17,7 +13,7 @@ const EMPTY: AddressInput = {
   address1: '',
   address2: '',
   city: '',
-  state: 'Maharashtra',
+  state: '',
   label: 'HOME',
   isDefault: true,
 };
@@ -92,6 +88,11 @@ export default function AddressForm({
             State *
           </label>
           <select id="addr-state" value={form.state} onChange={set('state')} className={input}>
+            <option value="" disabled>
+              Choose state
+            </option>
+            {/* An older address saved with another spelling stays selectable */}
+            {form.state && !STATES.includes(form.state) && <option>{form.state}</option>}
             {STATES.map((s) => (
               <option key={s}>{s}</option>
             ))}

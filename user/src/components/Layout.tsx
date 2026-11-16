@@ -4,20 +4,30 @@ import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
 import {Bell, Heart, Menu, Search, ShoppingBag, User, X} from 'lucide-react';
 import {useDebounceValue} from 'usehooks-ts';
 import {useAuth} from '@/lib/auth';
-import {rupees, useCart, useStoreConfig, useSuggest, useUnreadCount, useWishlistIds} from '@/lib/queries';
+import {rupees, useCart, useHome, useStoreConfig, useSuggest, useUnreadCount, useWishlistIds} from '@/lib/queries';
 import {inr} from '@/lib/format';
 import {ProductVisual} from './ui';
 import MobileTabBar from './MobileTabBar';
 
-export const NAV: {label: string; to: string; search: Record<string, string | boolean>; accent?: boolean}[] = [
-  {label: 'Women', to: '/products', search: {gender: 'WOMEN'}},
-  {label: 'Men', to: '/products', search: {gender: 'MEN'}},
-  {label: 'Kids', to: '/products', search: {gender: 'KIDS'}},
-  {label: 'Ethnic', to: '/products', search: {category: 'Ethnic'}},
-  {label: 'Accessories', to: '/products', search: {category: 'Accessories'}},
-  {label: 'New arrivals', to: '/products', search: {newOnly: true, sort: 'new'}},
-  {label: 'Offers', to: '/products', search: {minDiscount: '20', sort: 'discount'}, accent: true},
-];
+type NavItem = {label: string; to: string; search: Record<string, string | boolean>; accent?: boolean};
+
+/**
+ * The store menu: the three audiences, the store's real top categories (the
+ * ones with the most products, from /store/home), new arrivals and anything on
+ * offer. Nothing here depends on demo data.
+ */
+export const useNav = (): NavItem[] => {
+  const {data: home} = useHome();
+  const categories = (home?.categories ?? []).slice(0, 3);
+  return [
+    {label: 'Women', to: '/products', search: {gender: 'WOMEN'}},
+    {label: 'Men', to: '/products', search: {gender: 'MEN'}},
+    {label: 'Kids', to: '/products', search: {gender: 'KIDS'}},
+    ...categories.map((c) => ({label: c.name, to: '/products', search: {category: c.name}})),
+    {label: 'New arrivals', to: '/products', search: {newOnly: true, sort: 'new'}},
+    {label: 'Offers', to: '/products', search: {minDiscount: '1', sort: 'discount'}, accent: true},
+  ];
+};
 
 const RECENT_KEY = 'clothpro.recentSearches';
 const recent = () => {
@@ -156,6 +166,7 @@ function Header() {
   const {data: wish} = useWishlistIds();
   const {data: unread} = useUnreadCount();
   const storeConfig = useStoreConfig();
+  const nav = useNav();
   const [menu, setMenu] = useState(false);
   const pathname = useRouterState({select: (s) => s.location.pathname});
   useEffect(() => setMenu(false), [pathname]);
@@ -201,7 +212,7 @@ function Header() {
         <SearchBox />
       </div>
       <nav className="mx-auto hidden max-w-page gap-6 px-4 pb-2.5 lg:flex" aria-label="Categories">
-        {NAV.map((n) => (
+        {nav.map((n) => (
           <Link
             key={n.label}
             to={n.to}
@@ -226,7 +237,7 @@ function Header() {
               </button>
             </div>
             <nav className="space-y-1">
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <Link key={n.label} to={n.to} search={n.search} className="block rounded px-2 py-2.5 text-sm font-medium hover:bg-canvas">
                   {n.label}
                 </Link>
