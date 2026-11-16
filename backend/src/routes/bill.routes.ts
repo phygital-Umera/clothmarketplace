@@ -22,6 +22,7 @@ export const mountBills = (router: Router) => {
     router.get('/sales-bills/customers', b.customers);
     router.get('/sales-bills/find', b.sales.findByNumber);
     router.get('/sales-bills/by-number/:billNumber', b.sales.findByNumber);
+    router.post('/sales-bills/preview', b.sales.preview);
     router.route('/sales-bills').get(b.sales.list).post(b.sales.create);
     router.route('/sales-bills/:id').get(b.sales.get).patch(b.sales.update).delete(b.sales.remove);
     router.post('/sales-bills/:id/confirm', b.sales.confirm);

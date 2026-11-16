@@ -1,7 +1,7 @@
 import {useInventory} from '@/lib/react-query/queriesAndMutations/ecommerce';
 import {useSaveBill} from '@/lib/react-query/queriesAndMutations/bill';
-import {useGstRule} from '@/lib/react-query/queriesAndMutations/gst';
 import {GST_RATES} from '@/lib/api/gst';
+import useSalesPreview from '@/hooks/useSalesPreview';
 import {Bill, BillKind, BillPayload, PaymentMethod} from '@/types/bill';
 import {Link} from '@tanstack/react-router';
 import {
@@ -70,11 +70,8 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   const inclusive = !isPurchase && (bill ? !!bill.pricesIncludeTax : true);
   const wasPosted = bill?.status === 'CONFIRMED';
   const save = useSaveBill(panel, kind);
-  // Purchase lines carry the supplier's rate (any GST rate); sales use the shop's slabs (D-18)
-  const {data: gstRule} = useGstRule(!isPurchase && panel === 'shop-admin');
-  const taxRates: number[] = isPurchase
-    ? [...GST_RATES]
-    : (gstRule?.slabs ?? [0, 5, 12, 18]);
+  // Purchase lines carry the supplier's rate (any GST rate); sales rates are the server's (D-18)
+  const taxRates: number[] = [...GST_RATES];
 
   // Payments taken when the bill was saved are re-entered here; payments
   // collected / paid later stay on the bill and count towards it.
@@ -229,6 +226,27 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
     const total = round2(subtotal + tax - discount);
     return {subtotal: round2(subtotal), tax: round2(tax), roundOff: 0, total};
   }, [lines, billDiscount, isPurchase, inclusive]);
+
+  // Sales: the server sets each line's GST (D-18) and its taxable / GST totals (P4-03)
+  const previewPayload = useMemo(() => {
+    if (isPurchase || !inclusive || !lines.length) return null;
+    return {
+      items: lines.map((l) => ({
+        variantId: l.variantId,
+        quantity: Number(l.quantity) || 0,
+        unitPrice: Number(l.rate) || 0,
+        discount: Number(l.discount) || 0,
+      })),
+      discount: Number(billDiscount) || 0,
+    };
+  }, [lines, billDiscount, isPurchase, inclusive]);
+  const {preview, pending: previewPending} = useSalesPreview(panel, previewPayload);
+  const serverRate = (variantId: string) =>
+    preview?.lines.find((p) => p.variantId === variantId)?.taxRate;
+  const shownTotals =
+    previewPayload && preview
+      ? {...totals, subtotal: preview.totals.subtotal, tax: preview.totals.taxAmount}
+      : totals;
 
   const errors: string[] = [];
   if (isPurchase && !party.name.trim())
@@ -723,6 +741,16 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                           </td>
                         )}
                         <td className="py-2">
+                          {!isPurchase ? (
+                            // Sales: set by the server from the product or the shop's GST rule
+                            <span className="text-outline">
+                              {inclusive
+                                ? previewPending || serverRate(l.variantId) === undefined
+                                  ? '…'
+                                  : `${serverRate(l.variantId)}%`
+                                : `${l.taxRate}%`}
+                            </span>
+                          ) : (
                           <select
                             value={l.taxRate}
                             onChange={(e) =>
@@ -740,6 +768,7 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                                 </option>
                               ))}
                           </select>
+                          )}
                         </td>
                         <td className="py-2 text-right font-semibold text-espresso">
                           ₹{round2(inclusive ? net : net * (1 + l.taxRate / 100)).toFixed(2)}
@@ -781,11 +810,11 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
             <div className="space-y-1.5 rounded-xl border border-ivory-200 bg-ivory-50/60 p-4 text-body-sm">
               <div className="flex justify-between">
                 <span className="text-outline">{inclusive ? 'Taxable value' : 'Subtotal'}</span>
-                <span>₹{totals.subtotal.toFixed(2)}</span>
+                <span>{previewPayload && previewPending ? '…' : `₹${shownTotals.subtotal.toFixed(2)}`}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-outline">{inclusive ? 'GST (included in prices)' : 'GST'}</span>
-                <span>₹{totals.tax.toFixed(2)}</span>
+                <span>{previewPayload && previewPending ? '…' : `₹${shownTotals.tax.toFixed(2)}`}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-outline">Bill Discount</span>

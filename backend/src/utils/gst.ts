@@ -68,6 +68,70 @@ export const rateFor = (
     return taxable <= rule.threshold + 1e-9 ? rule.rateUpTo : rule.rateAbove;
 };
 
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+export type GstRow = {rate: number; taxable: number; tax: number; cgst: number; sgst: number; igst: number};
+
+export type TaxBreakup = {
+    /** Seller and buyer in different states: IGST instead of CGST + SGST */
+    interState: boolean;
+    seller: {code: string | null; name: string | null};
+    placeOfSupply: {code: string | null; name: string | null};
+    rows: GstRow[];
+    taxable: number;
+    tax: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+};
+
+/**
+ * GST per rate for printing, from line totals. Tag-price lines (GST included)
+ * use the same maths as the bill: taxable = total ÷ (1 + rate), tax = the rest,
+ * so the rows add up to the bill's GST to the paisa. Lines with GST on top
+ * (older bills) take GST out of their total the same way.
+ * CGST is half the tax rounded down to the paisa; SGST gets the odd paisa.
+ */
+export const taxBreakup = (
+    lines: {taxRate: number; totalPrice: number}[],
+    seller: {code: string | null; name: string | null},
+    placeOfSupply: {code: string | null; name: string | null},
+): TaxBreakup => {
+    const interState = !!seller.code && !!placeOfSupply.code && seller.code !== placeOfSupply.code;
+    const byRate = new Map<number, {taxable: number; tax: number}>();
+    for (const l of lines) {
+        const taxable = round2(l.totalPrice / (1 + l.taxRate / 100));
+        const tax = round2(l.totalPrice - taxable);
+        const sum = byRate.get(l.taxRate) ?? {taxable: 0, tax: 0};
+        byRate.set(l.taxRate, {taxable: round2(sum.taxable + taxable), tax: round2(sum.tax + tax)});
+    }
+    const rows = [...byRate]
+        .sort(([a], [b]) => a - b)
+        .map(([rate, {taxable, tax}]) => {
+            const cgst = interState ? 0 : Math.floor(Math.round(tax * 100) / 2) / 100;
+            return {
+                rate,
+                taxable,
+                tax,
+                cgst,
+                sgst: interState ? 0 : round2(tax - cgst),
+                igst: interState ? tax : 0,
+            };
+        });
+    const sum = (k: keyof GstRow) => round2(rows.reduce((t, r) => t + r[k], 0));
+    return {
+        interState,
+        seller,
+        placeOfSupply,
+        rows,
+        taxable: sum('taxable'),
+        tax: sum('tax'),
+        cgst: sum('cgst'),
+        sgst: sum('sgst'),
+        igst: sum('igst'),
+    };
+};
+
 /** Short text of a rule, e.g. "5% up to ₹2,500 a piece, 18% above" */
 export const describeRule = (rule: GstRule) =>
     rule.threshold <= 0

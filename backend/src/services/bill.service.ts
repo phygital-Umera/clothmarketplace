@@ -5,6 +5,7 @@ import {
     CreditNoteStatus,
     MovementType,
     Prisma,
+    SalesBillType,
     StockSourceType,
 } from '@prisma/client';
 import {z} from 'zod';
@@ -17,7 +18,8 @@ import inventoryService, {StockChange} from './inventory.service';
 import {ShopScope} from './shopProduct.service';
 import {syncCustomerFromBill} from './customerLedger';
 import {dayKey, financialYear} from '../utils/day';
-import {rateFor} from '../utils/gst';
+import {rateFor, taxBreakup} from '../utils/gst';
+import {stateCodeOfGstin, stateCodeOfName, stateName} from '../utils/gstStates';
 import shopGstService from './shopGst.service';
 
 type Tx = Prisma.TransactionClient;
@@ -25,6 +27,7 @@ type CreatePurchase = z.infer<typeof billValidation.createPurchaseBillSchema>;
 type UpdatePurchase = z.infer<typeof billValidation.updatePurchaseBillSchema>;
 type CreateSales = z.infer<typeof billValidation.createSalesBillSchema>;
 type UpdateSales = z.infer<typeof billValidation.updateSalesBillSchema>;
+type PreviewSales = z.infer<typeof billValidation.previewSalesBillSchema>;
 type BillList = z.infer<typeof billValidation.billListSchema>;
 type BranchSalesList = z.infer<typeof billValidation.branchSalesListSchema>;
 type BranchSalesSummary = z.infer<typeof billValidation.branchSalesSummarySchema>;
@@ -761,11 +764,71 @@ class BillService {
             },
         });
         if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Bill not found');
-        return bill;
+        return {...bill, taxBreakup: await this.breakupOf(bill.shopId, bill, bill.items)};
     };
 
     public listSales = (scope: BillScope, query: BillList | BranchSalesList) =>
         this.list('SALES', scope, query);
+
+    /**
+     * The shop's GST state: its GSTIN's state code, else its branch's (or the
+     * company's) state as typed, matched to a code.
+     */
+    private async sellerStateOf(shopId: string) {
+        const shop = await prisma.shop.findUnique({
+            where: {id: shopId},
+            select: {gstin: true, branch: {select: {state: true}}, company: {select: {state: true}}},
+        });
+        const code =
+            stateCodeOfGstin(shop?.gstin) ??
+            stateCodeOfName(shop?.branch?.state) ??
+            stateCodeOfName(shop?.company?.state);
+        return {code, name: stateName(code)};
+    }
+
+    /**
+     * GST per rate, split CGST + SGST or IGST by state code (P4-03). A B2B
+     * bill's place of supply is the buyer's GSTIN state; a counter sale's is
+     * the shop's own state.
+     */
+    private async breakupOf(
+        shopId: string,
+        bill: {billType?: SalesBillType | null; customerGstin?: string | null},
+        items: {taxRate: number; totalPrice: number}[],
+    ) {
+        const seller = await this.sellerStateOf(shopId);
+        const buyerCode =
+            bill.billType === SalesBillType.TAX_INVOICE_B2B
+                ? stateCodeOfGstin(bill.customerGstin)
+                : null;
+        const place = buyerCode ? {code: buyerCode, name: stateName(buyerCode)} : seller;
+        return taxBreakup(items, seller, place);
+    }
+
+    /**
+     * What a sales bill would come to, without saving it: the server's GST
+     * rate per line, the totals and the GST breakup. The POS and the bill form
+     * show these instead of doing their own GST maths.
+     */
+    public previewSales = async (scope: ShopScope, data: PreviewSales) => {
+        const {lines, totals} = await prisma.$transaction((tx) => this.salesLines(tx, scope, data));
+        const taxBreakupResult = await this.breakupOf(scope.shopId, data, lines);
+        return {
+            lines: lines.map((l) => {
+                const taxable = round2(l.totalPrice / (1 + l.taxRate / 100));
+                return {
+                    variantId: l.variantId,
+                    taxRate: l.taxRate,
+                    hsnCode: l.hsnCode,
+                    totalPrice: l.totalPrice,
+                    taxable,
+                    tax: round2(l.totalPrice - taxable),
+                };
+            }),
+            totals,
+            taxBreakup: taxBreakupResult,
+        };
+    };
 
     public getSales = async (scope: BillScope, id: string) => {
         const bill = await prisma.salesBill.findFirst({
@@ -782,7 +845,7 @@ class BillService {
             },
         });
         if (!bill) throw new ApiError(httpStatus.NOT_FOUND, 'Sales bill not found');
-        return bill;
+        return {...bill, taxBreakup: await this.breakupOf(bill.shopId, bill, bill.items)};
     };
 
     /**

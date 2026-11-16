@@ -11,6 +11,7 @@ import {
   BranchSalesParams,
   BranchSalesSummary,
   RecordPaymentPayload,
+  SalesPreview,
 } from '@/types/bill';
 
 // Purchase bills add stock, sales bills deduct it; the backend posts the
@@ -36,6 +37,23 @@ export const getBillByNumber = (
   billNumber: string,
 ) =>
   (api.get(`${base(panel, kind)}/find`, {params: {billNumber}}) as unknown as Promise<Res<Bill>>);
+
+/** What a sales bill being typed comes to: the server's GST per line, totals and breakup (P4-03) */
+export type SalesPreviewPayload = {
+  items: {variantId: string; quantity: number; unitPrice: number; discount: number}[];
+  discount: number;
+  billType?: string;
+  customerGstin?: string;
+};
+
+export const previewSalesBill = (
+  panel: string,
+  data: SalesPreviewPayload,
+  signal?: AbortSignal,
+) =>
+  (api.post(`/${panel}/sales-bills/preview`, data, {signal}) as unknown as Promise<
+    Res<SalesPreview>
+  >).then((r) => r.data);
 
 export const createBill = (panel: string, kind: BillKind, data: BillPayload) =>
   (api.post(base(panel, kind), data) as unknown as Promise<Res<Bill>>);

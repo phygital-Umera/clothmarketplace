@@ -27,6 +27,7 @@ const printBill = (bill: Bill) =>
       unitPrice: i.unitPrice ?? 0,
       discount: i.discount ?? 0,
       taxRate: i.taxRate,
+      hsnCode: i.hsnCode,
       totalPrice: i.totalPrice ?? 0,
     })),
   });
@@ -249,22 +250,31 @@ export default function BillDetailsModal({
                   <span className="text-outline">Taxable value</span>
                   <span>₹{bill.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-outline">CGST</span>
-                  <span>
-                    ₹{(Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-outline">SGST</span>
-                  <span>
-                    ₹
-                    {(
-                      bill.taxAmount -
-                      Math.round((bill.taxAmount / 2) * 100) / 100
-                    ).toFixed(2)}
-                  </span>
-                </div>
+                {/* The server's split by state code: CGST + SGST, or IGST across states */}
+                {bill.taxBreakup?.interState ? (
+                  <div className="flex justify-between">
+                    <span className="text-outline">
+                      IGST ({bill.taxBreakup.placeOfSupply.name ?? 'other state'})
+                    </span>
+                    <span>₹{bill.taxBreakup.igst.toFixed(2)}</span>
+                  </div>
+                ) : bill.taxBreakup ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-outline">CGST</span>
+                      <span>₹{bill.taxBreakup.cgst.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-outline">SGST</span>
+                      <span>₹{bill.taxBreakup.sgst.toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-outline">GST</span>
+                    <span>₹{bill.taxAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 {!!bill.roundOff && (
                   <div className="flex justify-between">
                     <span className="text-outline">Round off</span>

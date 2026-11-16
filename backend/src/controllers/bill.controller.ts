@@ -206,6 +206,13 @@ const sales = {
         );
     }),
 
+    /** Amounts and GST split of a bill being typed; saves nothing, so it is not audited */
+    preview: catchAsync(async (req, res) => {
+        res.locals.audited = true;
+        const data = v.previewSalesBillSchema.parse(req.body);
+        return ok(res, await billService.previewSales(shopOf(req), data), 'Bill preview');
+    }),
+
     create: catchAsync(async (req, res) => {
         const scope = shopOf(req);
         const data = v.createSalesBillSchema.parse(req.body);

@@ -8,6 +8,7 @@ import {
 import {useCreateCustomer} from '@/lib/react-query/queriesAndMutations/customer';
 import {useShopDashboard} from '@/lib/react-query/queriesAndMutations/shopOps';
 import {CustomerSuggestion} from '@/lib/api/bill';
+import useSalesPreview from '@/hooks/useSalesPreview';
 import {BillPayload, PaymentMethod, SalesBillType} from '@/types/bill';
 import {inr} from '@/utils/money';
 import {printSalesBill} from '@/utils/salesBillInvoice';
@@ -339,9 +340,10 @@ export default function NewBillPOSPage() {
 
   // Calculations
   const totals = useMemo(() => {
-    // Same maths as the server (tag prices include GST, like the website):
-    // the bill discount is shared over the lines, GST is taken out of what is
-    // paid for each line, and the total is rounded to the rupee.
+    // What the customer pays does not depend on the GST rate (tag prices
+    // include GST), so it is worked out here like the server does: the bill
+    // discount is shared over the lines and the total is rounded to the rupee.
+    // The GST rate and split of each line come from the server's preview.
     let grossMRP = 0;
     let itemsValue = 0;
     let totalPcs = 0;
@@ -360,11 +362,9 @@ export default function NewBillPOSPage() {
     );
 
     let shared = 0;
-    let taxable = 0;
-    let totalTax = 0;
     let exact = 0;
     const linePays: number[] = [];
-    lines.forEach((l, i) => {
+    lines.forEach((_l, i) => {
       const share =
         i === lines.length - 1
           ? round2(calculatedBillDiscount - shared)
@@ -373,19 +373,10 @@ export default function NewBillPOSPage() {
             : 0;
       shared = round2(shared + share);
       const pays = round2(nets[i] - share);
-      const lineTaxable = round2(pays / (1 + l.taxRate / 100));
-      taxable += lineTaxable;
-      totalTax += round2(pays - lineTaxable);
       exact += pays;
       linePays.push(pays);
     });
-    taxable = round2(taxable);
-    totalTax = round2(totalTax);
     exact = round2(exact);
-
-    // CGST & SGST split (the paise left over goes to SGST)
-    const cgst = round2(totalTax / 2);
-    const sgst = round2(totalTax - cgst);
 
     const roundedNet = Math.round(exact);
     const roundOff = round2(roundedNet - exact);
@@ -394,17 +385,37 @@ export default function NewBillPOSPage() {
       grossMRP: round2(grossMRP),
       discountOnMRP: Math.max(0, round2(grossMRP - itemsValue)),
       billDiscountAmount: calculatedBillDiscount,
-      taxableValue: taxable,
-      taxAmount: totalTax,
       linePays,
-      cgst,
-      sgst,
       roundOff,
       net: roundedNet,
       totalPcs,
       linesCount: lines.length,
     };
   }, [lines, billDiscount, billDiscountType]);
+
+  // The server's GST per line and its CGST/SGST or IGST split (P4-03, D-18)
+  const previewPayload = useMemo(() => {
+    const priced = lines.filter((l) => l.variantId);
+    if (!priced.length) return null;
+    return {
+      items: priced.map((l) => ({
+        variantId: l.variantId,
+        quantity: l.quantity,
+        unitPrice: l.rate,
+        discount: l.discount || 0,
+      })),
+      discount: totals.billDiscountAmount,
+      ...(billType !== 'ESTIMATE' ? {billType} : {}),
+      // Only a complete GSTIN changes the place of supply; a half-typed one is left out
+      ...(GSTIN_RE.test(customerGSTIN.trim().toUpperCase())
+        ? {customerGstin: customerGSTIN.trim().toUpperCase()}
+        : {}),
+    };
+  }, [lines, totals.billDiscountAmount, billType, customerGSTIN]);
+  const {preview, pending: previewPending} = useSalesPreview(PANEL, previewPayload);
+  const gst = preview?.taxBreakup;
+  const lineRate = (variantId: string) =>
+    preview?.lines.find((p) => p.variantId === variantId)?.taxRate;
 
   // Adjust default payment to Net when lines change
   useEffect(() => {
@@ -541,6 +552,10 @@ export default function NewBillPOSPage() {
       toast.error('Add items to print an estimate');
       return;
     }
+    if (previewPending || !gst) {
+      toast.error('Working out GST… try again in a moment');
+      return;
+    }
     printSalesBill(
       {
         billNumber: 'ESTIMATE',
@@ -561,11 +576,13 @@ export default function NewBillPOSPage() {
           quantity: l.quantity,
           unitPrice: l.rate,
           discount: l.discount,
-          taxRate: l.taxRate,
+          taxRate: lineRate(l.variantId) ?? l.taxRate,
+          hsnCode: l.hsn !== '—' ? l.hsn : null,
           totalPrice: totals.linePays[i],
         })),
-        subtotal: totals.taxableValue,
-        taxAmount: totals.taxAmount,
+        subtotal: gst?.taxable ?? 0,
+        taxAmount: gst?.tax ?? 0,
+        taxBreakup: gst ?? null,
         discount: totals.billDiscountAmount,
         roundOff: totals.roundOff,
         totalAmount: totals.net,
@@ -1328,22 +1345,37 @@ export default function NewBillPOSPage() {
               </div>
             </div>
 
+            {/* GST from the server (rates by the shop's rule, split by state code) */}
             <div className="flex justify-between text-outline">
               <span>Taxable value</span>
               <span className="font-medium text-espresso">
-                {inr(totals.taxableValue)}
+                {gst && !previewPending ? inr(gst.taxable) : '…'}
               </span>
             </div>
 
-            <div className="flex justify-between text-outline">
-              <span>CGST (included)</span>
-              <span className="font-medium text-espresso">{inr(totals.cgst)}</span>
-            </div>
-
-            <div className="flex justify-between text-outline">
-              <span>SGST (included)</span>
-              <span className="font-medium text-espresso">{inr(totals.sgst)}</span>
-            </div>
+            {gst?.interState ? (
+              <div className="flex justify-between text-outline">
+                <span>IGST (included)</span>
+                <span className="font-medium text-espresso">
+                  {!previewPending ? inr(gst.igst) : '…'}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between text-outline">
+                  <span>CGST (included)</span>
+                  <span className="font-medium text-espresso">
+                    {gst && !previewPending ? inr(gst.cgst) : '…'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-outline">
+                  <span>SGST (included)</span>
+                  <span className="font-medium text-espresso">
+                    {gst && !previewPending ? inr(gst.sgst) : '…'}
+                  </span>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-between text-outline">
               <span>Round off</span>

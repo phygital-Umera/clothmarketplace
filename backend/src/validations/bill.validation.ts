@@ -163,6 +163,14 @@ const updateSalesBillSchema = z
     .object({...salesFields, billType: billType.optional(), version})
     .superRefine(b2bNeedsGstin);
 
+/** POS / bill form preview: only what changes the amounts and the GST split */
+const previewSalesBillSchema = z.object({
+    items: salesFields.items,
+    discount: salesFields.discount,
+    billType: billType.optional(),
+    customerGstin: salesFields.customerGstin,
+});
+
 const cancelBillSchema = z.object({
     reason: field({label: 'Cancel Reason', kind: 'text', max: 300}),
 });
@@ -214,6 +222,7 @@ export default {
     updatePurchaseBillSchema,
     createSalesBillSchema,
     updateSalesBillSchema,
+    previewSalesBillSchema,
     cancelBillSchema,
     deleteRequestSchema,
     recordPaymentSchema,

@@ -1,6 +1,9 @@
+import {GstRow, TaxBreakup} from '@/types/bill';
 import {inr} from './money';
 
 export interface PrintableSalesBill {
+  /** GST per rate, CGST/SGST or IGST, and place of supply, as the server worked them out */
+  taxBreakup?: TaxBreakup | null;
   billNumber: string;
   billDate: string | Date;
   billType?: 'TAX_INVOICE_B2C' | 'TAX_INVOICE_B2B' | 'RETAIL_INVOICE' | null;
@@ -39,18 +42,6 @@ export interface PrintableSalesBill {
   notes?: string | null;
 }
 
-export interface GstRow {
-  rate: number;
-  taxable: number;
-  tax: number;
-  cgst: number;
-  sgst: number;
-  igst: number;
-}
-
-// Same rounding as the backend (bill.service.ts) so per-line figures match the server's
-const round2 = (v: number) => Math.round(v * 100) / 100;
-
 const esc = (v: unknown) =>
   String(v ?? '').replace(
     /[&<>"']/g,
@@ -60,89 +51,12 @@ const esc = (v: unknown) =>
       ]!,
   );
 
-/** GSTIN first two digits → state / UT */
-const GST_STATES: Record<string, string> = {
-  '01': 'Jammu & Kashmir',
-  '02': 'Himachal Pradesh',
-  '03': 'Punjab',
-  '04': 'Chandigarh',
-  '05': 'Uttarakhand',
-  '06': 'Haryana',
-  '07': 'Delhi',
-  '08': 'Rajasthan',
-  '09': 'Uttar Pradesh',
-  '10': 'Bihar',
-  '11': 'Sikkim',
-  '12': 'Arunachal Pradesh',
-  '13': 'Nagaland',
-  '14': 'Manipur',
-  '15': 'Mizoram',
-  '16': 'Tripura',
-  '17': 'Meghalaya',
-  '18': 'Assam',
-  '19': 'West Bengal',
-  '20': 'Jharkhand',
-  '21': 'Odisha',
-  '22': 'Chhattisgarh',
-  '23': 'Madhya Pradesh',
-  '24': 'Gujarat',
-  '25': 'Daman & Diu',
-  '26': 'Dadra & Nagar Haveli and Daman & Diu',
-  '27': 'Maharashtra',
-  '28': 'Andhra Pradesh (old)',
-  '29': 'Karnataka',
-  '30': 'Goa',
-  '31': 'Lakshadweep',
-  '32': 'Kerala',
-  '33': 'Tamil Nadu',
-  '34': 'Puducherry',
-  '35': 'Andaman & Nicobar Islands',
-  '36': 'Telangana',
-  '37': 'Andhra Pradesh',
-  '38': 'Ladakh',
-  '97': 'Other Territory',
-  '99': 'Centre Jurisdiction',
-};
-
 const MODE_LABEL: Record<string, string> = {
   CASH: 'Cash',
   UPI: 'UPI',
   CARD: 'Card',
   CREDIT: 'Credit',
 };
-
-/**
- * GST per rate from tax-inclusive line amounts. CGST/SGST are halves with the
- * odd paisa going to SGST; inter-state bills get IGST instead.
- */
-export function gstSummary(
-  items: Array<{taxRate: number; totalPrice: number}>,
-  interState = false,
-): GstRow[] {
-  const byRate = new Map<number, {taxable: number; tax: number}>();
-  for (const i of items) {
-    const taxable = round2(i.totalPrice / (1 + i.taxRate / 100));
-    const tax = round2(i.totalPrice - taxable);
-    const sum = byRate.get(i.taxRate) ?? {taxable: 0, tax: 0};
-    byRate.set(i.taxRate, {
-      taxable: round2(sum.taxable + taxable),
-      tax: round2(sum.tax + tax),
-    });
-  }
-  return [...byRate]
-    .sort(([a], [b]) => a - b)
-    .map(([rate, {taxable, tax}]) => {
-      const cgst = interState ? 0 : Math.floor(Math.round(tax * 100) / 2) / 100;
-      return {
-        rate,
-        taxable,
-        tax,
-        cgst,
-        sgst: interState ? 0 : round2(tax - cgst),
-        igst: interState ? tax : 0,
-      };
-    });
-}
 
 /** Self-contained 80mm receipt HTML; every bill value is escaped */
 export function salesBillHtml(
@@ -154,11 +68,10 @@ export function salesBillHtml(
   const shopGstin = shop?.gstin?.trim().toUpperCase() || '';
   const custGstin = bill.customerGstin?.trim().toUpperCase() || '';
   const b2b = bill.billType === 'TAX_INVOICE_B2B';
-  const interState =
-    b2b &&
-    !!shopGstin &&
-    !!custGstin &&
-    shopGstin.slice(0, 2) !== custGstin.slice(0, 2);
+  // The server decides CGST + SGST or IGST by state code (P4-03)
+  const breakup = bill.taxBreakup;
+  const interState = !!breakup?.interState;
+  const place = breakup?.placeOfSupply;
   // Bills saved before billType existed: a shop without a GSTIN cannot issue a tax invoice
   const title = estimate
     ? 'ESTIMATE / QUOTATION'
@@ -180,8 +93,6 @@ export function salesBillHtml(
     hour: '2-digit',
     minute: '2-digit',
   });
-  const posCode = custGstin.slice(0, 2);
-
   const items = bill.items
     .map((i) => {
       const variant = [i.size, i.color, i.hsnCode ? `HSN ${i.hsnCode}` : '']
@@ -192,7 +103,7 @@ export function salesBillHtml(
     })
     .join('');
 
-  const gst = gstSummary(bill.items, interState);
+  const gst = breakup?.rows ?? [];
   const gstTable = when(bill.taxAmount > 0 && gst.length, () => {
     const cell = (r: GstRow, v: number) =>
       `<td>${r.rate ? esc(inr(v)) : '-'}</td>`;
@@ -254,11 +165,12 @@ ${when(bill.billNumber && bill.billNumber !== 'ESTIMATE', () => row('Bill no.', 
 ${row('Date', date)}
 ${when(bill.customerName, () => div(`Customer: ${bill.customerName}`))}
 ${when(bill.customerPhone, () => div(`Phone: ${bill.customerPhone}`))}
-${when(b2b && custGstin, () => div(`GSTIN: ${custGstin}`) + div(`Place of supply: ${GST_STATES[posCode] ?? posCode} (${posCode})`))}
+${when(b2b && custGstin, () => div(`GSTIN: ${custGstin}`))}
+${when(b2b && place?.code, () => div(`Place of supply: ${place!.name ?? place!.code} (${place!.code})`))}
 <hr>${items}<hr>
-${when(inclusive && bill.discount > 0, () => row('Bill discount (applied)', `−${inr(bill.discount)}`))}
+${when(inclusive && bill.discount > 0, () => row('Bill discount (applied)', `âˆ’${inr(bill.discount)}`))}
 ${row(inclusive ? 'Taxable value' : 'Subtotal', inr(bill.subtotal))}
-${when(!inclusive && bill.discount > 0, () => row('Discount', `−${inr(bill.discount)}`))}
+${when(!inclusive && bill.discount > 0, () => row('Discount', `âˆ’${inr(bill.discount)}`))}
 ${row('GST', inr(bill.taxAmount))}
 ${when(bill.roundOff, () => row('Round off', inr(bill.roundOff!)))}
 ${row(inclusive ? 'TOTAL (incl. GST)' : 'TOTAL', inr(bill.totalAmount), 'total')}

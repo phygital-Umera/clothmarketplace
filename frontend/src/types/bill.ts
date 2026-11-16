@@ -35,6 +35,7 @@ export interface BillItem {
   variantId: string;
   quantity: number;
   taxRate: number;
+  hsnCode?: string | null;
   // purchase
   unitCost?: number;
   totalCost?: number;
@@ -47,7 +48,52 @@ export interface BillItem {
   returnItems?: {quantity: number}[];
 }
 
+/** One GST rate of a bill, split by the server (P4-03) */
+export interface GstRow {
+  rate: number;
+  taxable: number;
+  tax: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+}
+
+/** GST of a sales bill as the server works it out: CGST + SGST, or IGST across states */
+export interface TaxBreakup {
+  interState: boolean;
+  seller: {code: string | null; name: string | null};
+  placeOfSupply: {code: string | null; name: string | null};
+  rows: GstRow[];
+  taxable: number;
+  tax: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+}
+
+/** POST /sales-bills/preview: the server's GST per line, totals and breakup */
+export interface SalesPreview {
+  lines: {
+    variantId: string;
+    taxRate: number;
+    hsnCode: string | null;
+    totalPrice: number;
+    taxable: number;
+    tax: number;
+  }[];
+  totals: {
+    subtotal: number;
+    taxAmount: number;
+    discount: number;
+    roundOff: number;
+    totalAmount: number;
+  };
+  taxBreakup: TaxBreakup;
+}
+
 export interface Bill {
+  /** Sales: GST per rate, CGST/SGST or IGST (from the server) */
+  taxBreakup?: TaxBreakup;
   /** Sales: true when unit prices include GST (tag price); older bills added GST on top */
   pricesIncludeTax?: boolean;
   /** Sales: total rounded to the rupee */
