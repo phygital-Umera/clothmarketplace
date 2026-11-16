@@ -13,7 +13,6 @@ export const mountBills = (router: Router) => {
     router.post('/purchase-bills/:id/cancel', b.purchase.cancel);
     router.post('/purchase-bills/:id/payments', b.purchase.payment);
 
-    router.get('/customers', b.customers);
     router.get('/sales-bills/customers', b.customers);
     router.get('/sales-bills/find', b.sales.findByNumber);
     router.get('/sales-bills/by-number/:billNumber', b.sales.findByNumber);

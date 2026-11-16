@@ -241,7 +241,7 @@ class UserService {
             where: {id: userId},
             select: {
                 ...SAFE_USER,
-                company: {select: {id: true, name: true, code: true, status: true}},
+                company: {select: {id: true, name: true, code: true, status: true, businessMode: true}},
                 branch: {select: {id: true, name: true, code: true, status: true}},
                 shop: {select: {id: true, name: true, code: true, status: true, gstin: true}},
             },

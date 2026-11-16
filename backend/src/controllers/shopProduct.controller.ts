@@ -46,10 +46,10 @@ const getProduct = catchAsync(async (req, res) => {
 });
 
 /**
- * Form data sends every field as text: list fields (sizes, colours, tags)
- * come as JSON arrays or repeated keys. JSON bodies pass through unchanged.
+ * Form data sends every field as text: list fields (sizes, colours, tags,
+ * opening stock) come as JSON arrays or repeated keys. JSON bodies pass through unchanged.
  */
-const LIST_FIELDS = ['sizeIds', 'colorIds', 'tags'];
+const LIST_FIELDS = ['sizeIds', 'colorIds', 'tags', 'openingStock'];
 const fromForm = (body: Record<string, unknown>) => {
     const out: Record<string, unknown> = {...body};
     for (const key of LIST_FIELDS) {

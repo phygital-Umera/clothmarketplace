@@ -34,6 +34,20 @@ Four rules explain most of the app's behaviour:
 
 The company admin can also open one of their shops in **shop mode** ("Sell in my shop"). The company admin then works as that shop's admin, while the audit log records them as the company admin.
 
+### Small shops: business type "Single shop" (added 2026-11-12, D-17)
+
+Each company has a **business type** (`Company.businessMode`): **Shops & branches** (the default, and every company created before this) or **Single shop**.
+
+- **Setting up a small shop:**
+  1. The super admin creates the company with Business type = Single shop.
+  2. The owner signs in, sees "Add a shop first", and adds one shop. The shop login is optional; the owner can sell themselves. The shop goes into an automatic Main Branch.
+  3. From then on the owner lands straight in that shop after sign-in.
+- **What changes while it is Single shop:**
+  - No Branches menu, no branch cards on the company dashboard, no Stock Transfer.
+  - The server refuses a second shop or any branch.
+- **Growing:** the owner presses **Switch to branch mode** in Company Profile (`POST /company-admin/branch-mode`). The normal panel comes back, and they can rename the Main Branch, give it a branch admin, add shops and add branches. The switch is one way for the owner; the super admin can set it back while there is only one shop and one branch.
+- **Owner jobs in shop mode (both business types):** besides refunds, the owner can accept day-close cash differences (Cash Book) and approve or reject stock transfers (Stock Transfer → My requests). A branch admin, if there is one, can still do both.
+
 ---
 
 ## 2. Who manages what

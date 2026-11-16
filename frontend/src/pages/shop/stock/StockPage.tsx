@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {useNavigate} from '@tanstack/react-router';
 import toast from 'react-hot-toast';
+import {format, parseISO} from 'date-fns';
 import {
   useStockSummary,
   useAdjustStock,
@@ -33,7 +34,7 @@ interface StockPageProps {
 }
 
 const PERIOD_OPTIONS: {id: StockPeriod; label: string}[] = [
-  {id: 'this-month', label: 'This month (1-3 Nov)'},
+  {id: 'this-month', label: 'This month'},
   {id: 'today', label: 'Today'},
   {id: 'this-week', label: 'This week'},
   {id: 'last-30-days', label: 'Last 30 days'},
@@ -91,6 +92,17 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
   const metrics = data?.metrics;
   const counts = data?.counts;
   const items: StockItemRow[] = data?.items || [];
+
+  // The selected period with the dates the server counted, e.g. "This month (1 Nov – 12 Nov)"
+  const periodName = PERIOD_OPTIONS.find((p) => p.id === selectedPeriod)?.label;
+  const range = data?.period;
+  const periodLabel = !range?.from
+    ? periodName
+    : range.from === range.to
+      ? `${periodName} (${format(parseISO(range.to), 'd MMM')})`
+      : `${periodName} (${format(parseISO(range.from), 'd MMM')} – ${format(parseISO(range.to), 'd MMM')})`;
+  const pcs = (n?: number) =>
+    n === undefined ? '—' : `${n.toLocaleString('en-IN')} pcs`;
 
   // When clicking Adjust on a specific row
   const openAdjustForRow = (item: StockItemRow) => {
@@ -191,12 +203,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
           </button>
 
           <button
-            onClick={() => {
-              if (items.length > 0 && !adjustPayload.variantId) {
-                setAdjustPayload((prev) => ({...prev, variantId: items[0].variantId}));
-              }
-              setAdjustModalOpen(true);
-            }}
+            onClick={() => setAdjustModalOpen(true)}
             className="flex items-center gap-2 rounded-md border border-[#7A2232] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#7A2232] shadow-sm hover:bg-stone-50 transition-colors"
           >
             <SlidersHorizontal size={14} />
@@ -221,10 +228,10 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             SELLABLE STOCK
           </div>
           <div className="mt-2 text-2xl font-serif font-bold text-stone-900 tracking-tight">
-            {metrics?.sellableStock?.pcsFormatted || '1,560 pcs'}
+            {pcs(metrics?.sellablePcs)}
           </div>
           <div className="mt-1 text-xs text-stone-500">
-            {metrics?.sellableStock?.itemSizesFormatted || '612 item-sizes'}
+            {metrics ? `${metrics.sellableItemSizes} item-sizes` : '—'}
           </div>
         </div>
 
@@ -234,10 +241,15 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             VALUE AT COST
           </div>
           <div className="mt-2 text-2xl font-serif font-bold text-stone-900 tracking-tight">
-            {metrics?.valueAtCost?.costValueFormatted || '₹9.8 L'}
+            {/* No purchase bill yet means no cost: show "—", not a guess */}
+            {metrics && (metrics.costValue || !metrics.withoutCost)
+              ? formatInr(metrics.costValue)
+              : '—'}
           </div>
           <div className="mt-1 text-xs text-stone-500">
-            {metrics?.valueAtCost?.mrpValueFormatted || 'At MRP ₹21.4 L'}
+            {metrics ? `At MRP ${formatInr(metrics.mrpValue)}` : '—'}
+            {!!metrics?.withoutCost &&
+              ` · ${metrics.withoutCost} item-sizes without cost`}
           </div>
         </div>
 
@@ -247,10 +259,10 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             DAMAGED
           </div>
           <div className="mt-2 text-2xl font-serif font-bold text-stone-900 tracking-tight">
-            {metrics?.damaged?.pcsFormatted || '13 pcs'}
+            {pcs(metrics?.damagedPcs)}
           </div>
           <div className="mt-1 text-xs text-stone-500">
-            {metrics?.damaged?.returnToSupplierFormatted || '10 to return to supplier'}
+            {metrics ? `${metrics.damagedItemSizes} item-sizes` : '—'}
           </div>
         </div>
 
@@ -260,11 +272,9 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             LOW / OUT
           </div>
           <div className="mt-2 text-2xl font-serif font-bold text-stone-900 tracking-tight">
-            {metrics?.lowOut?.formatted || '6 / 1'}
+            {metrics ? `${metrics.lowCount} / ${metrics.outCount}` : '—'}
           </div>
-          <div className="mt-1 text-xs text-stone-500">
-            {metrics?.lowOut?.subtext || 'Reorder'}
-          </div>
+          <div className="mt-1 text-xs text-stone-500">Reorder</div>
         </div>
 
         {/* Card 5: SLOW MOVERS */}
@@ -273,10 +283,10 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             SLOW MOVERS
           </div>
           <div className="mt-2 text-2xl font-serif font-bold text-stone-900 tracking-tight">
-            {metrics?.slowMovers?.formatted || '24'}
+            {metrics?.slowCount ?? '—'}
           </div>
           <div className="mt-1 text-xs text-stone-500">
-            {metrics?.slowMovers?.subtext || 'No sale in 60 days'}
+            {metrics ? `No sale in ${metrics.slowDays} days` : '—'}
           </div>
         </div>
       </div>
@@ -308,7 +318,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             >
               <span>Low / Out</span>
               <span className="inline-flex items-center justify-center rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold text-stone-700">
-                {counts?.lowOut ?? 7}
+                {counts?.lowOut ?? '—'}
               </span>
             </button>
 
@@ -343,10 +353,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                 onClick={() => setPeriodDropdownOpen((prev) => !prev)}
                 className="flex items-center gap-2 rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition-colors"
               >
-                <span>
-                  {PERIOD_OPTIONS.find((p) => p.id === selectedPeriod)?.label ||
-                    'This month (1-3 Nov)'}
-                </span>
+                <span>{periodLabel}</span>
                 <ChevronDown size={14} className="text-stone-400" />
               </button>
 
@@ -445,7 +452,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
 
                     {/* Opening */}
                     <td className="px-3 py-3.5 text-center font-mono text-stone-600">
-                      {row.opening > 0 ? row.opening : '0'}
+                      {row.opening}
                     </td>
 
                     {/* + Purchase */}
@@ -762,7 +769,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Month-end floor count conducted by Priya Shinde"
+                  placeholder="e.g. Month-end floor count"
                   value={auditNotes}
                   onChange={(e) => setAuditNotes(e.target.value)}
                   className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-[#7A2232] focus:outline-none"

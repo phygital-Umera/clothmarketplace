@@ -24,6 +24,7 @@ import {applyServerErrors} from '@/lib/validation/fieldRules';
 import {
   EMPTY_SHOP_PRODUCT,
   fromShopProduct,
+  openingStockKey,
   shopProductSchema,
   ShopProductValues,
   toShopProductBody,
@@ -37,9 +38,82 @@ import {Loader2} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {FormProvider, useForm} from 'react-hook-form';
 import toast from 'react-hot-toast';
+import {StockBadge} from './ShopProductList';
 
-const FIELDS = Object.keys(EMPTY_SHOP_PRODUCT);
+// Opening stock has no single input to show a server error on: it goes to the form error
+const FIELDS = Object.keys(EMPTY_SHOP_PRODUCT).filter(
+  (f) => f !== 'openingStock',
+);
 const label = (v: string) => v.charAt(0) + v.slice(1).toLowerCase();
+
+/** New product only: pieces on hand of each size + colour, saved as an opening stock movement */
+const OpeningStock = ({
+  sizes,
+  colors,
+}: {
+  sizes: {id: string; name: string}[];
+  colors: {id: string; name: string; hexCode?: string}[];
+}) => (
+  <fieldset className="mt-4">
+    <legend className="field-label">Opening Stock</legend>
+    <p className="field-hint -mt-1 mb-2">
+      Pieces you have now of each size and colour; blank means 0. After saving,
+      stock changes only with purchase bills and stock adjustments.
+    </p>
+    {sizes.length && colors.length ? (
+      <div className="overflow-x-auto">
+        <table className="text-body-sm">
+          <thead>
+            <tr>
+              <th />
+              {sizes.map((s) => (
+                <th
+                  key={s.id}
+                  scope="col"
+                  className="px-1 pb-1 text-left font-medium text-espresso"
+                >
+                  {s.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {colors.map((c) => (
+              <tr key={c.id}>
+                <th
+                  scope="row"
+                  className="whitespace-nowrap pr-3 text-left font-normal text-espresso"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      aria-hidden
+                      className="h-3.5 w-3.5 rounded-full border border-hairline"
+                      style={{backgroundColor: c.hexCode}}
+                    />
+                    {c.name}
+                  </span>
+                </th>
+                {sizes.map((s) => (
+                  <td key={s.id} className="w-20 px-1 py-1 align-top">
+                    <GenericInputField
+                      name={`openingStock.${openingStockKey(s.id, c.id)}`}
+                      kind="quantity"
+                      placeholder="0"
+                      maxLength={5}
+                      aria-label={`Opening stock, ${c.name}, ${s.name}`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p className="field-hint">Pick the sizes and colours above first.</p>
+    )}
+  </fieldset>
+);
 
 const Form = ({product}: {product?: ShopProduct}) => {
   const navigate = useNavigate();
@@ -64,6 +138,8 @@ const Form = ({product}: {product?: ShopProduct}) => {
     formState: {isSubmitting, isDirty},
   } = form;
   const categoryId = watch('categoryId');
+  const sizeIds = watch('sizeIds');
+  const colorIds = watch('colorIds');
   const masters = useProductMasters(categoryId, product);
 
   const toDetail = (id: string) =>
@@ -139,8 +215,8 @@ const Form = ({product}: {product?: ShopProduct}) => {
         <div className="panel space-y-5 p-4 md:p-5">
           <p className="rounded border border-ivory-300 bg-ivory-100 px-3 py-2 text-body-sm text-espresso">
             Fill the fields marked <span className="text-error">*</span>: name,
-            description, category, sizes, colours, price and stock. Everything
-            else is optional and can be added later.
+            description, category, sizes, colours and price. Everything else is
+            optional and can be added later.
           </p>
           <FormGroup
             title="Product"
@@ -301,12 +377,6 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 prefix="₹"
                 hint="Leave blank for no discount"
               />
-              <GenericInputField
-                name="stockQuantity"
-                label="Stock Quantity"
-                kind="quantity"
-                required
-              />
               <GenericDropdown
                 name="taxRate"
                 label="GST"
@@ -317,6 +387,21 @@ const Form = ({product}: {product?: ShopProduct}) => {
                 }))}
               />
             </div>
+            {product ? (
+              <div className="mt-4">
+                <p className="field-label">Stock</p>
+                <StockBadge qty={product.stock} />
+                <p className="field-hint">
+                  Add stock with a purchase bill; correct it with a stock
+                  adjustment.
+                </p>
+              </div>
+            ) : (
+              <OpeningStock
+                sizes={masters.sizes.filter((s) => sizeIds.includes(s.id))}
+                colors={masters.colors.filter((c) => colorIds.includes(c.id))}
+              />
+            )}
           </FormGroup>
 
           <FormGroup

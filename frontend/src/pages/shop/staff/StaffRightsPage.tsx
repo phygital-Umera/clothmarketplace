@@ -1,5 +1,6 @@
 import {Field, PageHeader} from '@/components/ui';
 import FormDialog from '@/components/ui/FormDialog';
+import useCurrentUser from '@/hooks/useCurrentUser';
 import {
   useCreateStaffRequest,
   useMarkAttendance,
@@ -18,6 +19,7 @@ import {
   StaffRight,
 } from '@/types/staff';
 import {getErrorMessage} from '@/utils/axios';
+import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
 
 type Props = {panel?: string};
@@ -303,6 +305,9 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
   const updateShift = useUpdateStaffShift(panel);
   const [requestOpen, setRequestOpen] = useState(false);
   const rights = data?.rights ?? [];
+  const {data: me} = useCurrentUser();
+  // The owner (shop mode) adds staff directly; a shop login asks the branch admin
+  const owner = me?.role === 'ADMIN';
 
   const toggle = (member: StaffMember, key: string) => {
     const permissions = member.permissions.includes(key)
@@ -318,9 +323,15 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
         title="Staff & rights"
         subtitle="Your team's shifts and today's activity. A tick gives that module with edit access; set View-only access on the Employees page."
         actions={
-          <button type="button" className="btn-ghost" onClick={() => setRequestOpen(true)}>
-            Request new staff
-          </button>
+          owner ? (
+            <Link to="/shop-admin/employees" className="btn-ghost">
+              Add staff
+            </Link>
+          ) : (
+            <button type="button" className="btn-ghost" onClick={() => setRequestOpen(true)}>
+              Request new staff
+            </button>
+          )
         }
       />
 
@@ -361,7 +372,7 @@ export default function StaffRightsPage({panel = 'shop-admin'}: Props) {
               {data && !data.items.length && (
                 <tr>
                   <td colSpan={4 + rights.length} className="px-4 py-10 text-center text-outline">
-                    No staff in this shop yet. Request new staff to get started.
+                    No staff in this shop yet. {owner ? 'Add staff' : 'Request new staff'} to get started.
                   </td>
                 </tr>
               )}

@@ -7,6 +7,7 @@ import {listArgs, searchWhere, toListResult} from '../utils/list';
 import {orgValidation} from '@validations/index';
 import accountService, {Scope} from './account.service';
 import branchService from './branch.service';
+import companyService from './company.service';
 import {dayKey} from '../utils/day';
 
 type CreateShop = z.infer<typeof orgValidation.createShopSchema>;
@@ -124,6 +125,16 @@ class ShopService {
             adminPassword,
             ...fields
         } = data;
+        // A single-shop business adds a second shop only after switching to branch mode
+        const companyId =
+            scope.companyId ??
+            (requested
+                ? (await prisma.branch.findUnique({where: {id: requested}, select: {companyId: true}}))
+                      ?.companyId
+                : undefined);
+        if (companyId && (await prisma.shop.count({where: {companyId, deletedAt: null}}))) {
+            await companyService.assertBranchMode(companyId, 'more shops');
+        }
         const withLogin = !!adminName;
         if (withLogin && !adminPassword) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Login Password is required', [

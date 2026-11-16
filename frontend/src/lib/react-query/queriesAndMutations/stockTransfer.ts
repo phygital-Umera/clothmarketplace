@@ -26,7 +26,7 @@ export const TRANSFER_KEYS = {
   branchList: (params?: {search?: string; tab?: string}) =>
     [...TRANSFER_KEYS.all, 'branch', params] as const,
   summary: () => [...TRANSFER_KEYS.all, 'summary'] as const,
-  sources: (id: string) => [...TRANSFER_KEYS.all, 'sources', id] as const,
+  sources: (id: string, panel: string) => [...TRANSFER_KEYS.all, 'sources', panel, id] as const,
 };
 
 /** Transfers move stock: refresh transfer lists and every stock view */
@@ -123,18 +123,18 @@ export const useStockTransferSummary = () =>
     select: (res) => res.data,
   });
 
-export const useTransferSources = (id: string | null) =>
+export const useTransferSources = (id: string | null, panel = 'branch-admin') =>
   useQuery({
-    queryKey: TRANSFER_KEYS.sources(id ?? ''),
-    queryFn: () => getTransferSources(id as string),
+    queryKey: TRANSFER_KEYS.sources(id ?? '', panel),
+    queryFn: () => getTransferSources(id as string, panel),
     select: (res) => res.data,
     enabled: !!id,
   });
 
-export const useDecideTransfer = () => {
+export const useDecideTransfer = (panel = 'branch-admin') => {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({id, data}: {id: string; data: TransferDecision}) => decideTransfer(id, data),
+    mutationFn: ({id, data}: {id: string; data: TransferDecision}) => decideTransfer(id, data, panel),
     onSuccess: (res: any) => {
       toast.success(res?.message || 'Decision saved');
       invalidate();

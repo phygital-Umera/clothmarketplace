@@ -77,6 +77,10 @@ const CompanyFormPage = () => {
             adminEmail: company.adminEmail,
             adminPhone: company.adminPhone,
             status: company.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+            businessMode:
+              company.businessMode === 'SINGLE_SHOP'
+                ? 'SINGLE_SHOP'
+                : 'BRANCHES',
             adminPassword: '',
           }}
           onCancel={toList}

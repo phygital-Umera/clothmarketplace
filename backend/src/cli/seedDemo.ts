@@ -241,14 +241,21 @@ const seed = async () => {
     const scope = (key: string) => ({companyId: company.id, shopId: shops[key].id});
 
     // ---- Masters (company-wide), brands
+    // Reuse the platform's standard sizes / colours (migration 20261108090000) instead of duplicating them
+    const ours = {OR: [{companyId: null}, {companyId: company.id}]};
     const sizeIds: Record<string, string> = {};
     const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '30', '32', '34', '36', '2Y', '4Y', '6Y', '8Y', 'Free'];
     for (const [i, name] of SIZES.entries()) {
-        sizeIds[name] = (await masterService.createSize(company.id, masterValidation.createSizeSchema.parse({name, displayOrder: i}))).id;
+        const found = await prisma.size.findFirst({where: {...ours, name: {equals: name, mode: 'insensitive'}}, select: {id: true}});
+        sizeIds[name] = found?.id ?? (await masterService.createSize(company.id, masterValidation.createSizeSchema.parse({name, displayOrder: i}))).id;
     }
     const colorIds: Record<string, string> = {};
     for (const [name, hexCode] of Object.entries(COLORS)) {
-        colorIds[name] = (await masterService.createColor(company.id, masterValidation.createColorSchema.parse({name, hexCode}))).id;
+        const found = await prisma.color.findFirst({
+            where: {AND: [ours, {OR: [{name: {equals: name, mode: 'insensitive'}}, {hexCode: {equals: hexCode, mode: 'insensitive'}}]}]},
+            select: {id: true},
+        });
+        colorIds[name] = found?.id ?? (await masterService.createColor(company.id, masterValidation.createColorSchema.parse({name, hexCode}))).id;
     }
     const brandIds: Record<string, string> = {};
     for (const name of ['Matoshri Label', 'Urban Weave', 'Little Petals', 'Desi Roots']) {

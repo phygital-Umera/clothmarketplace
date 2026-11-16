@@ -29,7 +29,7 @@ export const getSupplierLedger = (panel: string = 'shop-admin', supplierId: stri
 export const getNextReceipt = (panel: string = 'shop-admin') =>
   api
     .get<{receiptNumber: string; success: boolean}>(`/${panel}/suppliers/next-receipt`)
-    .then((res: any) => res?.receiptNumber ?? res?.data?.receiptNumber ?? 'PY/26-27/0019');
+    .then((res: any) => res?.receiptNumber ?? res?.data?.receiptNumber ?? null);
 
 export const createSupplier = (panel: string = 'shop-admin', payload: CreateSupplierPayload) =>
   api

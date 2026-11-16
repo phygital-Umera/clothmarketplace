@@ -55,7 +55,7 @@ export const companyAdminShopMode = catchAsync(async (req, res, next) => {
 /** Only the company admin in shop mode; the shop's own login and employees cannot */
 export const ownerOnly = (req: Request, _res: Response, next: NextFunction) => {
     if (req.user?.realRole !== Role.ADMIN) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Only the owner can approve refunds here');
+        throw new ApiError(httpStatus.FORBIDDEN, 'Only the owner can do this here');
     }
     next();
 };

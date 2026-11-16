@@ -69,6 +69,7 @@ model User {
   orderStatusUpdates     OrderStatusHistory[]
   purchaseBills          PurchaseBill[]
   salesBills             SalesBill[]
+  salesBillsAsSalesman   SalesBill[]         @relation("SalesBillSalesman")
   creditNotes            CreditNote[]        @relation("CreditNoteCreatedBy")
   decidedCreditNotes     CreditNote[]        @relation("CreditNoteDecidedBy")
 salesReturns           SalesReturn[]          @relation("SalesReturnCreatedBy")
@@ -125,6 +126,8 @@ model Company {
   adminEmail    String
   adminPhone    String
   status        CompanyStatus @default(ACTIVE)
+  /// SINGLE_SHOP: a small business with one shop and a simple panel; the owner can switch up to BRANCHES
+  businessMode  BusinessMode  @default(BRANCHES)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
@@ -302,6 +305,11 @@ enum CompanyStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum BusinessMode {
+  SINGLE_SHOP
+  BRANCHES
 }
 
 enum AuditResult {
@@ -784,6 +792,12 @@ model SalesBill {
   balanceDue    Float      @default(0)
   paymentStatus BillPaymentStatus @default(PAID)
   dueDate       DateTime?
+  billType      SalesBillType @default(TAX_INVOICE_B2C)
+  /// Buyer's GST number, required on B2B tax invoices (stored uppercase)
+  customerGstin String?
+  /// Staff member who made the sale (commission / incentives); createdBy is the cashier
+  salesmanId    String?
+  salesman      User?      @relation("SalesBillSalesman", fields: [salesmanId], references: [id], onDelete: SetNull)
 
   notes         String?
   version       Int        @default(0)
@@ -806,6 +820,7 @@ payments      SalesBillPayment[]
   @@index([status])
   @@index([billDate])
   @@index([createdById])
+  @@index([salesmanId])
 }
 
 model SalesBillItem {
@@ -839,6 +854,12 @@ enum BillPaymentStatus {
   CREDIT
 }
 
+enum SalesBillType {
+  TAX_INVOICE_B2C
+  TAX_INVOICE_B2B
+  RETAIL_INVOICE
+}
+
 /// Money received against a sales bill: at billing time or a later due collection
 model SalesBillPayment {
   id           String    @id @default(uuid())
@@ -849,6 +870,8 @@ model SalesBillPayment {
   paidAt       DateTime  @default(now())
   receivedById String
   note         String?
+  /// UPI reference or the card's last 4 digits
+  reference    String?
   /// true = taken when the bill was saved (replaced on edit); false = a later due collection
   atBilling    Boolean   @default(true)
   createdAt    DateTime  @default(now())

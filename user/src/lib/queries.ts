@@ -45,13 +45,21 @@ export type ListParams = {
   limit?: number;
 };
 
-export const useHome = () => useQuery({queryKey: ['home'], queryFn: () => api.get<Home>('/store/home')});
+// Home, listing and search refetch on focus (once older than staleTime), so a tab
+// left open drops products unpublished or sold out meanwhile
+export const useHome = () =>
+  useQuery({
+    queryKey: ['home'],
+    queryFn: () => api.get<Home>('/store/home'),
+    refetchOnWindowFocus: true,
+  });
 
 export const useProducts = (params: ListParams) =>
   useQuery({
     queryKey: ['products', params],
     queryFn: () => api.get<ProductList>('/store/products', params),
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: true,
   });
 
 export const useProduct = (idOrSlug: string) =>
@@ -73,6 +81,7 @@ export const useSuggest = (q: string) =>
       ),
     enabled: q.trim().length >= 2,
     staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 
 export const usePaymentConfig = () =>

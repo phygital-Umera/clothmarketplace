@@ -15,7 +15,7 @@ interface Res<T> {
 export const getNextAdjustmentNumber = (panel: string = 'shop-admin') =>
   api
     .get<Res<{adjustmentNumber: string}>>(`/${panel}/stock-adjustments/next-number`)
-    .then((res: any) => res?.data?.adjustmentNumber ?? res?.adjustmentNumber ?? 'ADJ-0046');
+    .then((res: any) => res?.data?.adjustmentNumber ?? res?.adjustmentNumber ?? null);
 
 export const getAdjustmentVariants = (panel: string = 'shop-admin', search?: string) =>
   api

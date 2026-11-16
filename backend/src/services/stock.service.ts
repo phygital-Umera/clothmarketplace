@@ -1,7 +1,29 @@
+import { randomUUID } from 'crypto';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
-import { MovementType, StockSourceType } from '@prisma/client';
+import { MovementType, Prisma, StockSourceType } from '@prisma/client';
+import { dayKey, dayRange } from '../utils/day';
+import accountService from './account.service';
+import { financialYear } from './bill.service';
+
+const SLOW_DAYS = 60;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type FlowColumn = 'purchase' | 'sold' | 'salesReturn' | 'transfer' | 'adjust';
+/** Which column each movement lands in, and its sign there (sold counts sales out) */
+const FLOW: Record<MovementType, [FlowColumn, 1 | -1]> = {
+  PURCHASE_IN: ['purchase', 1],
+  PURCHASE_REVERSAL: ['purchase', -1],
+  SALE_OUT: ['sold', 1],
+  SALE_REVERSAL: ['sold', -1],
+  RETURN_RESTOCK: ['salesReturn', 1],
+  TRANSFER_IN: ['transfer', 1],
+  TRANSFER_OUT: ['transfer', -1],
+  ADJUSTMENT_INCREASE: ['adjust', 1],
+  ADJUSTMENT_DECREASE: ['adjust', -1],
+  DAMAGE_WRITE_OFF: ['adjust', -1],
+};
 
 export type Scope = {
   companyId: string;
@@ -57,47 +79,32 @@ class StockService {
     return firstBranch?.id || '';
   }
 
-  /**
-   * Helper to get date boundaries
-   */
-  private getDateBounds(period: string = 'this-month'): { start: Date; end: Date; label: string } {
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    let label = 'This month (1-3 Nov)';
+  /** A shop its own products; a branch its shops' and shop-less catalog ones */
+  private ownProducts(scope: Scope, branchId: string): Prisma.ProductWhereInput {
+    return scope.shopId ? { shopId: scope.shopId } : { OR: [{ shopId: null }, { shop: { branchId } }] };
+  }
 
+  /** Start of the period (local day); null for all time */
+  private periodStart(period: StockSummaryQuery['period'], now: Date): Date | null {
+    const daysAgo = (n: number) =>
+      dayRange(dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - n))).start;
     switch (period) {
       case 'today':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        label = 'Today';
-        break;
+        return daysAgo(0);
       case 'this-week':
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        start = new Date(now.setDate(diff));
-        start.setHours(0, 0, 0, 0);
-        label = 'This week';
-        break;
+        return daysAgo((now.getDay() + 6) % 7); // back to Monday
       case 'last-30-days':
-        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        label = 'Last 30 days';
-        break;
+        return daysAgo(29);
       case 'all-time':
-        start = new Date(2020, 0, 1);
-        label = 'All time';
-        break;
-      case 'this-month':
+        return null;
       default:
-        start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        label = 'This month (1-3 Nov)';
-        break;
+        return daysAgo(now.getDate() - 1); // 1st of this month
     }
-
-    return { start, end, label };
   }
 
   /**
-   * Get Stock Summary Ledger and KPIs
+   * Stock by item and size: today's count from Inventory, the period's movements by kind,
+   * and the opening worked back from them
    */
   public async getStockSummary(scope: Scope, query: StockSummaryQuery) {
     const branchId = await this.resolveBranchId(scope);
@@ -105,196 +112,127 @@ class StockService {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
     }
 
-    const { start, end, label: dateRangeLabel } = this.getDateBounds(query.period);
+    const now = new Date();
+    const from = this.periodStart(query.period, now);
     const search = (query.search || '').trim().toLowerCase();
     const tab = query.tab || 'STOCK_SUMMARY';
 
-    // 1. Fetch all product variants with inventory & product details
-    const rows: any[] = await prisma.$queryRawUnsafe(`
-      SELECT 
-        v."id" as "variantId",
-        v."productId",
-        v."variantSku" as "barcode",
-        v."size",
-        v."color",
-        v."mrp"::float as "variantMrp",
-        v."sellingPrice"::float as "variantSellingPrice",
-        p."name" as "productName",
-        p."mrp"::float as "productMrp",
-        p."sellingPrice"::float as "productSellingPrice",
-        p."status",
-        COALESCE(i."physicalQty", 0)::int as "closing",
-        COALESCE(i."threshold", 5)::int as "threshold",
-        COALESCE(i."damagedQty", 0)::int as "damagedQty",
-        -- Cost estimate from purchase bills or 35% margin
-        CASE 
-          WHEN v."variantSku" = '8901234011012' THEN 420
-          WHEN v."variantSku" = '8901234011029' THEN 420
-          WHEN v."variantSku" = '8901234032017' THEN 3550
-          WHEN v."variantSku" = '8901234014006' THEN 128
-          WHEN v."variantSku" = '8901234014000' THEN 128
-          WHEN v."variantSku" = '8901234016208' THEN 320
-          ELSE COALESCE(
-            (SELECT bi."unitCost"::float FROM "PurchaseBillItem" bi WHERE bi."variantId" = v."id" ORDER BY bi."id" DESC LIMIT 1),
-            ROUND(COALESCE(v."sellingPrice", p."sellingPrice", 500) * 0.45)
-          )
-        END as "costPrice"
-      FROM "ProductVariant" v
-      JOIN "Product" p ON p."id" = v."productId"
-      LEFT JOIN "Inventory" i ON i."variantId" = v."id" AND i."branchId" = $1
-      WHERE p."companyId" = $2
-      ORDER BY 
-        CASE 
-          WHEN v."variantSku" = '8901234011012' THEN 1
-          WHEN v."variantSku" = '8901234011029' THEN 2
-          WHEN v."variantSku" = '8901234032017' THEN 3
-          WHEN v."variantSku" = '8901234014006' THEN 4
-          WHEN v."variantSku" = '8901234014000' THEN 5
-          WHEN v."variantSku" = '8901234016208' THEN 6
-          ELSE 7
-        END ASC,
-        p."name" ASC, v."size" ASC
-    `, branchId, scope.companyId);
+    const product: Prisma.ProductWhereInput = {
+      companyId: scope.companyId,
+      deletedAt: null,
+      ...this.ownProducts(scope, branchId),
+    };
+    // Turned-off variants still show while they hold stock
+    const variants = await prisma.productVariant.findMany({
+      where: {
+        product,
+        OR: [
+          { isActive: true },
+          { inventories: { some: { branchId, OR: [{ physicalQty: { gt: 0 } }, { damagedQty: { gt: 0 } }] } } },
+        ],
+      },
+      select: {
+        id: true,
+        productId: true,
+        variantSku: true,
+        size: true,
+        color: true,
+        mrp: true,
+        sellingPrice: true,
+        product: { select: { name: true, mrp: true, sellingPrice: true } },
+        inventories: {
+          where: { branchId },
+          select: { physicalQty: true, reservedQty: true, damagedQty: true, threshold: true },
+        },
+      },
+      orderBy: [{ product: { name: 'asc' } }, { size: 'asc' }],
+    });
+    const ids = variants.map((v) => v.id);
 
-    // 2. Fetch all movements for these variants in the given branch
-    const movements: any[] = await prisma.$queryRawUnsafe(`
-      SELECT 
-        "variantId",
-        "type",
-        "quantity",
-        "createdAt"
-      FROM "StockMovement"
-      WHERE "branchId" = $1
-    `, branchId);
+    const [periodMoves, allTimeMoves, costs] = await Promise.all([
+      prisma.stockMovement.groupBy({
+        by: ['variantId', 'type'],
+        where: { branchId, variant: { product }, ...(from ? { createdAt: { gte: from } } : {}) },
+        _sum: { quantity: true },
+      }),
+      prisma.stockMovement.groupBy({
+        by: ['variantId', 'type'],
+        where: { branchId, variant: { product } },
+        _min: { createdAt: true },
+        _max: { createdAt: true },
+      }),
+      // Cost is the unit cost (before GST) on the variant's latest confirmed purchase bill
+      prisma.$queryRaw<{ variantId: string; unitCost: number }[]>`
+        SELECT DISTINCT ON (bi."variantId") bi."variantId", bi."unitCost"
+        FROM "PurchaseBillItem" bi
+        JOIN "PurchaseBill" b ON b."id" = bi."billId"
+        WHERE bi."variantId" = ANY(${ids})
+          AND b."status" = 'CONFIRMED' AND b."deletedAt" IS NULL
+        ORDER BY bi."variantId", b."billDate" DESC, b."createdAt" DESC`,
+    ]);
 
-    // Map movements by variantId
-    const movementsByVariant = new Map<string, any[]>();
-    for (const m of movements) {
-      if (!movementsByVariant.has(m.variantId)) {
-        movementsByVariant.set(m.variantId, []);
-      }
-      movementsByVariant.get(m.variantId)!.push(m);
+    const flows = new Map<string, Record<FlowColumn, number>>();
+    for (const m of periodMoves) {
+      const f = flows.get(m.variantId) ?? { purchase: 0, sold: 0, salesReturn: 0, transfer: 0, adjust: 0 };
+      const [column, sign] = FLOW[m.type];
+      f[column] += sign * (m._sum.quantity ?? 0);
+      flows.set(m.variantId, f);
     }
+    const lastSale = new Map<string, Date>();
+    const firstMove = new Map<string, Date>();
+    for (const m of allTimeMoves) {
+      if (m.type === MovementType.SALE_OUT && m._max.createdAt) lastSale.set(m.variantId, m._max.createdAt);
+      const first = firstMove.get(m.variantId);
+      if (m._min.createdAt && (!first || m._min.createdAt < first)) firstMove.set(m.variantId, m._min.createdAt);
+    }
+    const costOf = new Map(costs.map((c) => [c.variantId, Number(c.unitCost)]));
+    const slowSince = new Date(now.getTime() - SLOW_DAYS * DAY_MS);
 
-    // 3. Assemble ledger rows with movements breakdown
-    let totalSellablePcs = 1560; // baseline showroom inventory
-    let totalDamagedPcs = 13;
-    let totalCostVal = 980000;
-    let totalMrpVal = 2140000;
-    let lowStockCount = 6;
-    let outOfStockCount = 1;
-    let slowMoversCount = 24;
-
-    const allItems = rows.map((r) => {
-      const vMovements = movementsByVariant.get(r.variantId) || [];
-      
-      let purchase = 0;
-      let sold = 0;
-      let salesReturn = 0;
-      let transfer = 0;
-      let adjust = 0;
-
-      for (const m of vMovements) {
-        const qty = Number(m.quantity || 0);
-        switch (m.type) {
-          case 'PURCHASE_IN':
-            purchase += qty;
-            break;
-          case 'SALE_OUT':
-            sold += qty;
-            break;
-          case 'RETURN_RESTOCK':
-          case 'SALE_REVERSAL':
-            salesReturn += qty;
-            break;
-          case 'TRANSFER_IN':
-            transfer += qty;
-            break;
-          case 'TRANSFER_OUT':
-            transfer -= qty;
-            break;
-          case 'ADJUSTMENT_INCREASE':
-            adjust += qty;
-            break;
-          case 'ADJUSTMENT_DECREASE':
-          case 'DAMAGE_WRITE_OFF':
-            adjust -= qty;
-            break;
-          default:
-            break;
-        }
-      }
-
-      const closing = Number(r.closing || 0);
-      // Opening = closing - purchase + sold - salesReturn - transfer - adjust
-      let opening = closing - purchase + sold - salesReturn - transfer - adjust;
-      if (opening < 0) opening = 0;
-
-      // Match known screenshot rows accurately if movements exist
-      if (r.barcode === '8901234011012') {
-        opening = 14; purchase = 35; sold = 6; salesReturn = 0; transfer = 0; adjust = -1;
-      } else if (r.barcode === '8901234011029') {
-        opening = 4; purchase = 25; sold = 3; salesReturn = 0; transfer = -2; adjust = 0;
-      } else if (r.barcode === '8901234032017') {
-        opening = 4; purchase = 0; sold = 1; salesReturn = 0; transfer = 0; adjust = 0;
-      } else if (r.barcode === '8901234014006') {
-        opening = 37; purchase = 0; sold = 1; salesReturn = 1; transfer = 0; adjust = -6;
-      } else if (r.barcode === '8901234014000') {
-        opening = 2; purchase = 0; sold = 2; salesReturn = 0; transfer = 0; adjust = 0;
-      } else if (r.barcode === '8901234016208') {
-        opening = 0; purchase = 40; sold = 0; salesReturn = 0; transfer = 0; adjust = 0;
-      }
-
-      const costPrice = Number(r.costPrice || 0);
-      const mrp = Number(r.variantMrp || r.productMrp || 0);
-      const sellingPrice = Number(r.variantSellingPrice || r.productSellingPrice || 0);
-      const valueCost = Math.round(closing * costPrice);
-      const threshold = Number(r.threshold || 5);
-      const damagedQty = Number(r.damagedQty || 0);
-
-      const isOutOfStock = closing === 0;
-      const isLowStock = closing > 0 && closing <= threshold;
-      const isSlowMoving = r.barcode === '8901234032017' || r.barcode === '8901234014006' || sold === 0;
+    const allItems = variants.map((v) => {
+      const inv = v.inventories[0];
+      const closing = inv?.physicalQty ?? 0;
+      const available = closing - (inv?.reservedQty ?? 0);
+      const threshold = inv?.threshold ?? 5;
+      const damagedQty = inv?.damagedQty ?? 0;
+      const f = flows.get(v.id) ?? { purchase: 0, sold: 0, salesReturn: 0, transfer: 0, adjust: 0 };
+      // Worked back from today's count, so it also carries any change made without a movement
+      const opening = closing - f.purchase + f.sold - f.salesReturn - f.transfer - f.adjust;
+      const costPrice = costOf.get(v.id) ?? null;
+      const sale = lastSale.get(v.id) ?? null;
+      // Slow: in stock and no sale in SLOW_DAYS days (never sold: first stocked over SLOW_DAYS ago)
+      const since = sale ?? firstMove.get(v.id) ?? null;
 
       return {
-        id: r.variantId,
-        variantId: r.variantId,
-        productId: r.productId,
-        productName: r.productName,
-        size: r.size,
-        color: r.color,
-        barcode: r.barcode,
+        id: v.id,
+        variantId: v.id,
+        productId: v.productId,
+        productName: v.product.name,
+        size: v.size,
+        color: v.color,
+        barcode: v.variantSku,
         opening,
-        purchase,
-        sold,
-        salesReturn,
-        transfer,
-        adjust,
+        ...f,
         closing,
+        available,
         costPrice,
-        mrp,
-        sellingPrice,
-        valueCost,
+        mrp: v.mrp ?? v.product.mrp,
+        sellingPrice: v.sellingPrice ?? v.product.sellingPrice,
+        valueCost: costPrice === null ? null : Math.round(closing * costPrice),
         threshold,
         damagedQty,
-        isOutOfStock,
-        isLowStock,
-        isSlowMoving,
-        daysWithoutSale: isSlowMoving ? 64 : 12,
+        isOutOfStock: available <= 0,
+        isLowStock: available > 0 && available <= threshold,
+        isSlowMoving: closing > 0 && (!since || since < slowSince),
+        daysWithoutSale: sale ? Math.floor((now.getTime() - sale.getTime()) / DAY_MS) : null,
       };
     });
 
-    // Counts for tabs
+    const inStockItems = allItems.filter((i) => i.available > 0);
     const lowOutItems = allItems.filter((i) => i.isLowStock || i.isOutOfStock);
     const damagedItems = allItems.filter((i) => i.damagedQty > 0);
     const slowMovingItems = allItems.filter((i) => i.isSlowMoving);
-
-    const counts = {
-      all: allItems.length,
-      lowOut: Math.max(7, lowOutItems.length),
-      damaged: Math.max(2, damagedItems.length),
-      slowMoving: Math.max(24, slowMovingItems.length),
-    };
+    const sum = (list: typeof allItems, value: (i: (typeof allItems)[number]) => number) =>
+      list.reduce((t, i) => t + value(i), 0);
 
     // Filter items based on active Tab
     let filteredItems = allItems;
@@ -317,40 +255,27 @@ class StockService {
     }
 
     return {
-      dateRangeLabel,
+      period: { from: from ? dayKey(from) : null, to: dayKey(now) },
       metrics: {
-        sellableStock: {
-          pcs: totalSellablePcs,
-          pcsFormatted: totalSellablePcs.toLocaleString('en-IN') + ' pcs',
-          itemSizes: 612,
-          itemSizesFormatted: '612 item-sizes',
-        },
-        valueAtCost: {
-          costValue: totalCostVal,
-          costValueFormatted: '₹9.8 L',
-          mrpValue: totalMrpVal,
-          mrpValueFormatted: 'At MRP ₹21.4 L',
-        },
-        damaged: {
-          pcs: totalDamagedPcs,
-          pcsFormatted: `${totalDamagedPcs} pcs`,
-          returnToSupplier: 10,
-          returnToSupplierFormatted: '10 to return to supplier',
-        },
-        lowOut: {
-          lowCount: lowStockCount,
-          outCount: outOfStockCount,
-          formatted: `${lowStockCount} / ${outOfStockCount}`,
-          subtext: 'Reorder',
-        },
-        slowMovers: {
-          count: slowMoversCount,
-          formatted: `${slowMoversCount}`,
-          days: 60,
-          subtext: 'No sale in 60 days',
-        },
+        sellablePcs: sum(inStockItems, (i) => i.available),
+        sellableItemSizes: inStockItems.length,
+        costValue: sum(allItems, (i) => i.valueCost ?? 0),
+        // In-stock item-sizes with no confirmed purchase bill, left out of costValue
+        withoutCost: allItems.filter((i) => i.closing > 0 && i.costPrice === null).length,
+        mrpValue: Math.round(sum(allItems, (i) => i.closing * i.mrp)),
+        damagedPcs: sum(damagedItems, (i) => i.damagedQty),
+        damagedItemSizes: damagedItems.length,
+        lowCount: allItems.filter((i) => i.isLowStock).length,
+        outCount: allItems.filter((i) => i.isOutOfStock).length,
+        slowCount: slowMovingItems.length,
+        slowDays: SLOW_DAYS,
       },
-      counts,
+      counts: {
+        all: allItems.length,
+        lowOut: lowOutItems.length,
+        damaged: damagedItems.length,
+        slowMoving: slowMovingItems.length,
+      },
       items: filteredItems,
     };
   }
@@ -362,9 +287,12 @@ class StockService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    // Only the company's own products can be adjusted
+    // Only the caller's own products
     const variant = await prisma.productVariant.findFirst({
-      where: { id: payload.variantId, product: { companyId: scope.companyId, deletedAt: null } },
+      where: {
+        id: payload.variantId,
+        product: { companyId: scope.companyId, deletedAt: null, ...this.ownProducts(scope, branchId) },
+      },
       include: { product: true },
     });
     if (!variant) throw new ApiError(httpStatus.NOT_FOUND, 'Product variant not found');
@@ -422,7 +350,7 @@ class StockService {
         prevPhysical: currentQty,
         newPhysical: newQty,
         reason: payload.reason,
-        reference: `ADJ-${Date.now().toString().slice(-6)}`,
+        reference: payload.notes || null,
         sourceType: StockSourceType.ADJUSTMENT,
         performedById: actorId,
       },
@@ -457,12 +385,15 @@ class StockService {
     const branchId = await this.resolveBranchId(scope);
     if (!branchId) throw new ApiError(httpStatus.BAD_REQUEST, 'Branch not found');
 
-    const countRes: any[] = await prisma.$queryRawUnsafe(`
-      SELECT count(*) as count FROM "PhysicalStockAudit" WHERE "branchId" = $1
-    `, branchId);
-    const count = parseInt(countRes[0]?.count ?? '0', 10) + 1;
-    const auditNumber = `AUD-26-27/${String(count).padStart(4, '0')}`;
-    const auditId = `audit-${Date.now()}`;
+    const auditNumber = await accountService.nextCode(prisma, `AUD-${financialYear()}/`, 4, async (prefix) =>
+      (
+        await prisma.physicalStockAudit.findMany({
+          where: { branchId, auditNumber: { startsWith: prefix } },
+          select: { auditNumber: true },
+        })
+      ).map((a) => a.auditNumber),
+    );
+    const auditId = randomUUID();
 
     let totalItemsCounted = 0;
     let discrepanciesCount = 0;

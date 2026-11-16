@@ -67,6 +67,8 @@ const branchOptions = catchAsync(async (req, res) => {
 const createBranch = catchAsync(async (req, res) => {
     const data = orgValidation.createBranchSchema.parse(req.body);
     const {companyId} = scopeOf(req);
+    // Only explicit branches: the automatic Main Branch of a first shop skips this
+    await companyService.assertBranchMode(companyId!, 'branches');
     const {after} = await auditService.track(
         req,
         {action: 'branch.create', module: 'branches'},
@@ -339,6 +341,17 @@ const companyProfile = catchAsync(async (req, res) => {
     return ok(res, await companyService.getCompanyById(companyId!), 'Company fetched successfully');
 });
 
+/** Owner: single shop -> shops & branches (one way; the super admin can set it back) */
+const switchToBranchMode = catchAsync(async (req, res) => {
+    const {companyId} = scopeOf(req);
+    const {after} = await auditService.track(
+        req,
+        {action: 'company.branchMode', module: 'companies', targetId: companyId},
+        async () => ({after: await companyService.switchToBranchMode(companyId!)}),
+    );
+    return ok(res, after, 'Switched to branch mode. You can now add shops and branches.');
+});
+
 const branchProfile = catchAsync(async (req, res) => {
     const {branchId} = scopeOf(req);
     return ok(res, await branchService.ofUser(branchId!), 'Branch fetched successfully');
@@ -369,5 +382,6 @@ export default {
     scopedDashboard,
     branchOverview,
     companyProfile,
+    switchToBranchMode,
     branchProfile,
 };

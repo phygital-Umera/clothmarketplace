@@ -13,9 +13,11 @@ import {
   useSetShopStatus,
   useShops,
 } from '@/lib/react-query/queriesAndMutations/org';
+import useCurrentUser from '@/hooks/useCurrentUser';
+import {singleShop} from '@/lib/roles';
 import {Panel, Shop} from '@/types/org';
 import {getErrorMessage} from '@/utils/axios';
-import {useNavigate, useSearch} from '@tanstack/react-router';
+import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {
   CircleCheck,
   CirclePause,
@@ -54,6 +56,10 @@ const ShopList = ({panel}: {panel: Panel}) => {
   const {user} = useAuthContext();
   const switchShop = useSwitchShop();
   const navigate = useNavigate();
+  const {data: me} = useCurrentUser();
+  // A single-shop business adds more shops only after switching to branch mode
+  const shopLimitReached =
+    companyWide && singleShop(me) && (data?.summary?.total ?? 0) > 0;
 
   const openShop = (s: Shop) => {
     if (!user?.id) return;
@@ -122,7 +128,7 @@ const ShopList = ({panel}: {panel: Panel}) => {
     },
   ];
 
-  const addButton = editable && (
+  const addButton = editable && !shopLimitReached && (
     <button type="button" onClick={editor.openNew} className="btn-primary">
       <Plus size={14} /> Add Shop
     </button>
@@ -136,6 +142,16 @@ const ShopList = ({panel}: {panel: Panel}) => {
         title="Shops"
         actions={!editor.editing && addButton}
       />
+
+      {shopLimitReached && (
+        <p className="mb-4 text-body-sm text-on-surface-variant">
+          Single-shop business.{' '}
+          <Link to="/company-admin/profile" className="btn-text">
+            Switch to branch mode
+          </Link>{' '}
+          to add more shops.
+        </p>
+      )}
 
       {editor.editing && (
         <ShopEditor

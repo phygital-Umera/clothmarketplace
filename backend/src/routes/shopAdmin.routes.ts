@@ -14,6 +14,8 @@ import {
     shopProductController as p,
     creditNoteController,
     branchReportsController,
+    dayCloseController,
+    stockTransferController,
 } from '@controllers/index';
 import {
     checkRole,
@@ -165,10 +167,14 @@ router.patch('/returns/:id', e.updateReturnStatus);
 
 export const shopRoutes = router;
 
-// Only under /shop-admin (not /employee): the company admin in shop mode
-// decides the shop's pending refunds, as there is no branch admin above them
+// Only under /shop-admin (not /employee): the company admin in shop mode does
+// the branch admin's jobs for the open shop, as there may be no branch admin
 const ownerRoutes = Router();
 ownerRoutes.post('/credit-notes/:id/decision', ownerOnly, cn.decide);
+ownerRoutes.post('/day-close/resolve-difference', ownerOnly, dayCloseController.shopResolve);
+// Transfers of the open shop's branch, same handlers as the branch admin's
+ownerRoutes.get('/transfers/:id/sources', ownerOnly, stockTransferController.branch.sources);
+ownerRoutes.post('/transfers/:id/decision', ownerOnly, stockTransferController.branch.decide);
 
 // Shop login: Shop Admin (also allow Super Admin / Company Admin / Sub Admin for management).
 // A company admin works in one of their shops via X-Shop-Id (companyAdminShopMode).

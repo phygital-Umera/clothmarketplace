@@ -2,47 +2,20 @@ export type StockTab = 'STOCK_SUMMARY' | 'LOW_OUT' | 'DAMAGED' | 'SLOW_MOVING';
 
 export type StockPeriod = 'today' | 'this-week' | 'this-month' | 'last-30-days' | 'all-time';
 
-export interface StockMetricSellable {
-  pcs: number;
-  pcsFormatted: string;
-  itemSizes: number;
-  itemSizesFormatted: string;
-}
-
-export interface StockMetricValueCost {
+export interface StockMetrics {
+  sellablePcs: number;
+  sellableItemSizes: number;
+  /** Closing x latest purchase cost, over items that have one */
   costValue: number;
-  costValueFormatted: string;
+  /** In-stock item-sizes with no purchase cost (left out of costValue) */
+  withoutCost: number;
   mrpValue: number;
-  mrpValueFormatted: string;
-}
-
-export interface StockMetricDamaged {
-  pcs: number;
-  pcsFormatted: string;
-  returnToSupplier: number;
-  returnToSupplierFormatted: string;
-}
-
-export interface StockMetricLowOut {
+  damagedPcs: number;
+  damagedItemSizes: number;
   lowCount: number;
   outCount: number;
-  formatted: string;
-  subtext: string;
-}
-
-export interface StockMetricSlowMovers {
-  count: number;
-  formatted: string;
-  days: number;
-  subtext: string;
-}
-
-export interface StockMetrics {
-  sellableStock: StockMetricSellable;
-  valueAtCost: StockMetricValueCost;
-  damaged: StockMetricDamaged;
-  lowOut: StockMetricLowOut;
-  slowMovers: StockMetricSlowMovers;
+  slowCount: number;
+  slowDays: number;
 }
 
 export interface StockCounts {
@@ -67,20 +40,22 @@ export interface StockItemRow {
   transfer: number;
   adjust: number;
   closing: number;
-  costPrice: number;
+  available: number;
+  costPrice: number | null;
   mrp: number;
   sellingPrice: number;
-  valueCost: number;
+  valueCost: number | null;
   threshold: number;
   damagedQty: number;
   isOutOfStock: boolean;
   isLowStock: boolean;
   isSlowMoving: boolean;
-  daysWithoutSale: number;
+  daysWithoutSale: number | null;
 }
 
 export interface StockSummaryResponse {
-  dateRangeLabel: string;
+  /** Local days, YYYY-MM-DD; from is null for all time */
+  period: {from: string | null; to: string};
   metrics: StockMetrics;
   counts: StockCounts;
   items: StockItemRow[];

@@ -12,6 +12,7 @@ export interface ShopCustomer {
   gstin: string | null;
   address: string | null;
   creditLimit: number;
+  creditDays: number;
   openingDue: number;
   totalBought: number;
   balanceDue: number;
@@ -55,6 +56,7 @@ export interface CreateCustomerPayload {
   gstin?: string | null;
   address?: string | null;
   creditLimit?: number;
+  creditDays?: number;
   openingDue?: number;
   notes?: string | null;
 }

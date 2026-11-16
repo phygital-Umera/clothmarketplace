@@ -4,7 +4,13 @@ import Sidebar from '@/components/Sidebar';
 import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {useOwnerShop} from '@/lib/ownerShop';
-import {canOpen, homeFor, inShopPanel, roleConfig} from '@/lib/roles';
+import {
+  canOpen,
+  homeFor,
+  inShopPanel,
+  roleConfig,
+  singleShop,
+} from '@/lib/roles';
 import {levelOf, moduleOfPath} from '@/lib/shopModules';
 import {getErrorMessage} from '@/utils/axios';
 import {Link, Navigate, Outlet, useRouterState} from '@tanstack/react-router';
@@ -73,7 +79,14 @@ const AppLayout = () => {
     );
   }
 
-  if (pathname === '/') return <Navigate to={homeFor(me.role)} />;
+  if (pathname === '/') {
+    // A single-shop owner starts in their shop (the picker opens the only one)
+    const to =
+      me.role === 'ADMIN' && singleShop(me)
+        ? '/shop-admin/dashboard'
+        : homeFor(me.role);
+    return <Navigate to={to} />;
+  }
 
   const allowed = canOpen(me.role, pathname, me.permissions);
   // Employees with view access only: say so, since saving will be refused

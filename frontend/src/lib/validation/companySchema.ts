@@ -18,6 +18,9 @@ export const companySchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE'], {
     errorMap: () => ({message: 'Status is required'}),
   }),
+  businessMode: z.enum(['SINGLE_SHOP', 'BRANCHES'], {
+    errorMap: () => ({message: 'Business type is required'}),
+  }),
   // Company admin's sign-in password: required on create, blank on edit
   // keeps the current one
   adminPassword: field({label: 'Admin Password', kind: 'password'}),
@@ -46,6 +49,7 @@ export const EMPTY_COMPANY: CompanySchema = {
   adminEmail: '',
   adminPhone: '',
   status: 'ACTIVE',
+  businessMode: 'BRANCHES',
   adminPassword: '',
 };
 

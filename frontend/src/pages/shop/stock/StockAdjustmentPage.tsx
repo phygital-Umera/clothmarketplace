@@ -1,5 +1,6 @@
-import React, {useState, useEffect, useMemo, useRef} from 'react';
+import React, {useState, useMemo, useRef} from 'react';
 import toast from 'react-hot-toast';
+import {uploadPhoto} from '@/lib/api/upload';
 import {
   useNextAdjustmentNumber,
   useAdjustmentVariants,
@@ -58,7 +59,8 @@ export default function StockAdjustmentPage({
   const [quantity, setQuantity] = useState<number>(1);
   const [reason, setReason] = useState<string>('Stitching defect');
   const [reference, setReference] = useState<string>('');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState<string>('');
 
   // History Filter State
@@ -68,7 +70,7 @@ export default function StockAdjustmentPage({
   const [variantSearch, setVariantSearch] = useState<string>('');
 
   // Queries
-  const {data: nextNumber = 'ADJ-0046'} = useNextAdjustmentNumber(panel);
+  const {data: nextNumber} = useNextAdjustmentNumber(panel);
   const {data: variants = []} = useAdjustmentVariants(panel, variantSearch);
   const {data: history = [], isLoading: isHistoryLoading} = useAdjustmentHistory(panel, {
     type: historyTypeFilter,
@@ -77,22 +79,16 @@ export default function StockAdjustmentPage({
   // Mutation
   const createMutation = useCreateStockAdjustment(panel);
 
-  // Auto-select first variant (Printed Anarkali · M / Maroon) if not selected
-  useEffect(() => {
-    if (!selectedVariantId && variants.length > 0) {
-      setSelectedVariantId(variants[0].variantId);
-    }
-  }, [variants, selectedVariantId]);
-
   // Current selected variant object
   const currentVariant = useMemo(() => {
-    return variants.find((v) => v.variantId === selectedVariantId) || variants[0];
+    return variants.find((v) => v.variantId === selectedVariantId);
   }, [variants, selectedVariantId]);
 
-  // Calculate projected "After" counts
+  // Calculate projected "After" counts (the server refuses going below zero)
   const afterCalculation = useMemo(() => {
-    const curAvail = currentVariant?.currentAvailable ?? 9;
-    const curDamaged = currentVariant?.damaged ?? 2;
+    if (!currentVariant) return null;
+    const curAvail = currentVariant.currentAvailable;
+    const curDamaged = currentVariant.damaged;
     const qty = Math.max(1, Number(quantity) || 1);
 
     let afterAvail = curAvail;
@@ -101,12 +97,12 @@ export default function StockAdjustmentPage({
     if (type === 'INCREASE') {
       afterAvail = curAvail + qty;
     } else if (type === 'DECREASE') {
-      afterAvail = Math.max(0, curAvail - qty);
+      afterAvail = curAvail - qty;
     } else if (type === 'MARK_DAMAGED') {
-      afterAvail = Math.max(0, curAvail - qty);
+      afterAvail = curAvail - qty;
       afterDamaged = curDamaged + qty;
     } else if (type === 'WRITE_OFF') {
-      afterDamaged = Math.max(0, curDamaged - qty);
+      afterDamaged = curDamaged - qty;
     }
 
     return {
@@ -115,17 +111,13 @@ export default function StockAdjustmentPage({
     };
   }, [currentVariant, type, quantity]);
 
-  // File upload simulation / local file reader
+  // The photo is uploaded on save; until then only a local preview
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setPhotoUrl(reader.result as string);
-        toast.success(`Photo attached: ${file.name}`);
-      };
-      reader.readAsDataURL(file);
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
     }
   };
 
@@ -142,23 +134,23 @@ export default function StockAdjustmentPage({
     }
 
 
-    const payload: CreateStockAdjustmentPayload = {
-      variantId: selectedVariantId,
-      type,
-      quantity,
-      reason,
-      reference: reference || undefined,
-      photoUrl: photoUrl || undefined,
-      notes: notes || undefined,
-    };
-
     try {
+      const payload: CreateStockAdjustmentPayload = {
+        variantId: selectedVariantId,
+        type,
+        quantity,
+        reason,
+        reference: reference || undefined,
+        photoUrl: photoFile ? await uploadPhoto(photoFile) : undefined,
+        notes: notes || undefined,
+      };
       const res = await createMutation.mutateAsync(payload);
       toast.success(res.message || 'Stock adjustment recorded successfully');
       // Reset form
       setQuantity(1);
       setReference('');
-      setPhotoUrl(null);
+      setPhotoFile(null);
+      setPhotoPreview(null);
       setNotes('');
     } catch (err: any) {
       toast.error(
@@ -191,7 +183,7 @@ export default function StockAdjustmentPage({
               New adjustment
             </h2>
             <span className="font-mono text-xs font-semibold tracking-wider text-stone-400">
-              {nextNumber}
+              {nextNumber || '—'}
             </span>
           </div>
 
@@ -213,8 +205,7 @@ export default function StockAdjustmentPage({
 
               {/* Subtext */}
               <div className="text-[11px] text-stone-500 font-mono mt-1">
-                {currentVariant?.subtext ||
-                  'PRD0110-MAR-M · current available: 9 · damaged: 2'}
+                {currentVariant?.subtext || '—'}
               </div>
 
               {/* Variant Picker Dropdown */}
@@ -425,8 +416,8 @@ export default function StockAdjustmentPage({
                 required
               />
               <div className="text-[11px] text-stone-500 font-mono mt-1">
-                After: available {afterCalculation.available} · damaged{' '}
-                {afterCalculation.damaged}
+                After: available {afterCalculation?.available ?? '—'} · damaged{' '}
+                {afterCalculation?.damaged ?? '—'}
               </div>
             </div>
 
@@ -480,10 +471,10 @@ export default function StockAdjustmentPage({
                 onClick={() => fileInputRef.current?.click()}
                 className="cursor-pointer rounded-lg border border-dashed border-stone-300 bg-[#FAF9F6] p-4 text-center hover:bg-stone-100/70 transition-colors"
               >
-                {photoUrl ? (
+                {photoPreview ? (
                   <div className="flex items-center justify-center gap-3">
                     <img
-                      src={photoUrl}
+                      src={photoPreview}
                       alt="Proof"
                       className="h-10 w-10 object-cover rounded border"
                     />

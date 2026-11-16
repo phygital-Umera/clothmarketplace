@@ -1,10 +1,17 @@
 import httpStatus from 'http-status';
-import {OrderStatus, Prisma, ProductStatus} from '@prisma/client';
+import {OrderStatus, Prisma} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../../client';
 import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
-import {EXPRESS_FEE, FREE_DELIVERY_ABOVE, STANDARD_FEE, sortSizes, stockOf} from './catalog.service';
+import {
+    EXPRESS_FEE,
+    FREE_DELIVERY_ABOVE,
+    LISTED,
+    STANDARD_FEE,
+    sortSizes,
+    stockOf,
+} from './catalog.service';
 
 /*
  * Signed-in customer: bag, wishlist, addresses, coupons and reviews.
@@ -67,12 +74,10 @@ const CART_INCLUDE = {
                     name: true,
                     mrp: true,
                     sellingPrice: true,
-                    status: true,
-                    deletedAt: true,
                     companyId: true,
                     shopId: true,
                     brand: {select: {name: true}},
-                    shop: {select: {name: true, branchId: true, status: true, branch: {select: {city: true}}}},
+                    shop: {select: {name: true, branchId: true, branch: {select: {city: true}}}},
                     images: {orderBy: [{isMain: 'desc' as const}, {order: 'asc' as const}], take: 1, select: {url: true}},
                     variants: {where: {isActive: true}, select: {id: true, size: true, color: true, inventories: {select: {branchId: true, physicalQty: true, reservedQty: true}}}},
                 },
@@ -83,14 +88,14 @@ const CART_INCLUDE = {
 
 type CartRow = Prisma.CartGetPayload<{include: typeof CART_INCLUDE}>;
 
-/** A bag line as the store shows it, with what is wrong with it (if anything) */
-const toLine = (i: CartRow['items'][number]) => {
+/** A bag line as the store shows it, with what is wrong with it (if anything); `listed` = ids the store lists */
+const toLine = (i: CartRow['items'][number], listed: Set<string>) => {
     const p = i.product;
     const branchId = p.shop?.branchId ?? '';
     const stock = stockOf(i.variant, branchId);
     const price = i.variant.sellingPrice ?? p.sellingPrice ?? p.mrp;
     const mrp = i.variant.mrp ?? p.mrp;
-    const available = p.status === ProductStatus.PUBLISHED && !p.deletedAt && i.variant.isActive && p.shop?.status === 'ACTIVE';
+    const available = listed.has(p.id) && i.variant.isActive;
     return {
         id: i.id,
         productId: p.id,
@@ -131,6 +136,16 @@ class StoreCustomerService {
             update: {},
             include: CART_INCLUDE,
         });
+    }
+
+    /** Which of these products the store lists right now (same rule as the listing) */
+    private async listedIds(productIds: string[]) {
+        if (!productIds.length) return new Set<string>();
+        const rows = await prisma.product.findMany({
+            where: {...LISTED, id: {in: productIds}},
+            select: {id: true},
+        });
+        return new Set(rows.map((r) => r.id));
     }
 
     /** Coupon check against the bag; throws a clear message when it can't be used */
@@ -182,7 +197,8 @@ class StoreCustomerService {
     /** The bag with totals; `couponCode` and `delivery` are what the customer chose so far */
     public async getCart(userId: string, opts: {couponCode?: string; delivery?: DeliveryOption} = {}) {
         const cart = await this.cartRow(userId);
-        const lines = cart.items.map(toLine);
+        const listed = await this.listedIds(cart.items.map((i) => i.productId));
+        const lines = cart.items.map((i) => toLine(i, listed));
         const ok = lines.filter((l) => !l.problem);
         const totalMrp = round2(ok.reduce((t, l) => t + l.lineMrp, 0));
         const itemsTotal = round2(ok.reduce((t, l) => t + l.lineTotal, 0));
@@ -223,7 +239,7 @@ class StoreCustomerService {
             where: {
                 id: variantId,
                 isActive: true,
-                product: {status: ProductStatus.PUBLISHED, deletedAt: null, shop: {status: 'ACTIVE', deletedAt: null}},
+                product: LISTED,
             },
             include: {
                 product: {select: {id: true, shop: {select: {branchId: true}}}},
@@ -304,8 +320,6 @@ class StoreCustomerService {
                         name: true,
                         mrp: true,
                         sellingPrice: true,
-                        status: true,
-                        deletedAt: true,
                         brand: {select: {name: true}},
                         shop: {select: {name: true, branchId: true}},
                         images: {orderBy: [{isMain: 'desc'}, {order: 'asc'}], take: 1, select: {url: true}},
@@ -317,6 +331,7 @@ class StoreCustomerService {
                 },
             },
         });
+        const listed = await this.listedIds(rows.map((r) => r.productId));
         return rows.map(({product: p, createdAt}) => {
             const branchId = p.shop?.branchId ?? '';
             const variants = p.variants.map((v) => ({
@@ -338,7 +353,7 @@ class StoreCustomerService {
                 price,
                 mrp: p.mrp,
                 discountPct: p.mrp > price ? Math.round(((p.mrp - price) / p.mrp) * 100) : 0,
-                available: p.status === ProductStatus.PUBLISHED && !p.deletedAt,
+                available: listed.has(p.id),
                 stock,
                 variants: variants.sort((a, b) => sortSizes([a.size, b.size])[0] === a.size ? -1 : 1),
                 addedAt: createdAt,
@@ -347,7 +362,10 @@ class StoreCustomerService {
     }
 
     public async addToWishlist(userId: string, productId: string) {
-        const product = await prisma.product.findFirst({where: {id: productId, status: ProductStatus.PUBLISHED, deletedAt: null}, select: {id: true}});
+        const product = await prisma.product.findFirst({
+            where: {...LISTED, id: productId},
+            select: {id: true},
+        });
         if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'This product is not available');
         await prisma.wishlistItem.upsert({
             where: {userId_productId: {userId, productId}},

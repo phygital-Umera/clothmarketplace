@@ -24,10 +24,11 @@ This is the living list of what we are fixing, in order: what is done, what is i
 
 | | |
 |---|---|
-| **Branch** | `fix/p0-quick-fixes` (from `feat/company-admin-shop-mode`). Not pushed. |
-| **Doing now** | Nothing. Phase 0 is done; only P0-13 is left, and it is your step. |
-| **Your work in progress (W-01)** | POS bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman on the bill, payment reference, printed sales invoice (`salesBillInvoice.ts`). Also your fix to `seedDemo.ts` (reuse existing sizes and colours; the seed broke after the standard sizes in 87dbd57). Uncommitted, and left out of every commit on this branch. P0-05 and P0-08 changed a few lines in `bill.service.ts` and `NewBillPOSPage.tsx`; only those lines were committed, so your copy has both. **Commit it before Phase 4**, which touches the same files. |
-| **Next up** | 1) P0-13, your step: run `npm run seed:demo -- --remove` on each shared server. 2) Phase 1, top row first: P1-01 to P1-12. 3) Commit W-01 before Phase 4. |
+| **Branch** | Phase 0: `fix/p0-quick-fixes`. Phase 1: `fix/p1-stock-and-store` (from `fix/p0-quick-fixes`). Not pushed. |
+| **Doing now** | Nothing. Phase 1 is done (13 of 13, each reviewed and committed on its own). |
+| **W-01 (your POS bill work)** | Committed on this branch: bill types (B2C/B2B tax invoice, retail invoice), buyer GSTIN, salesman, payment reference, printed sales invoice in f895a06; your demo-seed fix in d0e0cb1. Still open: the POS sends credit days but the bill API drops them (see the inbox). |
+| **W-02 (single-shop mode, D-17)** | Committed in e4edc0b: `Company.businessMode`, the one-way switch to branch mode, and the owner accepting day-close differences and approving stock transfers in shop mode (P3-06). Its migration `20261113090000_company_business_mode` stays out of git (D-15): each server makes its own. |
+| **Next up** | 1) Your checks: try the changed screens in the browser (product form opening stock, Stock page, Stock Adjustment, Suppliers, debit note, barcode labels, Credit/Udhaar, My Profile photo, expenses photo, store with a branch switched off; also the POS bill types and the single-shop mode). 2) P0-13, your step. 3) Phase 2. 4) The credit-days lines for the bill API (inbox) before Phase 4. |
 
 ---
 
@@ -86,6 +87,7 @@ None right now. Add new questions here with ❓.
 | D-14 | Leave the hidden character in commit ae168b8's message (no force-push) | 2026-11-12 | O-01 |
 | D-15 | Prisma migrations stay out of git. After a schema change, each server creates and applies its own migration, so check that `schema.prisma` and the database match after every pull | 2026-11-12 | O-02, P4-04, P4-08, P5-09, D-02 |
 | D-16 | An employee may ask to delete a confirmed bill; the shop admin or owner approves it first | 2026-11-12 | P2-03 |
+| D-17 | **Business type per company: Single shop or Shops & branches** (`Company.businessMode`, default Shops & branches). The super admin picks it; a single-shop owner lands in their shop, sees no branch screens, and can't add a second shop or a branch until they press "Switch to branch mode" in Company Profile (one way; the super admin can set it back while there is only one shop and branch). In shop mode the owner can also accept day-close differences and approve stock transfers (takes in P3-06) | 2026-11-12 | W-02 |
 | D-A | A company admin runs a shop in "shop mode": the shop is picked per browser tab, sent as `X-Shop-Id`, and they act as that shop's admin | 2026-11-10 | 340d795 |
 | D-B | A company with no branches gets an automatic "Main Branch" from the company address | 2026-11-10 | 44748d8 |
 | D-C | Refunds the owner takes are approved at once; the owner approves staff refunds | 2026-11-10 | 340d795 |
@@ -118,24 +120,25 @@ None right now. Add new questions here with ❓.
 
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
-| P1-01 | Shop product "Stock Quantity" is fake; the panel and the store disagree | Per D-04: replace the field with "Opening stock" that records a stock movement through `applyStockChanges`; show real stock from `Inventory` | `shopProduct.validation.ts:64`, `shopProduct.service.ts`, `shopProductSchema.ts:39`, `ShopProductForm.tsx`, `ShopProductList.tsx:151-154`, `ShopProductDetail.tsx` | Opening stock shows in the stock movements; the panel, POS and store show the same number | D-04 | ⬜ |
-| P1-02 | Stock page shows hard-coded totals, rows, costs and "This month (1-3 Nov)"; the date filter does nothing; lists every company product | Compute from `Inventory` and movements; filter by date; only the shop's own items | `backend/src/services/stock.service.ts`, `frontend/src/pages/shop/stock/StockPage.tsx` | Totals match a manual sum; another shop's items are not listed | – | ⬜ |
-| P1-03 | Stock Adjustment: fake ADJ-0046 numbering, ids clash between branches, no transaction, fake "before" counts | `nextCode`; unique id; one transaction through `applyStockChanges`; no fallbacks | `stockAdjustment.service.ts`, `StockAdjustmentPage.tsx`, `lib/api/stockAdjustment.ts:18` | Two branches can each make an adjustment | – | ⬜ |
-| P1-04 | Store shows products of switched-off branches; wishlist and bag check less than the listing | One shared `LISTED` rule with the branch check, used for listing, detail, cart add, bag line and wishlist | `store/catalog.service.ts:56-61`, `store/customer.service.ts:93, 221-239, 341, 350` | Deactivate a branch: its products disappear and can't be ordered | – | ⬜ |
-| P1-05 | Renaming a product breaks its link | Keep the slug from creation | `shopProduct.service.ts:348`, `product.service.ts:226` | Rename; the old URL still opens | – | ⬜ |
-| P1-06 | Received transfers create published copies online | Create the copy as DRAFT | `stockTransfer.service.ts:526-544` | Receive a new item; it isn't on the store until published | D-06 | ⬜ |
-| P1-07 | A shop can change another shop's stock in the same company (other companies were blocked in 7caed27) | Only allow `product.shopId = own shop` in all 3 adjust paths | `inventory.service.ts:225-230`, `stock.service.ts:366-369`, `stockAdjustment.service.ts:212-214` | Adjusting shop B's variant from shop A → 403 | – | 🟠 |
-| P1-08 | Suppliers page: picks "Tiruppur", `PY/26-27/0019`, fixed statement period | Remove; use real data and dates | `frontend/src/pages/shop/suppliers/SuppliersPage.tsx:82-96`, `lib/api/supplier.ts:32` | Page with no suppliers shows an empty state | – | ⬜ |
-| P1-09 | Debit note prefilled note, quantities and reason ("Ivory"), ₹18,900, `DN/26-27/0006` | Delete the prefills and fallbacks | `PurchaseReturnPage.tsx:46, 86-97, 144, 223`, `lib/api/purchaseReturn.ts:18` | Form starts empty | – | ⬜ |
-| P1-10 | Open store tabs show sold-out or unpublished items; out-of-stock items lead "New arrivals" | Refetch on focus for home, listing and search; in-stock first in two queries | `user/src/main.tsx:11`, `user/src/lib/queries.ts`, `store/catalog.service.ts:502, 527` | Unpublish, return to the tab: the item is gone | – | ⬜ |
-| P1-11 | Profile photo and expense bill save only the file name | Upload through the existing file endpoint | `MyProfilePage.tsx:88`, `ShopExpensesPage.tsx:109` | The photo shows after reload | – | ⬜ |
-| P1-12 | Barcode page: picks bill "0042"; prints the sample "Cotton Kurta Indigo" when empty | Empty state instead | `BarcodeLabelsPage.tsx:110-115, 219-232` | No bills → nothing to print | – | ⬜ |
+| P1-01 | Shop product "Stock Quantity" is fake; the panel and the store disagree | Per D-04: replace the field with "Opening stock" that records a stock movement through `applyStockChanges`; show real stock from `Inventory` | `shopProduct.validation.ts:64`, `shopProduct.service.ts`, `shopProductSchema.ts:39`, `ShopProductForm.tsx`, `ShopProductList.tsx:151-154`, `ShopProductDetail.tsx` | Opening stock shows in the stock movements; the panel, POS and store show the same number | D-04 | ✅ e1f2624 |
+| P1-02 | Stock page shows hard-coded totals, rows, costs and "This month (1-3 Nov)"; the date filter does nothing; lists every company product | Compute from `Inventory` and movements; filter by date; only the shop's own items | `backend/src/services/stock.service.ts`, `frontend/src/pages/shop/stock/StockPage.tsx` | Totals match a manual sum; another shop's items are not listed | – | ✅ 165e037 |
+| P1-03 | Stock Adjustment: fake ADJ-0046 numbering, ids clash between branches, no transaction, fake "before" counts | `nextCode`; unique id; one transaction through `applyStockChanges`; no fallbacks | `stockAdjustment.service.ts`, `StockAdjustmentPage.tsx`, `lib/api/stockAdjustment.ts:18` | Two branches can each make an adjustment | – | ✅ 30e3dde |
+| P1-04 | Store shows products of switched-off branches; wishlist and bag check less than the listing | One shared `LISTED` rule with the branch check, used for listing, detail, cart add, bag line and wishlist | `store/catalog.service.ts:56-61`, `store/customer.service.ts:93, 221-239, 341, 350` | Deactivate a branch: its products disappear and can't be ordered | – | ✅ 6bd03c2 |
+| P1-05 | Renaming a product breaks its link | Keep the slug from creation | `shopProduct.service.ts:348`, `product.service.ts:226` | Rename; the old URL still opens | – | ✅ fed3332 |
+| P1-06 | Received transfers create published copies online | Create the copy as DRAFT | `stockTransfer.service.ts:526-544` | Receive a new item; it isn't on the store until published | D-06 | ✅ 5a542ff |
+| P1-07 | A shop can change another shop's stock in the same company (other companies were blocked in 7caed27) | Only allow `product.shopId = own shop` in all 3 adjust paths | `inventory.service.ts:225-230`, `stock.service.ts:366-369`, `stockAdjustment.service.ts:212-214` | Adjusting shop B's variant from shop A → 403 | – | ✅ 4222f3f |
+| P1-08 | Suppliers page: picks "Tiruppur", `PY/26-27/0019`, fixed statement period | Remove; use real data and dates | `frontend/src/pages/shop/suppliers/SuppliersPage.tsx:82-96`, `lib/api/supplier.ts:32` | Page with no suppliers shows an empty state | – | ✅ 509030a |
+| P1-09 | Debit note prefilled note, quantities and reason ("Ivory"), ₹18,900, `DN/26-27/0006` | Delete the prefills and fallbacks | `PurchaseReturnPage.tsx:46, 86-97, 144, 223`, `lib/api/purchaseReturn.ts:18` | Form starts empty | – | ✅ 1b2502d |
+| P1-10 | Open store tabs show sold-out or unpublished items; out-of-stock items lead "New arrivals" | Refetch on focus for home, listing and search; in-stock first in two queries | `user/src/main.tsx:11`, `user/src/lib/queries.ts`, `store/catalog.service.ts:502, 527` | Unpublish, return to the tab: the item is gone | – | ✅ cba681d |
+| P1-11 | Profile photo and expense bill save only the file name | Upload through the existing file endpoint | `MyProfilePage.tsx:88`, `ShopExpensesPage.tsx:109` | The photo shows after reload | – | ✅ 7cd13b5 |
+| P1-12 | Barcode page: picks bill "0042"; prints the sample "Cotton Kurta Indigo" when empty | Empty state instead | `BarcodeLabelsPage.tsx:110-115, 219-232` | No bills → nothing to print | – | ✅ 831104d |
+| P1-13 | A new customer always gets 15 credit days: the customer API's create rule has no `creditDays` (it is dropped) and customers made from a bill don't pass it, so the database default wins | Accept and save `creditDays` on create and edit; `syncCustomerFromBill` takes the bill's credit days when it creates a customer (your bill work must pass them; the bill's credit days exist only in W-01) | `validations/customer.validation.ts:14`, `services/customer.service.ts:110`, `services/customerLedger.ts:70` | Create a customer with 30 days; it shows 30 | – | ✅ b00e75a |
 
 ### Phase 2: security and who-sees-what
 
 | ID | Problem | Fix | Where | Check | Needs | Status |
 |---|---|---|---|---|---|---|
-| P2-01 | `/shop-admin` also accepts the super admin (sees and changes all orders, all employees, any stock) and the branch admin (edits company masters) | Allow only shop admins and the company admin in shop mode; first check branch pages that call it | `backend/src/routes/shopAdmin.routes.ts:178` | Super admin token on `/shop-admin/orders` → 403 | D-08 | ⬜ |
+| P2-01 | `/shop-admin` also accepts the super admin (sees and changes all orders, all employees, any stock) and the branch admin (edits company masters) | Allow only shop admins and the company admin in shop mode; first check branch pages that call it | `backend/src/routes/shopAdmin.routes.ts:184` | Super admin token on `/shop-admin/orders` → 403 | D-08 | ⬜ |
 | P2-02 | A shop sees other shops' suppliers and purchase bills, barcode-label bills and Stock page items | Filter by `shopId` | `supplier.service.ts:39-45, 272-279`, `barcodeLabel.service.ts:23-26, 109-110`, `stock.service.ts:145` | Shop A can't see shop B's bills | – | ⬜ |
 | P2-03 | An employee with billing edit can delete a confirmed bill without approval | Per D-16 | `bill.routes.ts:20`, `bill.service.ts:1036-1054` | Employee delete → 403 (or approval) | D-16 | ⬜ |
 | P2-04 | Branch product edit rights follow the creator's current branch | Use the product's shop's branch | `product.service.ts:22, 58` | Move an employee; product rights stay | – | ⬜ |
@@ -145,6 +148,8 @@ None right now. Add new questions here with ❓.
 | P2-08 | XSS cleaning is off (TODO) | Turn it on, or remove it and rely on output escaping | `backend/src/app.ts:28-29` | – | – | ⬜ |
 | P2-09 | 20 controllers write without an audit entry; Main Branch creation not audited | Add `auditService.track` | orders, stock, promotions, suppliers, pricing, expenses, credit limit, branch | Each write shows in the audit table | – | ⬜ |
 | P2-10 | Admin panel falls back to `localhost:5692` when `VITE_SERVER_URL` is missing | Fail the build | `frontend/src/utils/axios.ts:8, 12` | Build without the variable fails | – | ⬜ |
+| P2-11 | A debit note trusts the unit cost sent by the browser | Take the unit cost from the purchase bill line, like the GST rate (P0-10) | `purchaseReturn.service.ts` `createPurchaseReturn` | Tamper the cost in the request → ignored | – | ⬜ |
+| P2-12 | With `CORS_ORIGINS` empty, any origin is allowed again | Refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | Production start without it fails with a clear message | – | ⬜ |
 
 ### Phase 3: make roles and stock clear
 
@@ -155,9 +160,9 @@ None right now. Add new questions here with ❓.
 | P3-03 | Online orders can be changed at four levels | Per D-03 | order routes in the company, branch and shop routers | Only the owner level sees action buttons | D-03 | ⬜ |
 | P3-04 | Prices set in three places | Shop only; branch page per D-13 | `branchPricing.service.ts`, `product.service.ts` | – | D-13 | ⬜ |
 | P3-05 | Three stock-adjust code paths | Merge into one path through `applyStockChanges` | `inventory.service.ts`, `stock.service.ts`, `stockAdjustment.service.ts` | Concurrent sale + adjust: no lost update | P1-03, P1-07 | ⬜ |
-| P3-06 | The company admin can't approve stock transfers; Main Branch requests get stuck | Owner approves when there is no branch admin (shop mode, like refunds) | `stockTransfer.service.ts`, `shopAdmin.routes.ts`, transfer page | Request in Main Branch → owner approves | – | ⬜ |
+| P3-06 | The company admin can't approve stock transfers; Main Branch requests get stuck | Owner approves when there is no branch admin (shop mode, like refunds) | `stockTransfer.service.ts`, `shopAdmin.routes.ts`, transfer page | Request in Main Branch → owner approves | – | ✅ e4edc0b (W-02, D-17) |
 | P3-07 | Menu text promises missing features; branch "Purchase Return" always fails; pages with no menu entry | Fix the wording; hide or route correctly | `Sidebar/index.tsx:218, 237, 289, 309, 521`, `PurchaseReturnPage.tsx:24` | Every menu item opens and works | – | ⬜ |
-| P3-08 | Four staff-onboarding paths; the branch invite shows 10 modules but saves 6 | One path; one module list | `staff.service.ts:224`, `config/permissions.ts:124-131`, `BranchStaffPage.tsx:15` | Ticked modules are saved | – | ⬜ |
+| P3-08 | Five staff-onboarding paths (a direct `POST /employees` in the company, branch and shop panels, the branch invite, the shop request); the branch invite shows 10 modules but saves 6 | One path; one module list | `staff.service.ts:224`, `config/permissions.ts:124-131`, `BranchStaffPage.tsx:15` | Ticked modules are saved | – | ⬜ |
 | P3-09 | Two branch refund-approval endpoints, one not audited | Keep the audited one | `branchAdmin.routes.ts:134, 159` | – | – | ⬜ |
 | P3-10 | Renaming a size or colour, then saving a product, switches off variants and their stock | Match variants by master id, not name | `shopProduct.service.ts:215-248` | Rename "XL"; stock stays | – | ⬜ |
 
@@ -184,12 +189,13 @@ None right now. Add new questions here with ❓.
 | P5-01 | No real online refunds | Per D-11 | `order.service.ts` | D-11 | ⬜ |
 | P5-02 | Unpaid online orders hold stock forever | Job that cancels and restocks after the expiry time | `store/checkout.service.ts`, `order.service.ts:355-386` | D-09 | ⬜ |
 | P5-03 | Cancel after dispatch restocks goods at the courier; exchanges never take the new size out of stock | Block restock after dispatch; post SALE_OUT for the exchange | `order.service.ts:595-622, 794, 862` | – | ⬜ |
-| P5-04 | Purchase return: "take stock from" ignored, no movement, shop id saved as branch id, bill can be cancelled after a debit note | Route through `applyStockChanges`; fix branch; block cancel | `purchaseReturn.service.ts:237-291`, `bill.service.ts:608-716` | – | ⬜ |
+| P5-04 | Purchase return: "take stock from" ignored, no movement, shop id saved as branch id (so a note without a purchase bill never lowers stock), bill can be cancelled after a debit note | Route through `applyStockChanges`; fix branch; block cancel | `purchaseReturn.service.ts:237-291`, `bill.service.ts:608-716` | – | ⬜ |
 | P5-05 | Damaged returns and transfer shortages vanish from all counts | Record `damagedQty` and a movement | `creditNote.service.ts:302`, `stockTransfer.service.ts:619` | – | ⬜ |
 | P5-06 | Barcode bars are decorative and won't scan | Real barcodes | `BarcodeLabelsPage.tsx:46-74, 370-378` | D-10 | ⬜ |
 | P5-07 | Delivery estimate is the same for every pincode; COD always yes | Courier data, or say "usually" | `store/catalog.service.ts:537-553`, `store/orders.service.ts:161` | – | ⬜ |
 | P5-08 | Day close has no cash count; bills can be changed after close (older review) | Cash count; lock closed days | day close and bill services | – | ⬜ |
 | P5-09 | Money stored as Float; no double-submit guard on bills (older review) | Decimal; idempotency key | `schema.prisma`, POS | D-15 | ⬜ |
+| P5-10 | Receipt and debit note numbers are picked outside the save; two at once can get the same receipt number (no unique index) | Pick inside the transaction with `withRetry`; unique index on receipts | `credit.service.ts:389`, `purchaseReturn.service.ts`, `schema.prisma` | – | ⬜ |
 
 ### Phase 6: clean-up and health
 
@@ -232,15 +238,37 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Found | Problem | Where | Status |
 |---|---|---|---|
-| 2026-11-12 (P0-10) | The debit note still trusts the unit cost sent by the browser; it should come from the purchase bill line, like the GST rate now does | `purchaseReturn.service.ts` `createPurchaseReturn` | ⬜ |
-| 2026-11-12 (P0-11) | Receipt and debit note numbers are picked before the save, outside a transaction. Two saves at once can get the same receipt number, because receipts have no unique index | `credit.service.ts:389`, `purchaseReturn.service.ts`, `schema.prisma` (CustomerCreditPayment) | ⬜ |
+| 2026-11-12 (P0-10) | The debit note still trusts the unit cost sent by the browser; it should come from the purchase bill line, like the GST rate now does | `purchaseReturn.service.ts` `createPurchaseReturn` | → P2-11 |
+| 2026-11-12 (P0-11) | Receipt and debit note numbers are picked before the save, outside a transaction. Two saves at once can get the same receipt number, because receipts have no unique index | `credit.service.ts:389`, `purchaseReturn.service.ts`, `schema.prisma` (CustomerCreditPayment) | → P5-10 |
 | 2026-11-12 (you) | POS heading always showed …/26-27/00232 while real bills were 00001 to 00004 | `NewBillPOSPage.tsx` | ✅ P0-05 |
-| 2026-11-12 (you) | A new customer always gets 15 credit days. The customer API's create rule has no `creditDays` (so it is dropped), and customers created from a bill don't pass it; the database default 15 wins | `validations/customer.validation.ts:14`, `services/customer.service.ts:110`, `services/customerLedger.ts:70` | ⬜ |
+| 2026-11-12 (you) | A new customer always gets 15 credit days. The customer API's create rule has no `creditDays` (so it is dropped), and customers created from a bill don't pass it; the database default 15 wins | `validations/customer.validation.ts:14`, `services/customer.service.ts:110`, `services/customerLedger.ts:70` | → P1-13 |
 | 2026-11-12 (you) | HSN column shows "6204" for every item | POS | → P4-04 |
-| 2026-11-12 (you) | Bill type stays on B2B after a B2B bill is saved | your bill-type work (W-01) | ⬜ W-01 |
-| 2026-11-12 (you) | Demo seed broke after the standard sizes and colours (87dbd57) | `seedDemo.ts` | ✅ fixed by you, in W-01 |
-| 2026-11-12 (branch vs shop check) | A debit note without a purchase bill saves the shop's id as its branch id, then looks for stock under that wrong id, so stock never goes down. It is part of P5-04; move P5-04 up | `purchaseReturn.service.ts:239, 278` | ⬜ |
-| 2026-11-12 (P0-06) | If `CORS_ORIGINS` is empty, any origin is allowed again. The server should refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | ⬜ |
+| 2026-11-12 (you) | Bill type stays on B2B after a B2B bill is saved | `NewBillPOSPage.tsx` (W-01, now committed in f895a06) | ⬜ check |
+| 2026-11-12 (P1-13) | So a customer made from a bill gets the bill's credit days, your bill work needs to: add `creditDays` (int 0-365, optional) to `salesFields` in `bill.validation.ts`; in `bill.service.ts` take `creditDays` out of the header in `createSales` and `updateSales` (SalesBill has no such column) and pass it as `syncCustomerFromBill(tx, before, {...bill, creditDays})`; send `creditDays` from the POS when there is credit (`BillPayload` in `types/bill.ts`). `CustomerPage.tsx` needs a "Credit days" input (send `undefined` when empty, or it saves 0); the POS new-customer modal can send it too. A draft confirmed later still gets 15 | `bill.validation.ts`, `bill.service.ts`, `NewBillPOSPage.tsx`, `types/bill.ts`, `CustomerPage.tsx` | ⬜ still open after f895a06: the POS now sends `creditDays` (`NewBillPOSPage.tsx:475`), but `bill.validation.ts` has no such field, so it is dropped and a customer made from a bill still gets 15 |
+| 2026-11-12 (you) | Demo seed broke after the standard sizes and colours (87dbd57) | `seedDemo.ts` | ✅ d0e0cb1 (your fix) |
+| 2026-11-12 (P1-11) | Stock adjustment saves its photo as a base64 data URL, but the API caps `photoUrl` at 500 characters, so an adjustment with a real photo is refused | `StockAdjustmentPage.tsx:118-128`, `validations/stockAdjustment.validation.ts:19` | → P1-03 |
+| 2026-11-12 (P1-11) | Staff have no upload endpoint (the only general one, `/store/uploads`, is customers-only; the others are per record and allow SVG). P1-11 adds `POST /users/uploads` for staff roles: JPG/PNG/WEBP, 5 MB | `routes/user.routes.ts`, `utils/fileStore.ts` | → P1-11 |
+| 2026-11-12 (P1-10) | Store app type-check fails on an old line: `navigate({href: n.link})` (`href` is not a navigate option) | `user/src/routes/account/notifications.tsx:54` | ⬜ |
+| 2026-11-12 (seen while reviewing) | Work outside this plan is going on in the same folder: a "single shop" business mode (`businessMode`), day-close screens, and the owner approving stock transfers in shop mode (that is P3-06). It is not part of any Phase 1 commit | `roles.ts`, `company.*`, `dayClose.*`, `shopAdmin.routes.ts`, `ownerShop.ts` and others | ✅ W-02 (D-17), committed in e4edc0b |
+| 2026-11-12 (P1-08) | Supplier statement covers the whole ledger; the period label is built from the first and last entry and shows only the last year. A real month or financial-year statement needs from/to dates on the ledger endpoint | `supplier.service.ts` `getSupplierLedger` | ⬜ |
+| 2026-11-12 (P1-08) | With no suppliers, the "Make payment" form is still shown and Save silently does nothing | `SuppliersPage.tsx` | ⬜ |
+| 2026-11-12 (P1-01) | `Product.stockQuantity` is now only a cache that nothing shows; the manual adjust paths and purchase returns don't update it. Drop the column later | `schema.prisma`, `stock.service.ts`, `stockAdjustment.service.ts`, `purchaseReturn.service.ts` | → P3-05 |
+| 2026-11-12 (P1-01) | `roles-products-stock.md` §4.2-4.3 still describe the fake "Stock Quantity" | `docs/roles-products-stock.md` | ⬜ |
+| 2026-11-12 (P1-12) | Barcode print window always uses a 50×30 mm page whatever label size is chosen; the printer list doesn't reach a real printer (browser print dialog) | `BarcodeLabelsPage.tsx` | → P5-06 |
+| 2026-11-12 (P1-11) | An upload over 5 MB returns 500 "File too large" (multer errors become 500); should be 400 | `middlewares/error.middleware.ts` | ⬜ |
+| 2026-11-12 (P1-11) | Expense bills can no longer be PDFs (the photo route takes images only) | `ShopExpensesPage.tsx`, `routes/user.routes.ts` | ⬜ |
+| 2026-11-12 (P1-11) | `CurrentUser` type has no `photoUrl` or `posPin`; the header avatar doesn't show the profile photo | `hooks/useCurrentUser.ts`, `Header/DropdownUser.tsx` | ⬜ |
+| 2026-11-12 (P1-03) | Stock adjustment leftovers: approval status is never pending (AUTO / APPROVED with no approver); the user's notes are replaced by "Logged by…"; picker search does nothing and shows only 50 items; "Lost / theft" filter not handled; branch falls back to the company's first branch; controller uses actor `'system'`; the page preselects "Mark damaged" / "Stitching defect"; photo labelled required but not enforced; notes state has no input | `stockAdjustment.service.ts`, `stockAdjustment.controller.ts:36`, `StockAdjustmentPage.tsx` | ⬜ |
+| 2026-11-12 (P1-03) | Adjustment numbers have only a plain index; a unique index `(branchId, adjustmentNumber)` would make the per-branch lock a database guarantee | `schema.prisma` | → P5-10 |
+| 2026-11-12 (P1-06) | Transfer copies get no slug (store links fall back to the id), and since P1-05 updates never set one; give the copy a slug when it is created | `stockTransfer.service.ts` `cloneIntoShop` | ⬜ |
+| 2026-11-12 (P1-06) | The POS sells draft products (its item picker ignores status), so a shop can sell received stock before publishing the copy. Probably right for in-shop items; confirm | POS item search | ❓ |
+| 2026-11-12 (P1-02) | Stock page leftovers: its Adjust has no transaction and drops to 0 instead of refusing (→ P3-05); physical count adjusts items one by one outside a transaction; audit numbers have no lock or unique index; `resolveBranchId` falls back to the company's first branch; the adjust modal preselects mock-up reasons; the summary loads every variant (no paging) | `stock.service.ts`, `StockPage.tsx` | ⬜ |
+| 2026-11-12 (branch vs shop check) | A debit note without a purchase bill saves the shop's id as its branch id, then looks for stock under that wrong id, so stock never goes down. It is part of P5-04; move P5-04 up | `purchaseReturn.service.ts:239, 278` | → P5-04 |
+| 2026-11-12 (P0-06) | If `CORS_ORIGINS` is empty, any origin is allowed again. The server should refuse to start in production without it | `backend/src/app.ts`, `config/config.ts` | → P2-12 |
+| 2026-11-12 (code check of `roles-products-stock.md`) | A shop product can be published with no checklist: the shop path takes `PUBLISHED` as a plain field and never checks it, while the company path checks it first | `shopProduct.validation.ts:64, 115`, `shopProduct.service.ts`, `product.service.ts:290-305` | ⬜ |
+| 2026-11-12 (code check of `roles-products-stock.md`) | Any login that can reach shop products can delete one (no role check); the company path lets only the company admin delete | `shopAdmin.routes.ts:66`, `shopProduct.service.ts:459` | ⬜ |
+| 2026-11-12 (code check of `roles-products-stock.md`) | Staff can be added five ways, not four | `companyAdmin.routes.ts:32`, `branchAdmin.routes.ts:47, 143, 145`, `shopAdmin.routes.ts:40`, `staffCash.routes.ts:11` | → P3-08 |
+| 2026-11-12 (code check of `roles-products-stock.md`) | The Approvals menu promises "Discounts, credit, refunds and cancellations", but only refunds exist (the other counts are fixed at 0); "Move stock between your shops" is still in the menu | `Sidebar/index.tsx:243, 295`, `branchApproval.service.ts:101` | → P3-07 |
 
 ---
 
@@ -248,6 +276,22 @@ Add new findings here with ⬜. Sort them into a phase when the next item is pic
 
 | Date | What | Commit |
 |---|---|---|
+| 2026-11-12 | W-02 committed (single-shop business mode, D-17; owner approves transfers and day-close differences, P3-06) | e4edc0b |
+| 2026-11-12 | W-01 committed (POS bill types, buyer GSTIN, salesman, payment reference, printed invoice) | f895a06 |
+| 2026-11-12 | Demo seed reuses the standard sizes and colours (your fix) | d0e0cb1 |
+| 2026-11-12 | P1-02: Stock page from real data: closing and sellable from `Inventory`, purchase/sold/return/transfer/adjust columns from stock movements for the chosen period, opening worked back; cost from the latest confirmed purchase bill ("—" when none, never guessed); a shop sees only its own items; period label from real dates (checked against the database, 16 checks) | 165e037 |
+| 2026-11-12 | P1-06: a product copied into a shop by a received transfer starts as DRAFT; a copy the shop already has keeps its status (checked with the full transfer flow) | 5a542ff |
+| 2026-11-12 | P1-03: stock adjustment numbers ADJ-0001… per branch (lock + `nextCode`), UUID ids, number + stock + record in one transaction through `applyStockChanges`; photo uploaded, not base64; no fake counts or `PRD0110-MAR-M`; a shop sees only its own history. A decrease or write-off larger than the stock is now refused (checked against the database, 21 checks) | 30e3dde |
+| 2026-11-12 | P1-11: profile photo and expense bill upload to a new staff-only route `POST /users/uploads` (JPG/PNG/WEBP, 5 MB) and save the returned link; expense rows get a "View bill" link; My Profile refreshes after saving (checked: staff 201, customer 403, wrong type 400) | 7cd13b5 |
+| 2026-11-12 | P1-05: renaming a product (or changing its SKU) keeps its store link; the slug is set once at creation, with a short suffix if taken (checked: the old link still opens after a rename). Links of products renamed before this fix are already lost | fed3332 |
+| 2026-11-12 | P1-12: barcode page picks the first real bill; with nothing selected there is no preview and nothing prints (no sample "Cotton Kurta Indigo", no "KRT" cost code) | 831104d |
+| 2026-11-12 | P1-01: "Opening stock" per size and colour on a new product posts a real stock movement (in the same transaction); the edit form can't type stock; list, detail, stock filter and sort use live stock from `Inventory` (checked against the database) | e1f2624 |
+| 2026-11-12 | P1-07: a shop adjusts only its own items, a branch only its own shops' and catalog items, in all three adjust paths; the adjustment picker follows the same rule (checked against the database, 31 checks). Branch admins can no longer adjust items of shops in other branches | 4222f3f |
+| 2026-11-12 | P1-08: Suppliers page starts on the first real supplier; no fake receipt number or fixed statement period | 509030a |
+| 2026-11-12 | P1-10: store tabs refetch home, listing and search on focus; in-stock first in new arrivals and suggestions (sort checked against the database) | cba681d |
+| 2026-11-12 | P1-09: debit note starts empty (no sample note, quantities, ₹18,900 or DN number); neutral GST labels | 1b2502d |
+| 2026-11-12 | P1-04: one `LISTED` rule with the branch check for listing, detail, bag, wishlist and checkout (checked: switching a branch off hides its products and blocks bag, wishlist and checkout) | 6bd03c2 |
+| 2026-11-12 | P1-13: credit days saved on customer create, edit and import; customers made from a bill can take its credit days (checked against the database) | b00e75a |
 | 2026-11-12 | P0-05: POS heading says "New bill"; the real number comes on save | 0714207 |
 | 2026-11-12 | P0-08b: date fields default to the local day, not the UTC day | 1c17df3 |
 | 2026-11-12 | P0-08a: server days follow India time (`TZ` in config); number series use the local day | 754ad4a |

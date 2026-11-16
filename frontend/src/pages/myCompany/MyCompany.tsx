@@ -1,9 +1,14 @@
 import {CompanyAvatar, formatDate, StatusBadge} from '@/components/Company';
+import {ConfirmDialog} from '@/components/Forms';
 import {PageHeader} from '@/components/ui';
-import {useCompanyProfile} from '@/lib/react-query/queriesAndMutations/org';
+import {
+  useCompanyProfile,
+  useSwitchToBranchMode,
+} from '@/lib/react-query/queriesAndMutations/org';
 import {getErrorMessage} from '@/utils/axios';
 import {Loader2} from 'lucide-react';
-import {ReactNode} from 'react';
+import {ReactNode, useState} from 'react';
+import toast from 'react-hot-toast';
 
 const Row = ({label, children}: {label: string; children: ReactNode}) => (
   <div className="grid grid-cols-[8rem_1fr] gap-3 py-2">
@@ -30,6 +35,8 @@ const MyCompany = () => {
     error,
     refetch,
   } = useCompanyProfile();
+  const switchMode = useSwitchToBranchMode();
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
 
   if (isPending) {
     return (
@@ -54,6 +61,8 @@ const MyCompany = () => {
       </div>
     );
   }
+
+  const singleShop = company.businessMode === 'SINGLE_SHOP';
 
   return (
     <>
@@ -95,6 +104,47 @@ const MyCompany = () => {
           <Row label="Since">{formatDate(company.createdAt)}</Row>
         </Group>
       </div>
+
+      <section className="panel mt-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+        <div>
+          <h2 className="text-label-caps uppercase text-burgundy">
+            Business type
+          </h2>
+          <p className="mt-1 text-body-sm text-espresso">
+            {singleShop ? 'Single shop' : 'Shops & branches'}
+          </p>
+          {singleShop && (
+            <p className="mt-1 text-body-sm text-on-surface-variant">
+              Growing? Switch to branch mode to add more shops and branches.
+            </p>
+          )}
+        </div>
+        {singleShop && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setConfirmSwitch(true)}
+          >
+            Switch to branch mode
+          </button>
+        )}
+      </section>
+
+      <ConfirmDialog
+        open={confirmSwitch}
+        title="Switch to branch mode?"
+        message="You'll be able to add shops and branches, branch admins and stock transfers. Your shop and its bills stay as they are."
+        confirmLabel="Switch"
+        isLoading={switchMode.isPending}
+        onCancel={() => setConfirmSwitch(false)}
+        onConfirm={() =>
+          switchMode.mutate(undefined, {
+            onSuccess: () => setConfirmSwitch(false),
+            onError: (err) =>
+              toast.error(getErrorMessage(err, 'Could not switch the mode')),
+          })
+        }
+      />
     </>
   );
 };

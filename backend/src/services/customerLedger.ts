@@ -20,6 +20,8 @@ type BillSnapshot = {
     customerPhone?: string | null;
     totalAmount: number;
     balanceDue: number;
+    /** Credit days given on the bill; only used when the bill creates the customer */
+    creditDays?: number | null;
 } | null;
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -74,6 +76,8 @@ export const syncCustomerFromBill = async (
                     branchId: bill.branchId,
                     name: after?.customerName?.trim() || 'Customer',
                     mobile: phone,
+                    // Not given: the database default (15 days)
+                    creditDays: after?.creditDays ?? undefined,
                     balanceDue: Math.max(0, due),
                     totalBought: Math.max(0, bought),
                 },

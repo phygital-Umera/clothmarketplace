@@ -19,6 +19,13 @@ export const createCustomerSchema = z.object({
   gstin: field({label: 'GSTIN', kind: 'gstin', required: false}),
   address: field({label: 'Address', kind: 'text', max: 500, required: false}),
   creditLimit: amount('Credit Limit').default(0),
+  // Same limits as the Credit page; left out, the database default (15) applies
+  creditDays: z.coerce
+    .number({invalid_type_error: 'Enter valid credit days'})
+    .int('Credit days must be a whole number')
+    .min(0, 'Credit days cannot be negative')
+    .max(365, 'Credit days cannot be more than 365')
+    .optional(),
   openingDue: amount('Opening Due').default(0),
   notes: field({label: 'Notes', kind: 'text', max: 500, required: false}),
 });

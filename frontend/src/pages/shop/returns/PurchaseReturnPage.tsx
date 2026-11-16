@@ -42,9 +42,7 @@ export default function PurchaseReturnPage() {
   );
   const [sentVia, setSentVia] = useState<string>('');
   const [takeStockFrom, setTakeStockFrom] = useState<'DAMAGED_STOCK' | 'ACTIVE_STOCK'>('DAMAGED_STOCK');
-  const [noteToSupplier, setNoteToSupplier] = useState<string>(
-    '10 pcs with open side seams. Please adjust in your next bill.',
-  );
+  const [noteToSupplier, setNoteToSupplier] = useState<string>('');
   const [settleAs, setSettleAs] = useState<'DEDUCT_FROM_PAYABLE' | 'BANK_REFUND' | 'SUPPLIER_CREDIT'>(
     'DEDUCT_FROM_PAYABLE',
   );
@@ -89,17 +87,8 @@ export default function PurchaseReturnPage() {
       setItems(
         activeBill.items.map((item) => ({
           ...item,
-          // Prepopulate sample values matching reference if it's the Linen Top items
-          returnQty:
-            item.productName.includes('Ivory') && item.size === 'S'
-              ? 6
-              : item.productName.includes('Ivory') && item.size === 'M'
-              ? 4
-              : 0,
-          reason:
-            item.productName.includes('Ivory')
-              ? 'Stitching defect'
-              : undefined,
+          returnQty: 0,
+          reason: undefined,
         })),
       );
     } else {
@@ -147,8 +136,11 @@ export default function PurchaseReturnPage() {
     }
 
     const total = retVal + taxVal;
-    const before = activeBill?.balanceDue ?? 18900;
-    const after = Math.max(0, Math.round((before - total) * 100) / 100);
+    const before: number | undefined = activeBill?.balanceDue;
+    const after =
+      before === undefined
+        ? undefined
+        : Math.max(0, Math.round((before - total) * 100) / 100);
 
     return {
       returnValue: Math.round(retVal * 100) / 100,
@@ -232,7 +224,7 @@ export default function PurchaseReturnPage() {
           {/* Main Card Header */}
           <div className="flex items-center justify-between pb-4 border-b border-[#EAE3DC]">
             <h2 className="font-mono text-xl font-semibold text-espresso">
-              {nextDebitNoteNo || 'DN/26-27/0006'}
+              {nextDebitNoteNo || '—'}
             </h2>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#FEF3C7] text-[#92400E] uppercase tracking-wider">
               <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
@@ -461,7 +453,7 @@ export default function PurchaseReturnPage() {
                 <span className="font-medium">₹{returnValue.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-espresso/70">IGST 5% reversed</span>
+                <span className="text-espresso/70">GST reversed</span>
                 <span className="font-medium">₹{taxAmount.toFixed(2)}</span>
               </div>
 
@@ -475,12 +467,18 @@ export default function PurchaseReturnPage() {
               <div className="border-t border-[#EAE3DC] pt-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between text-espresso/70">
                   <span>Payable before</span>
-                  <span className="font-mono">₹{payableBefore.toLocaleString('en-IN')}</span>
+                  <span className="font-mono">
+                    {payableBefore === undefined
+                      ? '—'
+                      : `₹${payableBefore.toLocaleString('en-IN')}`}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-espresso/70">
                   <span>Payable after</span>
                   <span className="font-mono font-medium text-espresso">
-                    ₹{payableAfter.toLocaleString('en-IN')}
+                    {payableAfter === undefined
+                      ? '—'
+                      : `₹${payableAfter.toLocaleString('en-IN')}`}
                   </span>
                 </div>
               </div>
@@ -594,7 +592,7 @@ export default function PurchaseReturnPage() {
                 <span>₹{printVoucher.returnValue.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-espresso/60">GST (5%):</span>
+                <span className="text-espresso/60">GST:</span>
                 <span>₹{printVoucher.taxAmount.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between font-bold text-sm border-t pt-2 text-[#8B263E]">

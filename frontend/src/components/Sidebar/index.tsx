@@ -3,7 +3,7 @@ import useCurrentUser from '@/hooks/useCurrentUser';
 import {SidebarProps} from '@/types';
 import {Link, useRouterState} from '@tanstack/react-router';
 import {useOwnerShop} from '@/lib/ownerShop';
-import {inShopPanel, roleConfig, Role, ROLES} from '@/lib/roles';
+import {inShopPanel, roleConfig, Role, ROLES, singleShop} from '@/lib/roles';
 import {employeeCanOpen} from '@/lib/shopModules';
 import {
   ArrowLeft,
@@ -67,6 +67,12 @@ const dashboard = (
   heading: 'Overview',
   items: [item('Dashboard', to, LayoutDashboard, hint)],
 });
+
+// A single-shop business has no branches to manage and no shop to transfer with
+const HIDDEN_FOR_SINGLE_SHOP = new Set([
+  '/company-admin/branches',
+  '/shop-admin/stock-transfer',
+]);
 
 // What each role sees, in the order of the day's work; the backend still checks every request
 const NAV: Record<Role, NavGroup[]> = {
@@ -627,7 +633,12 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
       : shopMode
         ? shopModeNav
         : (NAV[role as Role] ?? []);
-  const nav = [...roleNav, ACCOUNT_GROUP];
+  const hidden = singleShop(me) ? HIDDEN_FOR_SINGLE_SHOP : null;
+  const nav = [...roleNav, ACCOUNT_GROUP]
+    .map((g) =>
+      hidden ? {...g, items: g.items.filter((i) => !hidden.has(i.to))} : g,
+    )
+    .filter((g) => g.items.length);
 
   useEffect(() => {
     if (!sidebarOpen) return;

@@ -13,6 +13,7 @@ router.use(verifyJWT, checkCompanyAdmin);
 
 router.get('/dashboard', c.scopedDashboard);
 router.get('/profile', c.companyProfile);
+router.post('/branch-mode', c.switchToBranchMode);
 
 // Branches
 router.get('/branches/options', c.branchOptions);

@@ -1,5 +1,12 @@
 import httpStatus from 'http-status';
-import {BillStatus, MovementType, Prisma, ShopStatus, StockSourceType} from '@prisma/client';
+import {
+    BillStatus,
+    MovementType,
+    Prisma,
+    ProductStatus,
+    ShopStatus,
+    StockSourceType,
+} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
@@ -485,7 +492,8 @@ class StockTransferService {
 
     /**
      * Copy a product + variant of another shop into this shop (for items the
-     * shop did not carry). Reuses a product with the same name when present.
+     * shop did not carry). Reuses a product with the same name when present,
+     * as it is; a new copy starts as a draft (it has no slug: store links use the id).
      */
     private cloneIntoShop = async (
         tx: Tx,
@@ -542,6 +550,8 @@ class StockTransferService {
             product = await tx.product.create({
                 data: {
                     ...fields,
+                    // Off the store until this shop checks its price and photos and publishes it
+                    status: ProductStatus.DRAFT,
                     sku: await unique(`${sku}-${toShop.code}`),
                     shopId: toShop.id,
                     stockQuantity: 0,

@@ -1,9 +1,35 @@
 import {useBill} from '@/lib/react-query/queriesAndMutations/bill';
 import {useStockMovements} from '@/lib/react-query/queriesAndMutations/ecommerce';
-import {Bill, BillKind, BillPayment} from '@/types/bill';
-import {ArrowDown, ArrowUp, X} from 'lucide-react';
+import {Bill, BillItem, BillKind, BillPayment} from '@/types/bill';
+import {printSalesBill} from '@/utils/salesBillInvoice';
+import {ArrowDown, ArrowUp, Printer, X} from 'lucide-react';
 import BillStatusBadge from './BillStatusBadge';
 import PaymentStatusBadge from './PaymentStatusBadge';
+
+/** Server sales lines keep a name/SKU/size/colour snapshot; older lines only have the variant */
+type SnapshotLine = BillItem & {
+  productName?: string | null;
+  variantSku?: string | null;
+  size?: string | null;
+  color?: string | null;
+};
+
+// The spread keeps the server's shop / salesman / billType / customerGstin / payment references
+const printBill = (bill: Bill) =>
+  printSalesBill({
+    ...bill,
+    items: ((bill.items ?? []) as SnapshotLine[]).map((i) => ({
+      productName: i.productName ?? i.variant?.product.name,
+      variantSku: i.variantSku ?? i.variant?.variantSku,
+      size: i.size ?? i.variant?.size,
+      color: i.color ?? i.variant?.color,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice ?? 0,
+      discount: i.discount ?? 0,
+      taxRate: i.taxRate,
+      totalPrice: i.totalPrice ?? 0,
+    })),
+  });
 
 const MODE_LABEL: Record<string, string> = {
   CASH: 'Cash',
@@ -59,14 +85,26 @@ export default function BillDetailsModal({
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-outline hover:bg-ivory-200 hover:text-espresso"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {!isPurchase && bill?.status === 'CONFIRMED' && (
+              <button
+                type="button"
+                onClick={() => printBill(bill)}
+                className="btn-ghost"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1 text-outline hover:bg-ivory-200 hover:text-espresso"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {isPending || !bill ? (
@@ -201,7 +239,9 @@ export default function BillDetailsModal({
               <div className="ml-auto max-w-xs space-y-1 text-body-sm">
                 {bill.discount > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-outline">Bill discount (applied)</span>
+                    <span className="text-outline">
+                      Bill discount (applied)
+                    </span>
                     <span>−₹{bill.discount.toFixed(2)}</span>
                   </div>
                 )}
@@ -211,11 +251,19 @@ export default function BillDetailsModal({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-outline">CGST</span>
-                  <span>₹{(Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}</span>
+                  <span>
+                    ₹{(Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-outline">SGST</span>
-                  <span>₹{(bill.taxAmount - Math.round((bill.taxAmount / 2) * 100) / 100).toFixed(2)}</span>
+                  <span>
+                    ₹
+                    {(
+                      bill.taxAmount -
+                      Math.round((bill.taxAmount / 2) * 100) / 100
+                    ).toFixed(2)}
+                  </span>
                 </div>
                 {!!bill.roundOff && (
                   <div className="flex justify-between">
@@ -229,24 +277,24 @@ export default function BillDetailsModal({
                 </div>
               </div>
             ) : (
-            <div className="ml-auto max-w-xs space-y-1 text-body-sm">
-              <div className="flex justify-between">
-                <span className="text-outline">Subtotal</span>
-                <span>₹{bill.subtotal.toFixed(2)}</span>
+              <div className="ml-auto max-w-xs space-y-1 text-body-sm">
+                <div className="flex justify-between">
+                  <span className="text-outline">Subtotal</span>
+                  <span>₹{bill.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-outline">GST</span>
+                  <span>₹{bill.taxAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-outline">Discount</span>
+                  <span>−₹{bill.discount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-ivory-300 pt-1 font-bold text-espresso">
+                  <span>Total</span>
+                  <span>₹{bill.totalAmount.toFixed(2)}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-outline">GST</span>
-                <span>₹{bill.taxAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-outline">Discount</span>
-                <span>−₹{bill.discount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t border-ivory-300 pt-1 font-bold text-espresso">
-                <span>Total</span>
-                <span>₹{bill.totalAmount.toFixed(2)}</span>
-              </div>
-            </div>
             )}
 
             {!!bill.payments?.length && (

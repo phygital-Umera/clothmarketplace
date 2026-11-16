@@ -1,11 +1,12 @@
 import httpStatus from 'http-status';
-import {Prisma, ProductStatus} from '@prisma/client';
+import {MovementType, Prisma, ProductStatus, StockSourceType} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
 import {listArgs, toListResult} from '../utils/list';
 import {shopProductValidation} from '@validations/index';
 import accountService from './account.service';
+import inventoryService from './inventory.service';
 
 type CreateShopProduct = z.infer<typeof shopProductValidation.createShopProductSchema>;
 type UpdateShopProduct = z.infer<typeof shopProductValidation.updateShopProductSchema>;
@@ -50,9 +51,12 @@ const slugify = (s: string) =>
         .replace(/^-+|-+$/g, '')
         .slice(0, 80);
 
-/** Flatten the join rows into plain size / color lists */
-const present = <T extends ListRow>({sizes, colors, ...p}: T) => ({
-    ...p,
+/** Flatten the join rows into plain size / color lists; `stock` is the live count */
+const present = <T extends ListRow>({sizes, colors, ...p}: T, stock: number) => ({
+    ...(p as Omit<typeof p, 'stockQuantity'>),
+    // Only a cache that some stock paths do not update: never sent
+    stockQuantity: undefined,
+    stock,
     sizes: sizes.map((s) => s.size).sort((a, b) => a.displayOrder - b.displayOrder),
     colors: colors.map((c) => c.color),
     mainImage: p.images[0]?.url ?? null,
@@ -71,21 +75,42 @@ class ShopProductService {
         };
     }
 
+    /**
+     * Live stock per product of a shop: active variants in the shop's branch,
+     * physical - reserved, the same count the POS and the store sell from.
+     */
+    private async liveStock(shopId: string, productId?: string) {
+        const rows = await prisma.$queryRaw<Array<{id: string; stock: number}>>`
+            SELECT v."productId" AS id, SUM(GREATEST(i."physicalQty" - i."reservedQty", 0))::int AS stock
+            FROM "Inventory" i
+            JOIN "ProductVariant" v ON v.id = i."variantId" AND v."isActive"
+            JOIN "Product" p ON p.id = v."productId"
+            JOIN "Shop" s ON s.id = p."shopId" AND s."branchId" = i."branchId"
+            WHERE p."shopId" = ${shopId} AND p."deletedAt" IS NULL
+              ${productId ? Prisma.sql`AND p.id = ${productId}` : Prisma.empty}
+            GROUP BY v."productId"`;
+        return new Map(rows.map((r) => [r.id, r.stock]));
+    }
+
     public async list(scope: ShopScope, query: ShopProductList) {
-        const stock: Prisma.IntFilter | undefined =
+        const live = await this.liveStock(scope.shopId);
+        const qty = (id: string) => live.get(id) ?? 0;
+        const having = (keep: (n: number) => boolean) =>
+            [...live.keys()].filter((id) => keep(qty(id)));
+        const stockIds: Prisma.StringFilter | undefined =
             query.stock === 'out'
-                ? {lte: 0}
+                ? {notIn: having((n) => n > 0)}
                 : query.stock === 'low'
-                  ? {gt: 0, lte: LOW_STOCK}
+                  ? {in: having((n) => n > 0 && n <= LOW_STOCK)}
                   : query.stock === 'in'
-                    ? {gt: 0}
+                    ? {in: having((n) => n > 0)}
                     : undefined;
         const where: Prisma.ProductWhereInput = {
             ...this.scopeWhere(scope),
+            id: stockIds,
             status: query.status,
             categoryId: query.categoryId,
             subcategoryId: query.subcategoryId,
-            stockQuantity: stock,
             ...(query.colorId ? {colors: {some: {colorId: query.colorId}}} : {}),
             ...(query.sizeId ? {sizes: {some: {sizeId: query.sizeId}}} : {}),
             ...(query.search
@@ -99,11 +124,40 @@ class ShopProductService {
                   }
                 : {}),
         };
-        const [items, total] = await prisma.$transaction([
-            prisma.product.findMany({where, include: LIST_INCLUDE, ...listArgs(query)}),
-            prisma.product.count({where}),
-        ]);
-        return toListResult(items.map(present), total, query);
+        const {sortBy, sortDir} = query;
+        if (sortBy !== 'stock') {
+            const [items, total] = await prisma.$transaction([
+                prisma.product.findMany({
+                    where,
+                    include: LIST_INCLUDE,
+                    ...listArgs({...query, sortBy}),
+                }),
+                prisma.product.count({where}),
+            ]);
+            return toListResult(
+                items.map((p) => present(p, qty(p.id))),
+                total,
+                query,
+            );
+        }
+        // Stock is not a column: sort the matching ids by it, then load one page
+        const ids = (
+            await prisma.product.findMany({where, select: {id: true}, orderBy: {createdAt: 'desc'}})
+        )
+            .map((p) => p.id)
+            .sort((a, b) => (sortDir === 'asc' ? qty(a) - qty(b) : qty(b) - qty(a)));
+        const {skip, take} = listArgs(query);
+        const page = ids.slice(skip, skip + take);
+        const rows = await prisma.product.findMany({
+            where: {id: {in: page}},
+            include: LIST_INCLUDE,
+        });
+        const items = page.flatMap((id) => rows.filter((p) => p.id === id));
+        return toListResult(
+            items.map((p) => present(p, qty(p.id))),
+            ids.length,
+            query,
+        );
     }
 
     /** 404 outside the caller's shop, or company when there is no shop (no probing others) */
@@ -113,7 +167,8 @@ class ShopProductService {
             include: DETAIL_INCLUDE,
         });
         if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
-        return present(product);
+        const live = product.shopId ? await this.liveStock(product.shopId, id) : undefined;
+        return present(product, live?.get(id) ?? 0);
     }
 
     /**
@@ -198,20 +253,22 @@ class ShopProductService {
     /**
      * Keep one ProductVariant per size x color (cart / orders work on
      * variants). Matching rows are kept or re-activated, others deactivated.
+     * Returns the variant id of each "sizeId:colorId".
      */
     private async syncVariants(tx: Tx, productId: string, sku: string) {
         const product = await tx.product.findUniqueOrThrow({
             where: {id: productId},
             select: {
                 shop: {select: {branchId: true}},
-                sizes: {select: {size: {select: {name: true}}}},
-                colors: {select: {color: {select: {name: true, hexCode: true}}}},
+                sizes: {select: {sizeId: true, size: {select: {name: true}}}},
+                colors: {select: {colorId: true, color: {select: {name: true, hexCode: true}}}},
                 variants: {select: {id: true, size: true, color: true}},
             },
         });
         const keep = new Set<string>();
-        for (const {size} of product.sizes) {
-            for (const {color} of product.colors) {
+        const byPair = new Map<string, string>();
+        for (const {sizeId, size} of product.sizes) {
+            for (const {colorId, color} of product.colors) {
                 const existing = product.variants.find(
                     (v) =>
                         v.size.toLowerCase() === size.name.toLowerCase() &&
@@ -219,6 +276,7 @@ class ShopProductService {
                 );
                 if (existing) {
                     keep.add(existing.id);
+                    byPair.set(`${sizeId}:${colorId}`, existing.id);
                     await tx.productVariant.update({
                         where: {id: existing.id},
                         data: {isActive: true, colorHex: color.hexCode},
@@ -240,6 +298,7 @@ class ShopProductService {
                     select: {id: true},
                 });
                 keep.add(created.id);
+                byPair.set(`${sizeId}:${colorId}`, created.id);
             }
         }
         await tx.productVariant.updateMany({
@@ -264,16 +323,18 @@ class ShopProductService {
                 });
             }
         }
+        return byPair;
     }
 
     public async create(scope: ShopScope, actorId: string, data: CreateShopProduct) {
         await this.assertRefs(scope.companyId, data);
         if (data.sku) await this.assertSkuFree(data.sku);
-        const company = await prisma.company.findUniqueOrThrow({
-            where: {id: scope.companyId},
-            select: {code: true},
-        });
-        const {sizeIds, colorIds, sku: givenSku, sellingPrice, ...fields} = data;
+        const [company, shop] = await Promise.all([
+            prisma.company.findUniqueOrThrow({where: {id: scope.companyId}, select: {code: true}}),
+            prisma.shop.findUniqueOrThrow({where: {id: scope.shopId}, select: {branchId: true}}),
+        ]);
+        const {sizeIds, colorIds, sku: givenSku, sellingPrice, openingStock, ...fields} = data;
+        const opening = openingStock.filter((o) => o.quantity > 0);
 
         const created = await accountService.withRetry(
             () =>
@@ -288,6 +349,12 @@ class ShopProductService {
                                 })
                             ).map((p) => p.sku),
                         ));
+                    // The store link: set once, never rebuilt. A product whose SKU was
+                    // changed keeps its old slug, so this one may already be taken.
+                    let slug = `${slugify(fields.name)}-${sku.toLowerCase()}`;
+                    if (await tx.product.findUnique({where: {slug}, select: {id: true}})) {
+                        slug = `${slug}-${Date.now().toString(36)}`;
+                    }
                     const product = await tx.product.create({
                         data: {
                             ...fields,
@@ -296,14 +363,39 @@ class ShopProductService {
                             companyId: scope.companyId,
                             shopId: scope.shopId,
                             sku,
-                            slug: `${slugify(fields.name)}-${sku.toLowerCase()}`,
+                            slug,
                             createdById: actorId,
                             sizes: {create: sizeIds.map((sizeId) => ({sizeId}))},
                             colors: {create: colorIds.map((colorId) => ({colorId}))},
                         },
                         select: {id: true},
                     });
-                    await this.syncVariants(tx, product.id, sku);
+                    const variantOf = await this.syncVariants(tx, product.id, sku);
+                    if (opening.length) {
+                        await inventoryService.applyStockChanges(tx, {
+                            branchId: shop.branchId,
+                            changes: opening.map((o) => {
+                                const variantId = variantOf.get(`${o.sizeId}:${o.colorId}`);
+                                if (!variantId) {
+                                    throw fieldError(
+                                        httpStatus.BAD_REQUEST,
+                                        'openingStock',
+                                        'Opening stock can only be for the selected sizes and colours',
+                                    );
+                                }
+                                return {
+                                    variantId,
+                                    productId: product.id,
+                                    delta: o.quantity,
+                                    type: MovementType.ADJUSTMENT_INCREASE,
+                                };
+                            }),
+                            reason: 'Opening stock',
+                            reference: sku,
+                            sourceType: StockSourceType.ADJUSTMENT,
+                            performedById: actorId,
+                        });
+                    }
                     return product;
                 }),
             'sku',
@@ -344,9 +436,6 @@ class ShopProductService {
                     ...fields,
                     sellingPrice: merged.sellingPrice,
                     ...(fields.tags ? {tags: fields.tags.map((t) => t.toLowerCase())} : {}),
-                    ...(fields.name || fields.sku
-                        ? {slug: `${slugify(fields.name ?? before.name)}-${sku.toLowerCase()}`}
-                        : {}),
                 },
             });
             if (sizeIds) {

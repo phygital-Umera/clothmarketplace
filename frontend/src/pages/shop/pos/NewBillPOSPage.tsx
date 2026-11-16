@@ -5,11 +5,13 @@ import {
   useCustomerSearch,
   useSaveBill,
 } from '@/lib/react-query/queriesAndMutations/bill';
+import {useCreateCustomer} from '@/lib/react-query/queriesAndMutations/customer';
 import {useShopDashboard} from '@/lib/react-query/queriesAndMutations/shopOps';
-import {BillPayload, PaymentMethod} from '@/types/bill';
+import {CustomerSuggestion} from '@/lib/api/bill';
+import {BillPayload, PaymentMethod, SalesBillType} from '@/types/bill';
 import {inr} from '@/utils/money';
-import {generateOrderInvoice} from '@/utils/invoiceGenerator';
-import {useNavigate} from '@tanstack/react-router';
+import {printSalesBill} from '@/utils/salesBillInvoice';
+import {useNavigate, useSearch} from '@tanstack/react-router';
 import {
   AlertCircle,
   Check,
@@ -60,16 +62,26 @@ interface HeldBill {
   lines: PosLineItem[];
   billDiscount: number;
   billDiscountType: 'fixed' | 'percent';
-  billType: string;
-  salesman: string;
+  billType: PosBillType;
+  salesmanId: string;
+  customerGstin?: string;
+  previousDue?: number;
+  creditLimit?: number;
+  creditDays?: number;
 }
 
-const BILL_TYPES = [
-  'Tax invoice (B2C)',
-  'Tax invoice (B2B)',
-  'Retail Invoice',
-  'Estimate / Quotation',
+/** ESTIMATE is never saved: it only prints the cart */
+type PosBillType = SalesBillType | 'ESTIMATE';
+
+const BILL_TYPES: {value: PosBillType; label: string}[] = [
+  {value: 'TAX_INVOICE_B2C', label: 'Tax invoice (B2C)'},
+  {value: 'TAX_INVOICE_B2B', label: 'Tax invoice (B2B)'},
+  {value: 'RETAIL_INVOICE', label: 'Retail Invoice'},
+  {value: 'ESTIMATE', label: 'Estimate / Quotation'},
 ];
+
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const HELD_KEY = 'cloth_pos_held_bills';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -77,32 +89,44 @@ export default function NewBillPOSPage() {
   const {user} = useAuthContext();
   const navigate = useNavigate();
   const save = useSaveBill(PANEL, 'sales');
+  const createCustomer = useCreateCustomer(PANEL);
+  // The customers page opens the POS with ?phone= to bill that customer
+  const {phone: linkedPhone} = useSearch({strict: false}) as {
+    phone?: string | number;
+  };
+  const initialPhone = linkedPhone ? String(linkedPhone) : '';
 
   // Load shop dashboard info
   const {data: dashboard} = useShopDashboard(PANEL);
-  const {data: employeeData} = useEmployees(PANEL, {limit: 50});
+  const {data: employeeData} = useEmployees(PANEL, {page: 1, limit: 50});
 
   // State: Bill configuration
-  const [billType, setBillType] = useState<string>('Tax invoice (B2C)');
-  const [salesman, setSalesman] = useState<string>('');
-
-  // Auto-set default salesman once employees load
-  useEffect(() => {
-    if (!salesman && employeeData?.items && employeeData.items.length > 0) {
-      setSalesman(employeeData.items[0].fullname);
-    } else if (!salesman && user?.fullname) {
-      setSalesman(user.fullname);
+  const [billType, setBillType] = useState<PosBillType>('TAX_INVOICE_B2C');
+  const isEstimate = billType === 'ESTIMATE';
+  const isB2B = billType === 'TAX_INVOICE_B2B';
+  // '' = the signed-in user
+  const [salesmanId, setSalesmanId] = useState<string>('');
+  const activeSalesmanId = salesmanId || user?.id || '';
+  const salesmen = useMemo(() => {
+    const list = (employeeData?.items ?? []).map((e) => ({
+      id: e.id,
+      fullname: e.fullname,
+    }));
+    if (user && !list.some((e) => e.id === user.id)) {
+      list.unshift({id: user.id, fullname: user.fullname});
     }
-  }, [employeeData, salesman, user]);
+    return list;
+  }, [employeeData, user]);
 
   // Customer State
-  const [customerPhone, setCustomerPhone] = useState<string>('');
-  const [customerSearchQuery, setCustomerSearchQuery] = useState<string>('');
+  const [customerPhone, setCustomerPhone] = useState<string>(initialPhone);
+  const [customerSearchQuery, setCustomerSearchQuery] =
+    useState<string>(initialPhone);
   const [customerName, setCustomerName] = useState<string>('');
   const [customerGSTIN, setCustomerGSTIN] = useState<string>('');
   const [customerPreviousDue, setCustomerPreviousDue] = useState<number>(0);
-  const [customerCreditLimit, setCustomerCreditLimit] = useState<number>(10000);
-  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number>(0);
+  // 0 = no limit
+  const [customerCreditLimit, setCustomerCreditLimit] = useState<number>(0);
   const [isWalkIn, setIsWalkIn] = useState<boolean>(true);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState<boolean>(false);
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState<boolean>(false);
@@ -110,13 +134,25 @@ export default function NewBillPOSPage() {
   // New Customer Form state
   const [newCustName, setNewCustName] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
-  const [newCustLimit, setNewCustLimit] = useState(10000);
+  const [newCustLimit, setNewCustLimit] = useState(0);
 
   // Search customer hook
   const {data: customerSuggestions} = useCustomerSearch(
     PANEL,
     customerSearchQuery,
   );
+
+  // Opened with ?phone=: select that customer once the search returns
+  const autoPickPhone = useRef(initialPhone);
+  useEffect(() => {
+    const match =
+      autoPickPhone.current &&
+      customerSuggestions?.find((c) => c.phone === autoPickPhone.current);
+    if (match) {
+      autoPickPhone.current = '';
+      handleSelectCustomer(match);
+    }
+  }, [customerSuggestions]);
 
   // Items State
   const [lines, setLines] = useState<PosLineItem[]>([]);
@@ -141,7 +177,7 @@ export default function NewBillPOSPage() {
   // Held Bills State
   const [heldBills, setHeldBills] = useState<HeldBill[]>(() => {
     try {
-      return JSON.parse(sessionStorage.getItem('cloth_pos_held_bills') || '[]');
+      return JSON.parse(localStorage.getItem(HELD_KEY) || '[]');
     } catch {
       return [];
     }
@@ -166,9 +202,13 @@ export default function NewBillPOSPage() {
     },
   );
 
-  // Save held bills to sessionStorage
+  // Held bills live in localStorage so they survive closing the tab
   useEffect(() => {
-    sessionStorage.setItem('cloth_pos_held_bills', JSON.stringify(heldBills));
+    try {
+      localStorage.setItem(HELD_KEY, JSON.stringify(heldBills));
+    } catch {
+      // storage blocked or full: held bills stay in memory for this session
+    }
   }, [heldBills]);
 
   // Keyboard shortcut listener
@@ -198,7 +238,15 @@ export default function NewBillPOSPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines, customerName, customerPhone, billDiscount, billDiscountType, billType, salesman]);
+  }, [
+    lines,
+    customerName,
+    customerPhone,
+    billDiscount,
+    billDiscountType,
+    billType,
+    salesmanId,
+  ]);
 
   // Filtered inventory suggestions
   const inventorySuggestions = useMemo(() => {
@@ -314,6 +362,7 @@ export default function NewBillPOSPage() {
     let taxable = 0;
     let totalTax = 0;
     let exact = 0;
+    const linePays: number[] = [];
     lines.forEach((l, i) => {
       const share =
         i === lines.length - 1
@@ -327,6 +376,7 @@ export default function NewBillPOSPage() {
       taxable += lineTaxable;
       totalTax += round2(pays - lineTaxable);
       exact += pays;
+      linePays.push(pays);
     });
     taxable = round2(taxable);
     totalTax = round2(totalTax);
@@ -344,6 +394,8 @@ export default function NewBillPOSPage() {
       discountOnMRP: Math.max(0, round2(grossMRP - itemsValue)),
       billDiscountAmount: calculatedBillDiscount,
       taxableValue: taxable,
+      taxAmount: totalTax,
+      linePays,
       cgst,
       sgst,
       roundOff,
@@ -369,22 +421,31 @@ export default function NewBillPOSPage() {
   }, [totals.net]);
 
   // Customer selection
-  const handleSelectCustomer = (c: any) => {
+  const handleSelectCustomer = (c: CustomerSuggestion) => {
     setCustomerName(c.name);
     setCustomerPhone(c.phone);
     setCustomerPreviousDue(c.previousDue || 0);
-    setCustomerLoyaltyPoints(c.loyaltyPoints || 320);
+    setCustomerCreditLimit(c.creditLimit || 0);
+    if (c.creditDays > 0) setCreditDays(c.creditDays);
+    setCustomerGSTIN(c.gstin ?? '');
     setIsWalkIn(false);
     setShowCustomerDropdown(false);
     setCustomerSearchQuery('');
   };
 
-  const handleWalkIn = () => {
-    setIsWalkIn(true);
-    setCustomerName('Walk-in Customer');
+  const resetCustomer = () => {
+    setCustomerName('');
     setCustomerPhone('');
+    setCustomerGSTIN('');
     setCustomerPreviousDue(0);
-    setCustomerLoyaltyPoints(0);
+    setCustomerCreditLimit(0);
+    setCreditDays(15);
+    setIsWalkIn(true);
+  };
+
+  const handleWalkIn = () => {
+    resetCustomer();
+    setCustomerName('Walk-in Customer');
     setCreditAmount(0);
   };
 
@@ -407,7 +468,11 @@ export default function NewBillPOSPage() {
       billDiscount,
       billDiscountType,
       billType,
-      salesman,
+      salesmanId: activeSalesmanId,
+      customerGstin: customerGSTIN,
+      previousDue: customerPreviousDue,
+      creditLimit: customerCreditLimit,
+      creditDays,
     };
 
     setHeldBills((prev) => [newHeld, ...prev]);
@@ -416,9 +481,7 @@ export default function NewBillPOSPage() {
     // Reset current
     setLines([]);
     setBillDiscount(0);
-    setCustomerName('');
-    setCustomerPhone('');
-    setIsWalkIn(true);
+    resetCustomer();
   };
 
   const handleRecallBill = (bill: HeldBill) => {
@@ -426,9 +489,13 @@ export default function NewBillPOSPage() {
     setBillDiscount(bill.billDiscount);
     setBillDiscountType(bill.billDiscountType);
     setBillType(bill.billType);
-    setSalesman(bill.salesman);
+    setSalesmanId(bill.salesmanId);
     setCustomerName(bill.customerName);
     setCustomerPhone(bill.customerPhone);
+    setCustomerGSTIN(bill.customerGstin ?? '');
+    setCustomerPreviousDue(bill.previousDue ?? 0);
+    setCustomerCreditLimit(bill.creditLimit ?? 0);
+    setCreditDays(bill.creditDays ?? 15);
     setIsWalkIn(!bill.customerPhone);
 
     setHeldBills((prev) => prev.filter((b) => b.id !== bill.id));
@@ -437,24 +504,79 @@ export default function NewBillPOSPage() {
   };
 
   // Quick New Customer Submit
-  const handleCreateCustomerSubmit = (e: React.FormEvent) => {
+  const handleCreateCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCustPhone.trim()) {
-      toast.error('Phone number is required');
+    const name = newCustName.trim();
+    const mobile = newCustPhone.trim().replace(/^\+91/, '').trim();
+    if (!name || !mobile) {
+      toast.error('Name and phone number are required');
       return;
     }
-    setCustomerName(newCustName.trim() || 'Valued Customer');
-    setCustomerPhone(newCustPhone.trim());
-    setCustomerCreditLimit(newCustLimit || 10000);
-    setCustomerPreviousDue(0);
-    setCustomerLoyaltyPoints(0);
-    setIsWalkIn(false);
-    setIsNewCustomerModalOpen(false);
-    toast.success('Customer profile attached');
+    try {
+      const {data: c} = await createCustomer.mutateAsync({
+        name,
+        mobile,
+        customerType: 'Retail',
+        creditLimit: newCustLimit || 0,
+      });
+      setCustomerName(c.name);
+      setCustomerPhone(c.mobile);
+      setCustomerCreditLimit(c.creditLimit || 0);
+      setCustomerPreviousDue(c.balanceDue || 0);
+      setCustomerGSTIN(c.gstin ?? '');
+      setIsWalkIn(false);
+      setIsNewCustomerModalOpen(false);
+      setNewCustName('');
+      setNewCustPhone('');
+      setNewCustLimit(0);
+    } catch {
+      // The hook shows the server error; nothing is attached
+    }
+  };
+
+  // Estimate / quotation: print the cart only (no bill, no stock change)
+  const handlePrintEstimate = () => {
+    if (lines.length === 0) {
+      toast.error('Add items to print an estimate');
+      return;
+    }
+    printSalesBill(
+      {
+        billNumber: 'ESTIMATE',
+        billDate: new Date(),
+        customerName: customerName.trim() || null,
+        customerPhone: customerPhone.trim() || null,
+        customerGstin: customerGSTIN.trim() || null,
+        shop: dashboard?.shop
+          ? {name: dashboard.shop.name, gstin: dashboard.shop.gstin}
+          : null,
+        salesman: salesmen.find((s) => s.id === activeSalesmanId) ?? null,
+        createdBy: user ? {fullname: user.fullname} : null,
+        items: lines.map((l, i) => ({
+          productName: l.productName,
+          variantSku: l.sku,
+          size: l.size,
+          color: l.color,
+          quantity: l.quantity,
+          unitPrice: l.rate,
+          discount: l.discount,
+          taxRate: l.taxRate,
+          totalPrice: totals.linePays[i],
+        })),
+        subtotal: totals.taxableValue,
+        taxAmount: totals.taxAmount,
+        discount: totals.billDiscountAmount,
+        roundOff: totals.roundOff,
+        totalAmount: totals.net,
+        pricesIncludeTax: true,
+      },
+      {estimate: true},
+    );
   };
 
   // Save / Confirm Bill
   const handleCompleteBill = async (status: 'DRAFT' | 'CONFIRMED' = 'CONFIRMED') => {
+    if (billType === 'ESTIMATE') return; // estimates are printed, never saved
     if (lines.length === 0) {
       toast.error('Cannot create an empty bill');
       return;
@@ -479,14 +601,43 @@ export default function NewBillPOSPage() {
       return;
     }
 
-    const payments: {mode: PaymentMethod; amount: number}[] = [];
+    if (creditAmount > 0 && overCreditLimit) {
+      toast.error(
+        `${customerName || 'Customer'}'s due would become ${inr(newDueTotal)}, over the ${inr(customerCreditLimit)} credit limit`,
+      );
+      return;
+    }
+
+    const gstin = customerGSTIN.trim();
+    if (isB2B && !gstin) {
+      toast.error('Customer GSTIN is required for a B2B tax invoice');
+      return;
+    }
+    if (gstin && !GSTIN_RE.test(gstin)) {
+      toast.error('Enter a valid 15-character GSTIN (e.g. 27ABCDE1234F1Z5)');
+      return;
+    }
+
+    const payments: NonNullable<BillPayload['payments']> = [];
     let netCash = cashAmount;
     if (changeToReturn > 0) {
       netCash = Math.max(0, round2(cashAmount - changeToReturn));
     }
     if (netCash > 0) payments.push({mode: 'CASH', amount: netCash});
-    if (upiAmount > 0) payments.push({mode: 'UPI', amount: upiAmount});
-    if (cardAmount > 0) payments.push({mode: 'CARD', amount: cardAmount});
+    if (upiAmount > 0) {
+      payments.push({
+        mode: 'UPI',
+        amount: upiAmount,
+        reference: upiRef.trim() || undefined,
+      });
+    }
+    if (cardAmount > 0) {
+      payments.push({
+        mode: 'CARD',
+        amount: cardAmount,
+        reference: cardLast4.trim() || undefined,
+      });
+    }
 
     // Primary payment method
     let primaryMethod: PaymentMethod = 'CASH';
@@ -503,11 +654,18 @@ export default function NewBillPOSPage() {
 
     const payload: BillPayload = {
       status,
+      billType,
+      customerGstin: gstin || undefined,
+      salesmanId: activeSalesmanId || undefined,
       discount: totals.billDiscountAmount,
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
-      paymentMethod: primaryMethod,
-      payments: payments.length > 0 ? payments : [{mode: 'CASH', amount: totals.net}],
+      // Fully on credit: nothing received, so the server records the whole total as due
+      paymentMethod: payments.length === 0 && creditAmount > 0 ? 'CREDIT' : primaryMethod,
+      payments:
+        payments.length > 0 || creditAmount > 0
+          ? payments
+          : [{mode: 'CASH', amount: totals.net}],
       dueDate: calculatedDueDate,
       items: lines.map((l) => ({
         variantId: l.variantId,
@@ -516,11 +674,10 @@ export default function NewBillPOSPage() {
         unitPrice: l.rate,
         discount: l.discount,
       })),
-      notes: [
-        customerGSTIN ? `GSTIN: ${customerGSTIN}` : '',
-        salesman ? `Salesman: ${salesman}` : '',
-        changeToReturn > 0 ? `Tendered: ${inr(cashAmount)} | Change: ${inr(changeToReturn)}` : '',
-      ].filter(Boolean).join(' | '),
+      notes:
+        changeToReturn > 0
+          ? `Tendered: ${inr(cashAmount)} | Change: ${inr(changeToReturn)}`
+          : '',
     };
 
     try {
@@ -534,12 +691,7 @@ export default function NewBillPOSPage() {
 
       // Reset POS for next customer
       setLines([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerGSTIN('');
-      setCustomerPreviousDue(0);
-      setCustomerLoyaltyPoints(0);
-      setIsWalkIn(true);
+      resetCustomer();
       setCashAmount(0);
       setUpiAmount(0);
       setCardAmount(0);
@@ -554,6 +706,8 @@ export default function NewBillPOSPage() {
 
   // Calculated Due Note
   const newDueTotal = round2(customerPreviousDue + creditAmount);
+  const overCreditLimit =
+    customerCreditLimit > 0 && newDueTotal > customerCreditLimit;
   const changeToReturn = Math.max(
     0,
     round2(cashAmount + upiAmount + cardAmount + creditAmount - totals.net),
@@ -595,12 +749,12 @@ export default function NewBillPOSPage() {
               </span>
               <select
                 value={billType}
-                onChange={(e) => setBillType(e.target.value)}
+                onChange={(e) => setBillType(e.target.value as PosBillType)}
                 className="text-xs font-medium text-espresso bg-transparent focus:outline-none cursor-pointer pr-1"
               >
                 {BILL_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                  <option key={t.value} value={t.value}>
+                    {t.label}
                   </option>
                 ))}
               </select>
@@ -612,19 +766,15 @@ export default function NewBillPOSPage() {
                 SALESMAN
               </span>
               <select
-                value={salesman}
-                onChange={(e) => setSalesman(e.target.value)}
+                value={activeSalesmanId}
+                onChange={(e) => setSalesmanId(e.target.value)}
                 className="text-xs font-medium text-espresso bg-transparent focus:outline-none cursor-pointer pr-1"
               >
-                {employeeData?.items && employeeData.items.length > 0 ? (
-                  employeeData.items.map((emp) => (
-                    <option key={emp.id} value={emp.fullname}>
-                      {emp.fullname}
-                    </option>
-                  ))
-                ) : (
-                  <option value={user?.fullname || ''}>{user?.fullname || 'Cashier'}</option>
-                )}
+                {salesmen.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.fullname}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -1110,13 +1260,9 @@ export default function NewBillPOSPage() {
                   <div className="flex justify-between text-outline">
                     <span>Credit limit</span>
                     <span className="font-medium text-espresso">
-                      {inr(customerCreditLimit)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-outline">
-                    <span>Loyalty points</span>
-                    <span className="font-medium text-espresso">
-                      {customerLoyaltyPoints} pts ({inr(round2(customerLoyaltyPoints * 0.1))})
+                      {customerCreditLimit > 0
+                        ? inr(customerCreditLimit)
+                        : 'No limit'}
                     </span>
                   </div>
                 </div>
@@ -1126,13 +1272,15 @@ export default function NewBillPOSPage() {
             {/* CUSTOMER GSTIN (FOR B2B) */}
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-outline mb-1">
-                CUSTOMER GSTIN (FOR B2B)
+                CUSTOMER GSTIN {isB2B ? '(REQUIRED)' : '(FOR B2B)'}
               </p>
               <input
                 type="text"
-                placeholder="Optional"
+                placeholder={isB2B ? 'e.g. 27ABCDE1234F1Z5' : 'Optional'}
                 value={customerGSTIN}
-                onChange={(e) => setCustomerGSTIN(e.target.value)}
+                maxLength={15}
+                required={isB2B}
+                onChange={(e) => setCustomerGSTIN(e.target.value.toUpperCase())}
                 className="w-full border border-ivory-300 rounded px-2.5 py-1.5 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
               />
             </div>
@@ -1259,6 +1407,7 @@ export default function NewBillPOSPage() {
                   type="text"
                   placeholder="4312 8890 11"
                   value={upiRef}
+                  maxLength={40}
                   onChange={(e) => setUpiRef(e.target.value)}
                   className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none placeholder-outline/40 font-mono"
                 />
@@ -1301,10 +1450,13 @@ export default function NewBillPOSPage() {
                   onChange={(e) => setCreditDays(Number(e.target.value))}
                   className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none cursor-pointer"
                 >
-                  <option value={7}>Due in 7 days</option>
-                  <option value={15}>Due in 15 days</option>
-                  <option value={30}>Due in 30 days</option>
-                  <option value={45}>Due in 45 days</option>
+                  {[...new Set([7, 15, 30, 45, creditDays])]
+                    .sort((a, b) => a - b)
+                    .map((d) => (
+                      <option key={d} value={d}>
+                        Due in {d} days
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -1315,8 +1467,17 @@ export default function NewBillPOSPage() {
             <div className="mb-4 p-2.5 rounded border border-rose-200 bg-[#FCF0F2] text-[11px] leading-relaxed text-[#702D3B]">
               <span className="font-semibold">{inr(creditAmount)} on credit</span> →{' '}
               {customerName || 'Customer'}'s due becomes{' '}
-              <span className="font-bold">{inr(newDueTotal)}</span> (within{' '}
-              {inr(customerCreditLimit)} limit). Change to return:{' '}
+              <span className="font-bold">{inr(newDueTotal)}</span>
+              {customerCreditLimit > 0 &&
+                (overCreditLimit ? (
+                  <span className="font-bold">
+                    {' '}
+                    — over the {inr(customerCreditLimit)} credit limit
+                  </span>
+                ) : (
+                  ` (within ${inr(customerCreditLimit)} limit)`
+                ))}
+              . Change to return:{' '}
               <span className="font-bold">{inr(changeToReturn)}</span>.
             </div>
           ) : changeToReturn > 0 ? (
@@ -1330,10 +1491,19 @@ export default function NewBillPOSPage() {
             <button
               type="button"
               disabled={save.isPending || lines.length === 0}
-              onClick={() => handleCompleteBill('CONFIRMED')}
+              onClick={() =>
+                isEstimate
+                  ? handlePrintEstimate()
+                  : handleCompleteBill('CONFIRMED')
+              }
               className="w-full py-3 bg-burgundy hover:bg-burgundy-deep active:scale-[0.99] disabled:opacity-50 text-white font-bold text-sm rounded shadow-sm transition-all flex items-center justify-center gap-2"
             >
-              {save.isPending ? (
+              {isEstimate ? (
+                <>
+                  <Printer size={16} />
+                  <span>Print estimate · {inr(totals.net)}</span>
+                </>
+              ) : save.isPending ? (
                 <span>Saving Bill…</span>
               ) : (
                 <>
@@ -1346,7 +1516,10 @@ export default function NewBillPOSPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={save.isPending || lines.length === 0}
+                disabled={isEstimate || save.isPending || lines.length === 0}
+                title={
+                  isEstimate ? 'Estimates are printed, not saved' : undefined
+                }
                 onClick={() => handleCompleteBill('DRAFT')}
                 className="flex-1 py-2 border border-ivory-300 hover:bg-ivory-100 rounded text-xs font-semibold text-espresso transition-colors disabled:opacity-50"
               >
@@ -1365,9 +1538,7 @@ export default function NewBillPOSPage() {
                   setCardAmount(0);
                   setCreditAmount(0);
                   setBillDiscount(0);
-                  setCustomerName('');
-                  setCustomerPhone('');
-                  setIsWalkIn(true);
+                  resetCustomer();
                 }}
                 className="px-4 py-2 border border-ivory-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 rounded text-xs font-semibold text-outline transition-colors"
               >
@@ -1413,10 +1584,11 @@ export default function NewBillPOSPage() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-outline mb-1">
-                  Full Name
+                  Full Name *
                 </label>
                 <input
                   type="text"
+                  required
                   placeholder="e.g. Kavita Desai"
                   value={newCustName}
                   onChange={(e) => setNewCustName(e.target.value)}
@@ -1426,7 +1598,7 @@ export default function NewBillPOSPage() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-outline mb-1">
-                  Credit Limit (₹)
+                  Credit Limit (₹, 0 = no limit)
                 </label>
                 <input
                   type="number"
@@ -1447,9 +1619,10 @@ export default function NewBillPOSPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-burgundy text-white rounded text-xs font-bold hover:bg-burgundy-deep"
+                  disabled={createCustomer.isPending}
+                  className="rounded bg-burgundy px-4 py-2 text-xs font-bold text-white hover:bg-burgundy-deep disabled:opacity-50"
                 >
-                  Save Customer
+                  {createCustomer.isPending ? 'Saving…' : 'Save Customer'}
                 </button>
               </div>
             </form>
@@ -1556,9 +1729,7 @@ export default function NewBillPOSPage() {
             <div className="mt-6 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  window.print();
-                }}
+                onClick={() => printSalesBill(lastCreatedBill)}
                 className="w-full py-2.5 bg-burgundy text-white text-xs font-bold rounded flex items-center justify-center gap-2 hover:bg-burgundy-deep"
               >
                 <Printer size={15} /> Print Receipt

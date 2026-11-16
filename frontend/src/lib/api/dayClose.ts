@@ -54,13 +54,14 @@ type Res<T> = {statusCode: number; data: T; message: string};
 export const getDayCloseData = (date: string) =>
   api.get('/branch-admin/day-close', {params: {date}}).then((res: any) => res as Res<DayCloseData>);
 
-export const resolveDayCloseDifference = (data: {
-  sessionId: string;
-  reason: string;
-  action: string;
-  note?: string;
-}) =>
-  api.post('/branch-admin/day-close/resolve-difference', data).then((res: any) => res as Res<{success: boolean; message: string}>);
+/** Branch admin for any shop of the branch; the owner (shop mode) for the open shop */
+export const resolveDayCloseDifference = (
+  data: {sessionId: string; reason: string; action: string; note?: string},
+  panel = 'branch-admin',
+) =>
+  api
+    .post(`/${panel}/day-close/resolve-difference`, data)
+    .then((res: any) => res as Res<{success: boolean; message: string}>);
 
 export const recordBankDeposit = (data: {
   amount: number;

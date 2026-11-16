@@ -46,8 +46,9 @@ export const getStockTransfers = (params?: {search?: string; tab?: string}) =>
 export const getStockTransferSummary = () =>
   api.get('/branch-admin/transfers/summary').then((res: any) => res as Res<TransferSummary>);
 
-export const getTransferSources = (id: string) =>
-  api.get(`/branch-admin/transfers/${id}/sources`).then((res: any) => res as Res<SourceOption[]>);
+// The owner (company admin in shop mode) can also approve, through /shop-admin
+export const getTransferSources = (id: string, panel = 'branch-admin') =>
+  api.get(`/${panel}/transfers/${id}/sources`).then((res: any) => res as Res<SourceOption[]>);
 
-export const decideTransfer = (id: string, data: TransferDecision) =>
-  api.post(`/branch-admin/transfers/${id}/decision`, data).then((res: any) => res as Res<StockTransfer>);
+export const decideTransfer = (id: string, data: TransferDecision, panel = 'branch-admin') =>
+  api.post(`/${panel}/transfers/${id}/decision`, data).then((res: any) => res as Res<StockTransfer>);
