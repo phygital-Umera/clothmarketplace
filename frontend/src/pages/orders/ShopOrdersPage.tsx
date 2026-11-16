@@ -21,7 +21,9 @@ import OrderStatusUpdateModal from '@/components/Orders/OrderStatusUpdateModal';
 import ShippingModal from '@/components/Orders/ShippingModal';
 import CancellationReviewModal from '@/components/Orders/CancellationReviewModal';
 import ReturnReviewModal from '@/components/Orders/ReturnReviewModal';
-import {generateOrderInvoice} from '@/utils/invoiceGenerator';
+import {downloadOrderInvoice} from '@/utils/invoiceGenerator';
+import {getErrorMessage} from '@/utils/axios';
+import toast from 'react-hot-toast';
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -269,7 +271,11 @@ export default function ShopOrdersPage({panel}: Props) {
 
           <button
             type="button"
-            onClick={() => generateOrderInvoice(o)}
+            onClick={() =>
+              downloadOrderInvoice(panel, o.id).catch((err) =>
+                toast.error(getErrorMessage(err, 'Could not get the invoice')),
+              )
+            }
             className="rounded p-1.5 text-outline hover:bg-ivory-200 hover:text-espresso"
             title="Download Tax Invoice"
           >

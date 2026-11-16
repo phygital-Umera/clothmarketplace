@@ -1,3 +1,5 @@
+import {TaxBreakup} from './bill';
+
 export type OrderStatus =
   | 'PENDING'
   | 'CONFIRMED'
@@ -177,6 +179,58 @@ export interface Order {
   returns?: ReturnRequestItem[];
   couponCode?: string;
   couponUsages?: any[];
+  /** GST invoice number from the shop's online series (D-20); null until confirmed / paid */
+  invoiceNumber?: string | null;
+}
+
+/** GET /<panel>/orders/:id/invoice: everything the GST invoice prints, worked out by the server */
+export interface OrderInvoice {
+  invoiceNumber: string;
+  invoiceDate: string;
+  orderId: string;
+  orderNumber: string;
+  orderDate: string;
+  status: OrderStatus;
+  paymentMethod: string;
+  paymentStatus: PaymentStatus;
+  seller: {
+    name: string | null;
+    gstin: string | null;
+    address: string | null;
+    city: string | null;
+    postalCode: string | null;
+    phone: string | null;
+    stateCode: string | null;
+    state: string | null;
+  };
+  buyer: {
+    name: string | null;
+    phone: string | null;
+    address1: string | null;
+    address2: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+  };
+  lines: {
+    id: string;
+    name: string | null;
+    size: string | null;
+    color: string | null;
+    hsnCode: string | null;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+    totalPrice: number;
+    taxable: number;
+    tax: number;
+  }[];
+  subtotal: number;
+  couponCode: string | null;
+  couponDiscount: number;
+  shippingFee: number;
+  totalAmount: number;
+  taxBreakup: TaxBreakup;
 }
 
 export interface OrderDashboardData {

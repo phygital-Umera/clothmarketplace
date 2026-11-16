@@ -11,6 +11,7 @@ import customerService, {DELIVERY_OPTIONS} from './customer.service';
 import {dayKey} from '../../utils/day';
 import {rateFor} from '../../utils/gst';
 import shopGstService from '../shopGst.service';
+import orderInvoiceService from '../orderInvoice.service';
 
 /*
  * Checkout: the bag becomes one order per shop (each shop ships from its own
@@ -122,8 +123,13 @@ class CheckoutService {
 
         // Store prices include GST; keep the GST inside each order for the shop's invoice and reports
         // A product's fixed rate, or its shop's GST price rule on the price of one piece (D-18)
-        const fixed = new Map(
-            (await prisma.product.findMany({where: {id: {in: cart.items.map((l) => l.productId)}}, select: {id: true, taxRate: true}})).map((p) => [p.id, p.taxRate]),
+        const products = new Map(
+            (
+                await prisma.product.findMany({
+                    where: {id: {in: cart.items.map((l) => l.productId)}},
+                    select: {id: true, taxRate: true, hsnCode: true},
+                })
+            ).map((p) => [p.id, p]),
         );
         const ruleOf = await shopGstService.rulesOf([...groups.keys()]);
         const deliveryFee = cart.summary.deliveryFee;
@@ -132,14 +138,22 @@ class CheckoutService {
             const subtotal = round2(lines.reduce((t, l) => t + l.lineTotal, 0));
             const couponDiscount = round2(lines.reduce((t, l) => t + (coupon?.share.get(l.id) ?? 0), 0));
             const fee = i === 0 ? deliveryFee : 0;
+            // Each line's rate is kept on the order item, so its invoice never changes with the rule
+            const rates = new Map(
+                lines.map((l) => {
+                    const paid = l.lineTotal - (coupon?.share.get(l.id) ?? 0);
+                    const rate = rateFor(ruleOf(shopId), products.get(l.productId)?.taxRate, paid / Math.max(1, l.quantity));
+                    return [l.id, rate] as const;
+                }),
+            );
             const tax = round2(
                 lines.reduce((t, l) => {
                     const paid = l.lineTotal - (coupon?.share.get(l.id) ?? 0);
-                    const rate = rateFor(ruleOf(shopId), fixed.get(l.productId), paid / Math.max(1, l.quantity));
+                    const rate = rates.get(l.id)!;
                     return t + (paid * rate) / (100 + rate);
                 }, 0),
             );
-            return {shop, lines, subtotal, couponDiscount, fee, tax, total: round2(subtotal - couponDiscount + fee), number: orderNumber()};
+            return {shop, lines, rates, subtotal, couponDiscount, fee, tax, total: round2(subtotal - couponDiscount + fee), number: orderNumber()};
         });
         const grandTotal = round2(plans.reduce((t, p) => t + p.total, 0));
 
@@ -193,6 +207,8 @@ class CheckoutService {
                                 quantity: l.quantity,
                                 unitPrice: l.price,
                                 totalPrice: l.lineTotal,
+                                taxRate: plan.rates.get(l.id),
+                                hsnCode: products.get(l.productId)?.hsnCode ?? null,
                                 productName: l.name,
                                 size: l.size,
                                 color: l.color,
@@ -283,6 +299,10 @@ class CheckoutService {
                     }),
                 ]),
         );
+        // Paid online: each order gets its GST invoice number (D-20)
+        for (const o of orders) {
+            await prisma.$transaction((tx) => orderInvoiceService.issue(tx, o.id));
+        }
         return {paid: true, orders: orders.map((o) => ({id: o.id, orderNumber: o.orderNumber}))};
     }
 

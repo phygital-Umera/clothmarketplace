@@ -1278,6 +1278,10 @@ model Order {
 
   paymentDetails          Json?
 
+  /// GST invoice number from the shop's online series, e.g. WW/26-27/O0001 (D-20); set when paid or confirmed
+  invoiceNumber  String?
+  invoiceDate    DateTime?
+
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1288,6 +1292,7 @@ model Order {
   couponCode     String?
   couponUsages   CouponUsage[]
 
+  @@unique([shopId, invoiceNumber])
   @@index([companyId])
   @@index([branchId])
   @@index([shopId])
@@ -1307,6 +1312,9 @@ model OrderItem {
   quantity    Int
   unitPrice   Float
   totalPrice  Float
+  /// GST rate and HSN when the order was placed (the invoice prints these)
+  taxRate     Float?
+  hsnCode     String?
   productName String?
   variantSku  String?
   size        String?

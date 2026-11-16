@@ -5,7 +5,9 @@ import PaymentStatusBadge from './PaymentStatusBadge';
 import OrderStatusUpdateModal from './OrderStatusUpdateModal';
 import ShippingModal from './ShippingModal';
 import CancellationReviewModal from './CancellationReviewModal';
-import {generateOrderInvoice} from '@/utils/invoiceGenerator';
+import {downloadOrderInvoice} from '@/utils/invoiceGenerator';
+import {getErrorMessage} from '@/utils/axios';
+import toast from 'react-hot-toast';
 import {
   AlertTriangle,
   Calendar,
@@ -73,7 +75,11 @@ function OrderDetailsModalInner({panel, order, isOpen, onClose, onRefresh}: Prop
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => generateOrderInvoice(order)}
+                onClick={() =>
+                  downloadOrderInvoice(panel, order.id).catch((err) =>
+                    toast.error(getErrorMessage(err, 'Could not get the invoice')),
+                  )
+                }
                 className="flex items-center gap-1.5 rounded-lg border border-ivory-300 bg-white px-3 py-1.5 text-xs font-semibold text-espresso shadow-sm hover:bg-ivory-100"
                 title="Download Tax Invoice PDF"
               >

@@ -216,6 +216,62 @@ export type OrderItem = {
   refundPerUnit: number;
 };
 
+/** GET /store/orders/:id/invoice: the GST invoice as the server worked it out (same number as the shop's panel) */
+export type OrderInvoice = {
+  invoiceNumber: string;
+  invoiceDate: string;
+  orderId: string;
+  orderNumber: string;
+  orderDate: string;
+  paymentMethod: string;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  seller: {
+    name: string | null;
+    gstin: string | null;
+    address: string | null;
+    city: string | null;
+    postalCode: string | null;
+    phone: string | null;
+    stateCode: string | null;
+    state: string | null;
+  };
+  buyer: {
+    name: string | null;
+    phone: string | null;
+    address1: string | null;
+    address2: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+  };
+  lines: {
+    id: string;
+    name: string | null;
+    size: string | null;
+    color: string | null;
+    hsnCode: string | null;
+    quantity: number;
+    taxRate: number;
+    totalPrice: number;
+    taxable: number;
+    tax: number;
+  }[];
+  couponCode: string | null;
+  couponDiscount: number;
+  shippingFee: number;
+  totalAmount: number;
+  taxBreakup: {
+    interState: boolean;
+    placeOfSupply: {code: string | null; name: string | null};
+    rows: {rate: number; taxable: number; tax: number; cgst: number; sgst: number; igst: number}[];
+    taxable: number;
+    tax: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+  };
+};
+
 export type ReturnResolution = 'REFUND' | 'EXCHANGE';
 export type ReturnStatus = 'REQUESTED' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'COMPLETED';
 export type RefundStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'PROCESSED' | 'REJECTED';

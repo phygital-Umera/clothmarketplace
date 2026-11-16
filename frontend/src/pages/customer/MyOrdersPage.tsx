@@ -7,7 +7,15 @@ import {
 import {Order, OrderStatus} from '@/types/order';
 import OrderStatusBadge from '@/components/Orders/OrderStatusBadge';
 import PaymentStatusBadge from '@/components/Orders/PaymentStatusBadge';
-import {generateOrderInvoice} from '@/utils/invoiceGenerator';
+import {downloadOrderInvoice} from '@/utils/invoiceGenerator';
+import {getErrorMessage} from '@/utils/axios';
+import toast from 'react-hot-toast';
+
+// The customer's invoice comes from the store API: the same number the store prints (D-20)
+const openInvoice = (orderId: string) =>
+  downloadOrderInvoice('store', orderId).catch((err) =>
+    toast.error(getErrorMessage(err, 'The invoice is ready once the shop confirms your order')),
+  );
 import {
   AlertTriangle,
   Calendar,
@@ -152,7 +160,7 @@ export default function MyOrdersPage() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => generateOrderInvoice(o)}
+                      onClick={() => openInvoice(o.id)}
                       className="flex items-center gap-1.5 rounded-lg border border-ivory-300 bg-white px-3 py-1.5 text-xs font-semibold text-espresso hover:bg-ivory-100 shadow-sm"
                     >
                       <Download size={13} className="text-burgundy" /> Invoice
@@ -466,7 +474,7 @@ export default function MyOrdersPage() {
             <div className="flex justify-end gap-2.5 pt-3 border-t border-ivory-200">
               <button
                 type="button"
-                onClick={() => generateOrderInvoice(selectedOrder)}
+                onClick={() => openInvoice(selectedOrder.id)}
                 className="flex items-center gap-1.5 rounded-lg border border-ivory-300 bg-white px-4 py-2 text-xs font-semibold text-espresso hover:bg-ivory-100"
               >
                 <Download size={14} className="text-burgundy" /> Download Invoice PDF

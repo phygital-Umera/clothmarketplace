@@ -2,6 +2,7 @@ import {api} from '@/utils/axios';
 import {
   Order,
   OrderDashboardData,
+  OrderInvoice,
   OrderListParams,
   OrderStatus,
   PaymentStatus,
@@ -114,7 +115,7 @@ export const updateReturnStatus = (
 export const getOrderInvoiceData = (panel: string, id: string) =>
   (api.get(
     `/${panel}/orders/${id}/invoice`
-  ) as unknown as Promise<{statusCode: number; data: Order; message: string}>);
+  ) as unknown as Promise<{statusCode: number; data: OrderInvoice; message: string}>);
 
 // -------------------------------------------------------------
 // CUSTOMER ORDER APIS

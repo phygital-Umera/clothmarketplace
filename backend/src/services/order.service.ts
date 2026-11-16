@@ -13,6 +13,7 @@ import ApiError from '@utils/ApiError';
 import {Scope} from './account.service';
 import inventoryService from './inventory.service';
 import {notify, notifyOrderStatus} from './notification.service';
+import orderInvoiceService from './orderInvoice.service';
 
 /** Items a customer is returning: [{orderItemId, quantity}] (older requests have none = whole order) */
 export const returnedLines = <T extends {id: string; quantity: number}>(items: T[], returnItems: unknown) => {
@@ -487,6 +488,8 @@ class OrderService {
                 },
             });
             if (nextStatus !== order.status) await notifyOrderStatus(tx, order, nextStatus);
+            // Confirmed (cash on delivery) or later: the order gets its GST invoice number (D-20)
+            await orderInvoiceService.issue(tx, id);
 
             return res;
         });
@@ -892,9 +895,17 @@ class OrderService {
     // -------------------------------------------------------------
     // 9. INVOICE DATA RETRIEVAL
     // -------------------------------------------------------------
+    /** The order's GST invoice (one number, shared with the store); 400 until it can be invoiced */
     public getInvoiceData = async (scope: Scope, id: string) => {
-        const order = await this.get(scope, id);
-        return order;
+        await this.get(scope, id);
+        const invoice = await orderInvoiceService.invoiceOf(id);
+        if (!invoice) {
+            throw new ApiError(
+                httpStatus.BAD_REQUEST,
+                'The invoice is ready once the order is confirmed (and paid, if paid online)',
+            );
+        }
+        return invoice;
     };
 
     // -------------------------------------------------------------

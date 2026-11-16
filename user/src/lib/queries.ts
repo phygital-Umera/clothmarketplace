@@ -12,6 +12,7 @@ import type {
   Home,
   NotificationList,
   Order,
+  OrderInvoice,
   OrderList,
   OrderTab,
   PaymentStatus,
@@ -243,6 +244,16 @@ export const useOrderList = (tab: OrderTab, q = '') => {
 export const useOrder = (id: string) => {
   const {signedIn} = useAuth();
   return useQuery({queryKey: [PRIVATE, 'order', id], queryFn: () => api.get<Order>(`/store/orders/${id}`), enabled: signedIn && !!id});
+};
+
+/** The order's GST invoice (P4-07); the server issues the number when the order is confirmed or paid */
+export const useOrderInvoice = (id: string, enabled = true) => {
+  const {signedIn} = useAuth();
+  return useQuery({
+    queryKey: [PRIVATE, 'order', id, 'invoice'],
+    queryFn: () => api.get<OrderInvoice>(`/store/orders/${id}/invoice`),
+    enabled: signedIn && !!id && enabled,
+  });
 };
 
 /** After any order change: lists, the order, returns, notifications and the bag may all differ */

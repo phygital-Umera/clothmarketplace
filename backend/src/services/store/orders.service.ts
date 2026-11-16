@@ -5,6 +5,7 @@ import prisma from '../../client';
 import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
 import {gstRuleOf, rateFor} from '../../utils/gst';
+import orderInvoiceService from '../orderInvoice.service';
 import inventoryService from '../inventory.service';
 import {notify} from '../notification.service';
 import {returnedLines} from '../order.service';
@@ -142,7 +143,8 @@ const shape = (o: OrderRow) => {
             unitPrice: i.unitPrice,
             totalPrice: i.totalPrice,
             image: i.image ?? i.product.images[0]?.url ?? null,
-            taxRate: rateFor(gstRule, i.product.taxRate, refundFor(o, i.unitPrice, 1)),
+            // The rate kept at checkout; older orders work it out from the product or shop rule
+            taxRate: i.taxRate ?? rateFor(gstRule, i.product.taxRate, refundFor(o, i.unitPrice, 1)),
             returnUntil: until,
             returnableQty: returnable ? left : 0,
             returnedQty: used[i.id] ?? 0,
@@ -170,6 +172,8 @@ const shape = (o: OrderRow) => {
     return {
         id: o.id,
         orderNumber: o.orderNumber,
+        /** GST invoice number (D-20); null until the order is confirmed / paid */
+        invoiceNumber: o.invoiceNumber,
         status: o.status,
         paymentStatus: o.paymentStatus,
         paymentMethod: o.paymentMethod,
@@ -226,7 +230,10 @@ const shape = (o: OrderRow) => {
             track: o.status !== OrderStatus.CANCELLED,
             return: items.some((i) => i.returnableQty > 0),
             review: o.status === OrderStatus.DELIVERED,
-            invoice: o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.PENDING,
+            invoice:
+                o.status !== OrderStatus.CANCELLED &&
+                o.status !== OrderStatus.PENDING &&
+                (o.paymentMethod !== 'ONLINE' || o.paymentStatus === PaymentStatus.PAID || o.paymentStatus === PaymentStatus.REFUNDED),
             buyAgain: o.status === OrderStatus.DELIVERED || o.status === OrderStatus.CANCELLED || o.status === OrderStatus.RETURNED,
             pay:
                 o.paymentMethod === 'ONLINE' &&
@@ -244,6 +251,17 @@ class StoreOrderService {
         const order = await prisma.order.findFirst({where: {id, customerId: userId}, include: ORDER_INCLUDE});
         if (!order) throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
         return order;
+    }
+
+    /** The order's GST invoice: the same number and figures the shop's panel prints (D-20) */
+    public async invoice(userId: string, id: string) {
+        const owned = await prisma.order.count({where: {id, customerId: userId}});
+        if (!owned) throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+        const invoice = await orderInvoiceService.invoiceOf(id);
+        if (!invoice) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'The invoice is ready once the shop confirms your order.');
+        }
+        return invoice;
     }
 
     public async list(userId: string, tab: (typeof ORDER_TABS)[number], q?: string) {
