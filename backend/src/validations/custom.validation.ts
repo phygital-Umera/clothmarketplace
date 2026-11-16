@@ -194,6 +194,13 @@ export const dateRange =
         }
     };
 
+/** HSN code of a product: 4, 6 or 8 digits (GST invoices print it) */
+export const hsnCode = z
+    .string({required_error: 'HSN Code is required', invalid_type_error: 'Enter a valid HSN Code'})
+    .trim()
+    .min(1, 'HSN Code is required')
+    .regex(/^(\d{4}|\d{6}|\d{8})$/, 'HSN Code must be 4, 6 or 8 digits');
+
 /** Image uploads: checked by multer (middlewares/multer.middleware.ts) */
 export const IMAGE_RULE = {
     mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'],

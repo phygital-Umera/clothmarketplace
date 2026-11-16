@@ -24,6 +24,7 @@ export interface PrintableSalesBill {
     unitPrice: number;
     discount: number;
     taxRate: number;
+    hsnCode?: string | null;
     totalPrice: number;
   }>;
   subtotal: number;
@@ -183,7 +184,9 @@ export function salesBillHtml(
 
   const items = bill.items
     .map((i) => {
-      const variant = [i.size, i.color].filter(Boolean).join(' / ');
+      const variant = [i.size, i.color, i.hsnCode ? `HSN ${i.hsnCode}` : '']
+        .filter(Boolean)
+        .join(' / ');
       const qtyRate = `${i.quantity} x ${inr(i.unitPrice)}${i.discount > 0 ? ` less ${inr(i.discount)}` : ''}`;
       return `<div class="item">${div(i.productName || i.variantSku || 'Item', 'b')}${when(variant, () => div(variant, 's'))}${row(qtyRate, inr(i.totalPrice))}</div>`;
     })

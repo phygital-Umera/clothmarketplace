@@ -32,6 +32,11 @@ export const productSchema = z
     mrp: field({label: 'MRP', kind: 'price'}),
     sellingPrice: field({label: 'Selling Price', kind: 'price'}),
     taxRate: z.coerce.number(),
+    hsnCode: z
+      .string()
+      .trim()
+      .min(1, 'HSN Code is required')
+      .regex(/^(\d{4}|\d{6}|\d{8})$/, 'HSN Code must be 4, 6 or 8 digits'),
     fabric: text('Fabric', 60),
     pattern: text('Pattern', 60),
     fit: text('Fit', 60),
@@ -97,6 +102,7 @@ export const EMPTY_PRODUCT: ProductValues = {
   mrp: '',
   sellingPrice: '',
   taxRate: 5,
+  hsnCode: '',
   fabric: '',
   pattern: '',
   fit: '',

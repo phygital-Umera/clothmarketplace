@@ -125,6 +125,7 @@ const ShopProductDetail = () => {
                   <StockBadge qty={p.stock} />
                 </Detail>
                 <Detail label="GST">{`${p.taxRate}%`}</Detail>
+                <Detail label="HSN Code">{p.hsnCode || '—'}</Detail>
                 <Detail label="Sizes" wide>
                   <span className="flex flex-wrap gap-1.5">
                     {p.sizes.map((s) => (

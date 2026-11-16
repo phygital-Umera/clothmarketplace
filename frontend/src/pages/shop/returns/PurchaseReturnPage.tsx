@@ -184,7 +184,7 @@ export default function PurchaseReturnPage() {
           variantId: item.variantId,
           productName: item.productName,
           size: item.size,
-          hsn: item.hsn,
+          hsn: item.hsn || undefined,
           boughtQty: item.boughtQty,
           inStockQty: item.inStockQty,
           returnQty: item.returnQty,
@@ -332,7 +332,7 @@ export default function PurchaseReturnPage() {
                           {item.productName}
                         </p>
                         <p className="text-[10px] text-espresso/60 uppercase tracking-wide mt-0.5">
-                          {item.size} · HSN {item.hsn}
+                          {item.size} · HSN {item.hsn || '—'}
                         </p>
                       </td>
 

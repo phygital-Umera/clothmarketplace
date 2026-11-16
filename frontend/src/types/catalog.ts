@@ -104,6 +104,7 @@ export interface Product {
   mrp: number;
   sellingPrice: number;
   taxRate: number;
+  hsnCode: string | null;
   weightKg: number | null;
   dimensions: string | null;
   returnEligible: boolean;

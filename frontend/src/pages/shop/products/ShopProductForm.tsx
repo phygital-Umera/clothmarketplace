@@ -386,6 +386,14 @@ const Form = ({product}: {product?: ShopProduct}) => {
                   label: `${r}%`,
                 }))}
               />
+              <GenericInputField
+                name="hsnCode"
+                label="HSN Code"
+                kind="text"
+                placeholder="6204"
+                hint="4, 6 or 8 digits; printed on bills and invoices"
+                required
+              />
             </div>
             {product ? (
               <div className="mt-4">

@@ -4,7 +4,7 @@ export interface PurchaseBillReturnItem {
   variantId?: string;
   productName: string;
   size: string;
-  hsn: string;
+  hsn: string | null;
   boughtQty: number;
   inStockQty: number;
   returnQty: number;

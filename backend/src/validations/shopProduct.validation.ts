@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {GenderTarget, ProductStatus} from '@prisma/client';
-import {field} from './custom.validation';
+import {field, hsnCode} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
 
 // Shop-side products: built on the shop masters (category, subcategory,
@@ -73,6 +73,7 @@ const productFields = {
     occasion: text('Occasion', 60),
     season: text('Season', 60),
     careInstructions: text('Care Instructions', 300),
+    hsnCode,
     taxRate: z.coerce
         .number()
         .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%')

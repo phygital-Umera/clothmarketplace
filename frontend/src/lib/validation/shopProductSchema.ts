@@ -44,6 +44,11 @@ export const shopProductSchema = z
     status: z.enum(['DRAFT', 'PUBLISHED', 'UNPUBLISHED']),
     gender: z.string(),
     taxRate: z.coerce.number(),
+    hsnCode: z
+      .string()
+      .trim()
+      .min(1, 'HSN Code is required')
+      .regex(/^(\d{4}|\d{6}|\d{8})$/, 'HSN Code must be 4, 6 or 8 digits'),
     productType: text('Product Type', 60),
     fabric: text('Fabric', 60),
     pattern: text('Pattern', 60),
@@ -83,6 +88,7 @@ export const EMPTY_SHOP_PRODUCT: ShopProductValues = {
   status: 'DRAFT',
   gender: 'UNISEX',
   taxRate: 5,
+  hsnCode: '',
   productType: '',
   fabric: '',
   pattern: '',
@@ -113,6 +119,7 @@ export const fromShopProduct = (p: ShopProduct): ShopProductValues => ({
     p.status === 'PUBLISHED' || p.status === 'UNPUBLISHED' ? p.status : 'DRAFT',
   gender: p.gender,
   taxRate: p.taxRate,
+  hsnCode: p.hsnCode ?? '',
   productType: p.productType ?? '',
   fabric: p.fabric ?? '',
   pattern: p.pattern ?? '',

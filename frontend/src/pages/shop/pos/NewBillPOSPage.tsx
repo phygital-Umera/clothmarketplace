@@ -283,7 +283,8 @@ export default function NewBillPOSPage() {
         size: invItem.variant?.size ?? invItem.size ?? 'Std',
         color: invItem.variant?.color ?? invItem.color ?? 'N/A',
         colorHex: invItem.variant?.colorHex ?? invItem.colorHex,
-        hsn: invItem.product?.hsnCode ?? '6204',
+        // No made-up code: a product without HSN shows "—" until it is set
+        hsn: invItem.product?.hsnCode || '—',
         mrp: Number(invItem.variant?.mrp ?? invItem.product?.mrp ?? invItem.mrp ?? 0),
         rate: Number(
           invItem.variant?.sellingPrice ??

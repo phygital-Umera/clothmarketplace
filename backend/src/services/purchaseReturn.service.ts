@@ -12,7 +12,7 @@ export interface PurchaseBillReturnItem {
   variantId: string;
   productName: string;
   size: string;
-  hsn: string;
+  hsn: string | null;
   boughtQty: number;
   inStockQty: number;
   returnQty: number;
@@ -101,7 +101,8 @@ class PurchaseReturnService {
         }
 
         const sizeLabel = item.variant?.size || 'Free Size';
-        const hsnLabel = (item.product as any)?.hsnCode || '6206';
+        // The HSN saved on the bill line, else the product's; never a made-up code
+        const hsnLabel = item.hsnCode || item.product?.hsnCode || null;
 
         items.push({
           id: item.id,
@@ -186,7 +187,18 @@ class PurchaseReturnService {
       ? await prisma.purchaseBill.findFirst({
           where: { id: data.purchaseBillId, shopId: scope.shopId, status: 'CONFIRMED', deletedAt: null },
           include: {
-            items: { select: { id: true, taxRate: true, unitCost: true, quantity: true, productId: true, variantId: true } },
+            items: {
+              select: {
+                id: true,
+                taxRate: true,
+                unitCost: true,
+                quantity: true,
+                productId: true,
+                variantId: true,
+                hsnCode: true,
+                product: { select: { hsnCode: true } },
+              },
+            },
           },
         })
       : null;
@@ -208,6 +220,10 @@ class PurchaseReturnService {
     const rateOf = (item: (typeof activeItems)[number]) => lineOf(item)?.taxRate ?? item.taxRate;
     const costOf = (item: (typeof activeItems)[number]) => lineOf(item)?.unitCost ?? item.unitCost;
     const variantOf = (item: (typeof activeItems)[number]) => lineOf(item)?.variantId ?? item.variantId;
+    const hsnOf = (item: (typeof activeItems)[number]) => {
+      const line = lineOf(item);
+      return line ? line.hsnCode || line.product?.hsnCode || null : item.hsn || null;
+    };
 
     let returnValue = 0;
     let taxAmount = 0;
@@ -286,7 +302,7 @@ class PurchaseReturnService {
               variantId: variantOf(item) || null,
               productName: item.productName,
               size: item.size || null,
-              hsn: item.hsn || null,
+              hsn: hsnOf(item),
               boughtQty: item.boughtQty,
               inStockQty: item.inStockQty,
               returnQty: item.returnQty,

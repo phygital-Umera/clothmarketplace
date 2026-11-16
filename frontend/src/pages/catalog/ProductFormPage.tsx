@@ -47,6 +47,7 @@ const fromProduct = (p: Product): ProductValues => ({
   mrp: p.mrp,
   sellingPrice: p.sellingPrice,
   taxRate: p.taxRate,
+  hsnCode: p.hsnCode ?? '',
   fabric: p.fabric ?? '',
   pattern: p.pattern ?? '',
   fit: p.fit ?? '',
@@ -262,6 +263,14 @@ const ProductForm = ({
                   value: String(r),
                   label: `${r}%`,
                 }))}
+              />
+              <GenericInputField
+                name="hsnCode"
+                label="HSN Code"
+                kind="text"
+                placeholder="6204"
+                hint="4, 6 or 8 digits; printed on bills and invoices"
+                required
               />
               <GenericTextArea
                 name="shortDesc"

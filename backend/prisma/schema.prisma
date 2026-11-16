@@ -501,6 +501,8 @@ model Product {
   /// Last time the selling price was changed (branch pricing)
   priceChangedAt DateTime?
   taxRate        Float           @default(5.0) // Typical apparel GST (5% / 12%)
+  /// HSN code printed on bills, invoices and debit notes (4, 6 or 8 digits)
+  hsnCode        String?
   currency       String          @default("INR")
 
   // Shipping specifications
@@ -768,6 +770,8 @@ model PurchaseBillItem {
   quantity  Int
   unitCost  Float
   taxRate   Float          @default(0)
+  /// The product's HSN when the line was saved
+  hsnCode   String?
   totalCost Float
 
   @@index([billId])
@@ -855,6 +859,8 @@ model SalesBillItem {
   unitPrice   Float
   discount    Float          @default(0)
   taxRate     Float          @default(0)
+  /// The product's HSN when the line was saved
+  hsnCode     String?
   totalPrice  Float
   productName String?
   variantSku  String?

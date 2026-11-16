@@ -819,6 +819,7 @@ class InventoryService {
                             mrp: true,
                             sellingPrice: true,
                             taxRate: true,
+                            hsnCode: true,
                             category: {select: {id: true, name: true}},
                             images: {where: {isMain: true}, take: 1, select: {url: true}},
                         },
@@ -852,6 +853,7 @@ class InventoryService {
                     category: v.product.category.name,
                     image: v.product.images[0]?.url ?? null,
                     taxRate: v.product.taxRate,
+                    hsnCode: v.product.hsnCode,
                     mrp: v.product.mrp,
                 },
                 variant: {

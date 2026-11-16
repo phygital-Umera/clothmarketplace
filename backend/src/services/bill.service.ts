@@ -135,7 +135,7 @@ class BillService {
                 variantSku: true,
                 size: true,
                 color: true,
-                product: {select: {name: true}},
+                product: {select: {name: true, hsnCode: true}},
             },
         });
         if (variants.length !== variantIds.length) {
@@ -338,6 +338,7 @@ class BillService {
                 quantity: item.quantity,
                 unitCost: item.unitCost,
                 taxRate: item.taxRate,
+                hsnCode: v.product.hsnCode,
                 totalCost: round2(net + tax),
             };
         });
@@ -384,6 +385,7 @@ class BillService {
                 unitPrice: item.unitPrice,
                 discount: item.discount,
                 taxRate: item.taxRate,
+                hsnCode: v.product.hsnCode,
                 totalPrice,
                 productName: v.product.name,
                 variantSku: v.variantSku,
