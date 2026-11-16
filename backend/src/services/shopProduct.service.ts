@@ -8,6 +8,7 @@ import {shopProductValidation} from '@validations/index';
 import accountService from './account.service';
 import inventoryService from './inventory.service';
 import masterService from './master.service';
+import shopGstService from './shopGst.service';
 
 type CreateShopProduct = z.infer<typeof shopProductValidation.createShopProductSchema>;
 type UpdateShopProduct = z.infer<typeof shopProductValidation.updateShopProductSchema>;
@@ -336,6 +337,7 @@ class ShopProductService {
         await masterService.ensureShopMasters(scope.shopId);
         await this.assertRefs(scope, data);
         if (data.sku) await this.assertSkuFree(data.sku);
+        await shopGstService.assertRateAllowed(scope.shopId, data.taxRate);
         const [company, shop] = await Promise.all([
             prisma.company.findUniqueOrThrow({where: {id: scope.companyId}, select: {code: true}}),
             prisma.shop.findUniqueOrThrow({where: {id: scope.shopId}, select: {branchId: true}}),
@@ -435,6 +437,9 @@ class ShopProductService {
             {sizeIds: before.sizes.map((s) => s.id), colorIds: before.colors.map((c) => c.id)},
         );
         if (data.sku && data.sku !== before.sku) await this.assertSkuFree(data.sku, id);
+        if (data.taxRate !== before.taxRate) {
+            await shopGstService.assertRateAllowed(before.shopId, data.taxRate);
+        }
 
         const {sizeIds, colorIds, ...fields} = data;
         const sku = data.sku ?? before.sku;

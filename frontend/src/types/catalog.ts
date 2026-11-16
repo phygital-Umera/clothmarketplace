@@ -103,7 +103,8 @@ export interface Product {
   countryOfOrigin: string | null;
   mrp: number;
   sellingPrice: number;
-  taxRate: number;
+  /** Fixed GST rate; null = the shop's GST rule (D-18) */
+  taxRate: number | null;
   hsnCode: string | null;
   weightKg: number | null;
   dimensions: string | null;

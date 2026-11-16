@@ -9,6 +9,8 @@ import {
 } from '@/lib/react-query/queriesAndMutations/shopProduct';
 import ProductStatusBadge from '@/pages/catalog/ProductStatusBadge';
 import {getErrorMessage} from '@/utils/axios';
+import {rateLabel} from '@/lib/api/gst';
+import {useGstRule} from '@/lib/react-query/queriesAndMutations/gst';
 import {Link, useNavigate, useParams} from '@tanstack/react-router';
 import {Loader2, Pencil, Trash2} from 'lucide-react';
 import {ReactNode, useEffect, useState} from 'react';
@@ -41,6 +43,7 @@ const ShopProductDetail = () => {
   const navigate = useNavigate();
   const {data: p, isPending, isError, error} = useShopProduct(productId);
   const remove = useDeleteShopProduct();
+  const {data: gstRule} = useGstRule();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -124,7 +127,7 @@ const ShopProductDetail = () => {
                 <Detail label="Stock">
                   <StockBadge qty={p.stock} />
                 </Detail>
-                <Detail label="GST">{`${p.taxRate}%`}</Detail>
+                <Detail label="GST">{rateLabel(p.taxRate, gstRule)}</Detail>
                 <Detail label="HSN Code">{p.hsnCode || '—'}</Detail>
                 <Detail label="Sizes" wide>
                   <span className="flex flex-wrap gap-1.5">

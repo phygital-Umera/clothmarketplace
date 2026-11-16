@@ -2,6 +2,8 @@ import {BillStatus, Prisma} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../client';
 import {BranchScope} from './customerDue.service';
+import shopGstService from './shopGst.service';
+import {rateFor} from '../utils/gst';
 
 /*
  * Products & Prices for the branch: the real products of the branch's shops,
@@ -80,6 +82,8 @@ class BranchPricingService {
             [...bought].filter(([, b]) => b.qty > 0).map(([id, b]) => [id, round2(b.value / b.qty)]),
         );
 
+        // GST at the shop price: the product's fixed rate, or its shop's price rule (D-18)
+        const ruleOf = await shopGstService.rulesOf(products.map((p) => p.shop?.id));
         const rows = products.map((p) => {
             const branchPrice = p.sellingPrice || p.mrp;
             const cost = avgCost.get(p.id) ?? null;
@@ -91,7 +95,7 @@ class BranchPricingService {
                 category: p.category?.name ?? '—',
                 categoryId: p.category?.id ?? null,
                 shop: p.shop,
-                taxRate: p.taxRate,
+                taxRate: rateFor(ruleOf(p.shop?.id), p.taxRate, branchPrice),
                 avgCost: cost,
                 mrp: p.mrp,
                 branchPrice,

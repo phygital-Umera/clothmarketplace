@@ -33,6 +33,8 @@ const RULES: Record<string, Rule> = {
     products: only('products'),
     // Whether AI photos are set up (shown on the product page)
     'ai-status': only('products'),
+    // The shop's GST rule: the POS, product form and purchase bills read it; only the shop admin changes it
+    'gst-rule': {read: ['billing', 'products', 'purchase'], write: []},
     // The POS picks items from stock
     inventory: {read: ['stock', 'billing', 'products'], write: ['stock']},
     stock: only('stock'),

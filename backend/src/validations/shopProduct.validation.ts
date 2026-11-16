@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {GenderTarget, ProductStatus} from '@prisma/client';
 import {field, hsnCode} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
+import {productGstRate} from './shopGst.validation';
 
 // Shop-side products: built on the shop masters (category, subcategory,
 // sizes, colors). Price = mrp, discount price = sellingPrice.
@@ -74,10 +75,8 @@ const productFields = {
     season: text('Season', 60),
     careInstructions: text('Care Instructions', 300),
     hsnCode,
-    taxRate: z.coerce
-        .number()
-        .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%')
-        .default(5),
+    // null = the shop's GST rule (D-18); a fixed rate must be one of the shop's slabs (checked in the service)
+    taxRate: productGstRate.default(null),
 };
 
 const priceRule = (v: {mrp?: number; sellingPrice?: number}, ctx: z.RefinementCtx) => {
@@ -116,9 +115,7 @@ const updateShopProductSchema = z
         status: z.enum(SHOP_STATUSES),
         gender: z.nativeEnum(GenderTarget),
         tags: productFields.tags.removeDefault(),
-        taxRate: z.coerce
-            .number()
-            .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%'),
+        taxRate: productGstRate,
     })
     .partial()
     .superRefine(priceRule);

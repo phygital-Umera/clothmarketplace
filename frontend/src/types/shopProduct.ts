@@ -59,7 +59,8 @@ export interface ShopProduct {
   colors: {id: string; name: string; code: string; hexCode: string}[];
   mrp: number;
   sellingPrice: number;
-  taxRate: number;
+  /** Fixed GST rate; null = the shop's GST rule (D-18) */
+  taxRate: number | null;
   hsnCode: string | null;
   /** Live stock of the active variants in the shop's branch (what the POS and the store sell from) */
   stock: number;

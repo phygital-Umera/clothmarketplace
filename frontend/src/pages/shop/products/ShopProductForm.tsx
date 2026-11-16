@@ -32,6 +32,8 @@ import {
 import {GENDERS} from '@/types/catalog';
 import {SHOP_PRODUCT_STATUSES, ShopProduct} from '@/types/shopProduct';
 import {getErrorMessage} from '@/utils/axios';
+import {AUTO_RATE} from '@/lib/api/gst';
+import {useGstRule} from '@/lib/react-query/queriesAndMutations/gst';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {Link, useNavigate, useParams} from '@tanstack/react-router';
 import {Loader2} from 'lucide-react';
@@ -118,6 +120,7 @@ const OpeningStock = ({
 const Form = ({product}: {product?: ShopProduct}) => {
   const navigate = useNavigate();
   const save = useSaveShopProduct();
+  const {data: gstRule} = useGstRule();
   const [formError, setFormError] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -380,11 +383,17 @@ const Form = ({product}: {product?: ShopProduct}) => {
               <GenericDropdown
                 name="taxRate"
                 label="GST"
-                hint="GST rate on this item."
-                options={[0, 5, 12, 18].map((r) => ({
-                  value: String(r),
-                  label: `${r}%`,
-                }))}
+                hint="Auto follows your GST rule by price (GST Settings)."
+                options={[
+                  {
+                    value: AUTO_RATE,
+                    label: gstRule ? `Auto: ${gstRule.summary}` : 'Auto (shop rule)',
+                  },
+                  ...(gstRule?.slabs ?? [0, 5, 12, 18]).map((r) => ({
+                    value: String(r),
+                    label: `${r}%`,
+                  })),
+                ]}
               />
               <GenericInputField
                 name="hsnCode"

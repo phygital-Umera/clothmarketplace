@@ -26,6 +26,7 @@ import {
 } from '@/lib/validation/productSchema';
 import {CatalogPanel, GENDERS, Product} from '@/types/catalog';
 import {getErrorMessage} from '@/utils/axios';
+import {AUTO_RATE, GST_RATES} from '@/lib/api/gst';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {Link, useNavigate, useParams} from '@tanstack/react-router';
 import {Loader2, Send} from 'lucide-react';
@@ -46,7 +47,7 @@ const fromProduct = (p: Product): ProductValues => ({
   productType: p.productType ?? '',
   mrp: p.mrp,
   sellingPrice: p.sellingPrice,
-  taxRate: p.taxRate,
+  taxRate: p.taxRate === null ? AUTO_RATE : String(p.taxRate),
   hsnCode: p.hsnCode ?? '',
   fabric: p.fabric ?? '',
   pattern: p.pattern ?? '',
@@ -259,10 +260,11 @@ const ProductForm = ({
               <GenericDropdown
                 name="taxRate"
                 label="GST"
-                options={[0, 5, 12, 18].map((r) => ({
-                  value: String(r),
-                  label: `${r}%`,
-                }))}
+                hint="Auto uses the shop's GST rule by price; a fixed rate must be one of the shop's slabs"
+                options={[
+                  {value: AUTO_RATE, label: 'Auto (shop rule)'},
+                  ...GST_RATES.map((r) => ({value: String(r), label: `${r}%`})),
+                ]}
               />
               <GenericInputField
                 name="hsnCode"

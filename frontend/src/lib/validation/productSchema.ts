@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {AUTO_RATE} from '@/lib/api/gst';
 import {field} from './fieldRules';
 
 // Same labels and rules as backend/src/validations/catalog.validation.ts.
@@ -31,7 +32,8 @@ export const productSchema = z
     productType: text('Product Type', 60),
     mrp: field({label: 'MRP', kind: 'price'}),
     sellingPrice: field({label: 'Selling Price', kind: 'price'}),
-    taxRate: z.coerce.number(),
+    // 'AUTO' = the shop's GST rule (D-18), else a fixed rate such as '5'
+    taxRate: z.string(),
     hsnCode: z
       .string()
       .trim()
@@ -101,7 +103,7 @@ export const EMPTY_PRODUCT: ProductValues = {
   productType: '',
   mrp: '',
   sellingPrice: '',
-  taxRate: 5,
+  taxRate: AUTO_RATE,
   hsnCode: '',
   fabric: '',
   pattern: '',
@@ -136,6 +138,7 @@ export const toProductBody = (v: ProductOutput) => {
   const {tagsText, weightKg, variants, ...rest} = v;
   return {
     ...rest,
+    taxRate: rest.taxRate === AUTO_RATE ? null : Number(rest.taxRate),
     brandId: rest.brandId || undefined,
     weightKg:
       weightKg === '' || weightKg === undefined ? undefined : Number(weightKg),

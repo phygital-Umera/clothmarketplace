@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {ReturnSettlement, ReturnStockTo} from '@prisma/client';
 import {field} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
+import {gstRate} from './shopGst.validation';
 
 // Sales returns: a credit note returns units of a confirmed POS sales bill.
 // Amounts are always computed on the server from the original bill.
@@ -31,10 +32,7 @@ const createCreditNoteSchema = z
                         .min(1, 'Quantity must be at least 1')
                         .max(100_000),
                     unitPrice: z.coerce.number().min(0).max(10_000_000),
-                    taxRate: z.coerce
-                        .number()
-                        .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%')
-                        .default(0),
+                    taxRate: gstRate('Tax Rate').default(0),
                 }),
             )
             .max(200)

@@ -1,3 +1,4 @@
+import {AUTO_RATE} from '@/lib/api/gst';
 import {ShopProduct} from '@/types/shopProduct';
 import {z} from 'zod';
 import {field} from './fieldRules';
@@ -43,7 +44,8 @@ export const shopProductSchema = z
     ),
     status: z.enum(['DRAFT', 'PUBLISHED', 'UNPUBLISHED']),
     gender: z.string(),
-    taxRate: z.coerce.number(),
+    // 'AUTO' = the shop's GST rule (D-18), else a fixed rate such as '5'
+    taxRate: z.string(),
     hsnCode: z
       .string()
       .trim()
@@ -87,7 +89,7 @@ export const EMPTY_SHOP_PRODUCT: ShopProductValues = {
   openingStock: {},
   status: 'DRAFT',
   gender: 'UNISEX',
-  taxRate: 5,
+  taxRate: AUTO_RATE,
   hsnCode: '',
   productType: '',
   fabric: '',
@@ -118,7 +120,7 @@ export const fromShopProduct = (p: ShopProduct): ShopProductValues => ({
   status:
     p.status === 'PUBLISHED' || p.status === 'UNPUBLISHED' ? p.status : 'DRAFT',
   gender: p.gender,
-  taxRate: p.taxRate,
+  taxRate: p.taxRate === null ? AUTO_RATE : String(p.taxRate),
   hsnCode: p.hsnCode ?? '',
   productType: p.productType ?? '',
   fabric: p.fabric ?? '',
@@ -160,6 +162,7 @@ export const toShopProductBody = ({
     );
   return {
     ...rest,
+    taxRate: rest.taxRate === AUTO_RATE ? null : Number(rest.taxRate),
     sku: sku || undefined,
     subcategoryId: subcategoryId || null,
     tags: (tagsText ?? '')

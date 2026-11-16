@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {BillStatus, SalesBillType} from '@prisma/client';
 import {field} from './custom.validation';
 import {listQuerySchema} from '../utils/list';
+import {gstRate} from './shopGst.validation';
 
 // Shop purchase bills (stock in) and sales bills (stock out). Totals are
 // always recomputed on the server; only quantities and rates are trusted.
@@ -19,10 +20,8 @@ const quantity = z.coerce
     .int('Quantity must be a whole number')
     .min(1, 'Quantity must be at least 1')
     .max(100_000, 'Quantity is too large');
-const taxRate = z.coerce
-    .number()
-    .refine((v) => [0, 5, 12, 18].includes(v), 'Tax Rate must be 0, 5, 12 or 18%')
-    .default(0);
+// Any GST rate in use; purchase lines carry the supplier's rate (D-18)
+const taxRate = gstRate('Tax Rate').default(0);
 const billDate = z.coerce
     .date({invalid_type_error: 'Enter a valid Bill Date'})
     .refine((d) => d.getTime() <= Date.now() + 60_000, 'Bill Date cannot be in the future')

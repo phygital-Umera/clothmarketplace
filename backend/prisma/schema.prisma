@@ -244,6 +244,8 @@ model Shop {
   gstin       String?
   /// Sales bill series prefix, e.g. WW -> WW/26-27/00001 (falls back to the shop code)
   billPrefix  String?
+  /// GST price rule and allowed slabs (D-18): {threshold, rateUpTo, rateAbove, slabs}; null = defaults
+  gstRule     Json?
   openingTime String?
   closingTime String?
   notes       String?
@@ -500,7 +502,8 @@ model Product {
   sellingPrice   Float           @default(0)
   /// Last time the selling price was changed (branch pricing)
   priceChangedAt DateTime?
-  taxRate        Float           @default(5.0) // Typical apparel GST (5% / 12%)
+  /// Fixed GST rate of this product; null = the shop's GST price rule (Shop.gstRule, D-18)
+  taxRate        Float?
   /// HSN code printed on bills, invoices and debit notes (4, 6 or 8 digits)
   hsnCode        String?
   currency       String          @default("INR")

@@ -1,5 +1,7 @@
 import {useInventory} from '@/lib/react-query/queriesAndMutations/ecommerce';
 import {useSaveBill} from '@/lib/react-query/queriesAndMutations/bill';
+import {useGstRule} from '@/lib/react-query/queriesAndMutations/gst';
+import {GST_RATES} from '@/lib/api/gst';
 import {Bill, BillKind, BillPayload, PaymentMethod} from '@/types/bill';
 import {Link} from '@tanstack/react-router';
 import {
@@ -40,7 +42,6 @@ type Line = {
   taxRate: number;
 };
 
-const TAX_RATES = [0, 5, 12, 18];
 const round2 = (v: number) => Math.round(v * 100) / 100;
 // The shop's calendar day (toISOString would give the UTC day before 05:30 IST)
 const today = () => format(new Date(), 'yyyy-MM-dd');
@@ -69,6 +70,11 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
   const inclusive = !isPurchase && (bill ? !!bill.pricesIncludeTax : true);
   const wasPosted = bill?.status === 'CONFIRMED';
   const save = useSaveBill(panel, kind);
+  // Purchase lines carry the supplier's rate (any GST rate); sales use the shop's slabs (D-18)
+  const {data: gstRule} = useGstRule(!isPurchase && panel === 'shop-admin');
+  const taxRates: number[] = isPurchase
+    ? [...GST_RATES]
+    : (gstRule?.slabs ?? [0, 5, 12, 18]);
 
   // Payments taken when the bill was saved are re-entered here; payments
   // collected / paid later stay on the bill and count towards it.
@@ -726,11 +732,13 @@ export default function BillFormModal({panel, kind, bill, onClose}: Props) {
                             }
                             className="rounded-lg border border-ivory-300 px-1 py-1.5 focus:border-burgundy focus:outline-none"
                           >
-                            {TAX_RATES.map((r) => (
-                              <option key={r} value={r}>
-                                {r}%
-                              </option>
-                            ))}
+                            {[...new Set([...taxRates, l.taxRate])]
+                              .sort((a, b) => a - b)
+                              .map((r) => (
+                                <option key={r} value={r}>
+                                  {r}%
+                                </option>
+                              ))}
                           </select>
                         </td>
                         <td className="py-2 text-right font-semibold text-espresso">

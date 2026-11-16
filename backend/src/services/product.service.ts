@@ -8,6 +8,7 @@ import {catalogValidation} from '@validations/index';
 import accountService from './account.service';
 import categoryBrandService from './categoryBrand.service';
 import masterService from './master.service';
+import shopGstService from './shopGst.service';
 
 type CreateProduct = z.infer<typeof catalogValidation.createProductSchema>;
 type UpdateProduct = z.infer<typeof catalogValidation.updateProductSchema>;
@@ -186,6 +187,7 @@ class ProductService {
         await categoryBrandService.assertUsable(companyId, data.categoryId, data.brandId);
         const shopId = await this.ownShop(actor, data.shopId);
         await masterService.ensureShopMasters(shopId);
+        await shopGstService.assertRateAllowed(shopId, data.taxRate);
         const company = await prisma.company.findUniqueOrThrow({
             where: {id: companyId},
             select: {code: true},
@@ -262,6 +264,9 @@ class ProductService {
             ]);
         }
         const newShopId = shopId && !before.shopId ? await this.ownShop(actor, shopId) : undefined;
+        if (fields.taxRate !== before.taxRate) {
+            await shopGstService.assertRateAllowed(newShopId ?? before.shopId, fields.taxRate);
+        }
         // D-13: prices are changed by the shop; this form sets them only for a new product or variant
         const same = (a?: number | null, b?: number | null) => (a ?? null) === (b ?? null);
         const priceChanged =

@@ -16,6 +16,7 @@ import {
     branchReportsController,
     dayCloseController,
     stockTransferController,
+    shopGstController,
 } from '@controllers/index';
 import {
     checkRole,
@@ -64,6 +65,10 @@ router.route('/colors').get(m.listColors).post(m.createColor);
 router.route('/colors/:id').get(m.getColor).patch(m.updateColor).delete(m.deleteColor);
 router.route('/sizes').get(m.listSizes).post(m.createSize);
 router.route('/sizes/:id').get(m.getSize).patch(m.updateSize).delete(m.deleteSize);
+
+// ---- GST price rule and slabs (D-18): read by the POS and the product form;
+// changed only under /shop-admin (see adminRoutes) ----
+router.get('/gst-rule', shopGstController.get);
 
 // ---- 5. Products ----
 // Create takes form data: the product fields and its photos in one request
@@ -180,6 +185,8 @@ ownerRoutes.post('/day-close/resolve-difference', ownerOnly, dayCloseController.
 // Transfers of the open shop's branch, same handlers as the branch admin's
 ownerRoutes.get('/transfers/:id/sources', ownerOnly, stockTransferController.branch.sources);
 ownerRoutes.post('/transfers/:id/decision', ownerOnly, stockTransferController.branch.decide);
+// Shop settings: the shop login and the owner in shop mode, never employees
+ownerRoutes.patch('/gst-rule', shopGstController.update);
 
 // Only the shop login and the company admin in shop mode (D-08): a company admin
 // works in one of their shops via X-Shop-Id (companyAdminShopMode). The super

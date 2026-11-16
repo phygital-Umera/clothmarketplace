@@ -4,6 +4,8 @@ import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '@utils/ApiError';
 import accountService, {Scope} from './account.service';
+import shopGstService from './shopGst.service';
+import {rateFor} from '../utils/gst';
 
 export interface AdjustStockInput {
     branchId?: string;
@@ -820,6 +822,7 @@ class InventoryService {
                             sellingPrice: true,
                             taxRate: true,
                             hsnCode: true,
+                            shopId: true,
                             category: {select: {id: true, name: true}},
                             images: {where: {isMain: true}, take: 1, select: {url: true}},
                         },
@@ -835,12 +838,15 @@ class InventoryService {
             prisma.productVariant.count({where: variantWhere}),
         ]);
 
+        // GST at the tag price: the product's fixed rate, or its shop's price rule (D-18)
+        const ruleOf = await shopGstService.rulesOf(variants.map((v) => v.product.shopId));
         const items = variants.map((v) => {
             const inv = v.inventories[0];
             const physical = inv?.physicalQty ?? 0;
             const reserved = inv?.reservedQty ?? 0;
             const threshold = inv?.threshold ?? 5;
             const available = Math.max(0, physical - reserved);
+            const price = v.sellingPrice ?? v.product.sellingPrice ?? v.product.mrp;
 
             return {
                 id: inv?.id ?? `v_${v.id}`,
@@ -852,7 +858,9 @@ class InventoryService {
                     sku: v.product.sku,
                     category: v.product.category.name,
                     image: v.product.images[0]?.url ?? null,
-                    taxRate: v.product.taxRate,
+                    taxRate: rateFor(ruleOf(v.product.shopId), v.product.taxRate, price),
+                    /** null = follows the shop's GST rule */
+                    fixedTaxRate: v.product.taxRate,
                     hsnCode: v.product.hsnCode,
                     mrp: v.product.mrp,
                 },

@@ -3,6 +3,8 @@ import {BillStatus, OrderStatus, Prisma, ProductStatus} from '@prisma/client';
 import {z} from 'zod';
 import prisma from '../../client';
 import ApiError from '@utils/ApiError';
+import {rateFor} from '../../utils/gst';
+import shopGstService from '../shopGst.service';
 
 /*
  * Customer storefront catalog (public, no sign-in).
@@ -412,6 +414,10 @@ class CatalogService {
             .sort((a, b) => Number(b.inStock) - Number(a.inStock) || b.sold - a.sold)
             .slice(0, 8);
 
+        const price = variants.length ? Math.min(...variants.map((v) => v.price)) : p.sellingPrice || p.mrp;
+        // The product's fixed rate, or its shop's GST price rule at the lowest price (D-18)
+        const taxRate = rateFor(await shopGstService.ruleOf(p.shopId!), p.taxRate, price);
+
         return {
             id: p.id,
             slug: p.slug,
@@ -434,14 +440,14 @@ class CatalogService {
             careInstructions: p.careInstructions,
             returnEligible: p.returnEligible,
             returnPeriodDays: p.returnPeriodDays,
-            taxRate: p.taxRate,
+            taxRate,
             // A shop photo that has a clean white-background copy is only the source
             // for that copy (taken on a bed or floor): customers see the clean one
             images: p.images
                 .filter((img) => !p.images.some((other) => other.cleanedFromId === img.id))
                 .map(({cleanedFromId, ...img}) => img),
             mrp: p.mrp,
-            price: variants.length ? Math.min(...variants.map((v) => v.price)) : p.sellingPrice || p.mrp,
+            price,
             colors: [...new Map(variants.map((v) => [v.color, v.colorHex])).entries()].map(([name, hex]) => ({name, hex})),
             sizes: sortSizes([...new Set(variants.map((v) => v.size))]),
             variants,

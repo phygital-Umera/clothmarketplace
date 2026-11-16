@@ -4,6 +4,7 @@ import {z} from 'zod';
 import prisma from '../../client';
 import ApiError from '@utils/ApiError';
 import {field} from '../../validations/custom.validation';
+import {gstRuleOf, rateFor} from '../../utils/gst';
 import inventoryService from '../inventory.service';
 import {notify} from '../notification.service';
 import {returnedLines} from '../order.service';
@@ -75,7 +76,7 @@ export const returnSchema = z
     });
 
 const ORDER_INCLUDE = {
-    shop: {select: {id: true, name: true, phone: true, address: true, gstin: true}},
+    shop: {select: {id: true, name: true, phone: true, address: true, gstin: true, gstRule: true}},
     company: {select: {name: true, address: true, city: true, state: true, postalCode: true}},
     items: {
         include: {
@@ -122,6 +123,8 @@ const shape = (o: OrderRow) => {
     const now = Date.now();
     const address = (o.shippingAddress ?? {}) as Record<string, unknown>;
     const delivery = (address.delivery as string) ?? 'STANDARD';
+    // A product's fixed rate, or the shop's GST price rule on what one piece was paid (D-18)
+    const gstRule = gstRuleOf(o.shop?.gstRule);
 
     const items = o.items.map((i) => {
         const until = delivered ? new Date(delivered.getTime() + (i.product.returnPeriodDays ?? 7) * DAY) : null;
@@ -139,7 +142,7 @@ const shape = (o: OrderRow) => {
             unitPrice: i.unitPrice,
             totalPrice: i.totalPrice,
             image: i.image ?? i.product.images[0]?.url ?? null,
-            taxRate: i.product.taxRate,
+            taxRate: rateFor(gstRule, i.product.taxRate, refundFor(o, i.unitPrice, 1)),
             returnUntil: until,
             returnableQty: returnable ? left : 0,
             returnedQty: used[i.id] ?? 0,
@@ -187,7 +190,13 @@ const shape = (o: OrderRow) => {
         createdAt: o.createdAt,
         deliveredAt: delivered,
         expectedBy: ACTIVE.includes(o.status) ? expected : null,
-        shop: o.shop,
+        shop: o.shop && {
+            id: o.shop.id,
+            name: o.shop.name,
+            phone: o.shop.phone,
+            address: o.shop.address,
+            gstin: o.shop.gstin,
+        },
         seller: o.company,
         items,
         steps,
