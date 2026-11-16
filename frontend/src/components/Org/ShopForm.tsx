@@ -61,8 +61,12 @@ const ShopForm = ({
   const {
     handleSubmit,
     setError,
+    watch,
     formState: {isSubmitting, isDirty},
   } = form;
+  // D-19: an older 5-6 letter prefix may stay this year; warn about the 16-character limit
+  const prefix = (watch('billPrefix') ?? '').trim().toUpperCase();
+  const longPrefix = prefix.length > 4 ? prefix : '';
 
   const submit = handleSubmit(async (values) => {
     setFormError('');
@@ -139,7 +143,11 @@ const ShopForm = ({
                 kind="text"
                 maxLength={6}
                 placeholder="WW"
-                hint="Sales bills: WW/26-27/00001"
+                hint={
+                  longPrefix
+                    ? `GST bill numbers can have at most 16 characters. ${longPrefix} is kept until 31 March; next year's bills start ${longPrefix.slice(0, 4)}/… Pick 2 to 4 letters.`
+                    : '2 to 4 letters. Sales bills: WW/26-27/00001'
+                }
               />
             </div>
           </FormGroup>

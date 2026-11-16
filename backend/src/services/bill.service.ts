@@ -152,6 +152,35 @@ class BillService {
         return new Map(variants.map((v) => [v.id, v]));
     }
 
+    /**
+     * Sales series prefix, e.g. "WW/26-27/". A GST invoice number may have at
+     * most 16 characters, so a series starts with 2-4 letters (D-19):
+     * PREFIX/26-27/00001. A shop whose series this year already uses a longer
+     * prefix (a 5-6 letter one, or the shop code when none was set) keeps it
+     * until the financial year ends; the next year starts with its first 4
+     * letters.
+     */
+    public async salesSeriesPrefix(
+        db: Tx | typeof prisma,
+        shop: {id: string; code: string; billPrefix: string | null},
+    ) {
+        const fy = financialYear();
+        const given = shop.billPrefix || shop.code;
+        if (given.length <= 4) return `${given}/${fy}/`;
+        const legacy = `${given}/${fy}/`;
+        const used = await db.salesBill.count({
+            where: {shopId: shop.id, billNumber: {startsWith: legacy}},
+        });
+        if (used) return legacy;
+        const short = given.replace(/[^A-Z]/gi, '').toUpperCase().slice(0, 4);
+        return `${short.length >= 2 ? short : 'SB'}/${fy}/`;
+    }
+
+    /** The next sales bill number of a shop, without taking it (shop lists, previews) */
+    public async peekSalesBillNumber(shop: {id: string; code: string; billPrefix: string | null}) {
+        return prisma.$transaction((tx) => this.nextBillNumber(tx, 'SALES', shop));
+    }
+
     /** Purchase: PB-YYYYMMDD-0001. Sales: {bill prefix}/{FY}/00001, e.g. WW/26-27/00232 */
     private async nextBillNumber(
         tx: Tx,
@@ -162,7 +191,7 @@ class BillService {
         const day = dayKey().replace(/-/g, '');
         const prefix =
             kind === 'SALES'
-                ? `${shop.billPrefix || shop.code}/${financialYear()}/`
+                ? await this.salesSeriesPrefix(tx, shop)
                 : `${KIND[kind].prefix}-${day}-`;
         return accountService.nextCode(tx, prefix, kind === 'SALES' ? 5 : 4, async (p) => {
             const rows =

@@ -109,13 +109,14 @@ const shopFields = {
     required: false,
   }),
   gstin: field({label: 'GSTIN', kind: 'gstin', required: false}),
-  // Sales bill series, e.g. WW -> WW/26-27/00001 (shop code when empty)
+  // Sales bill series, e.g. WW -> WW/26-27/00001 (at most 16 characters, D-19).
+  // New prefixes: 2-4 letters; the server lets an older 5-6 letter one be kept as it is
   billPrefix: z
     .string()
     .trim()
     .toUpperCase()
     .refine((v) => !v || /^[A-Z]{2,6}$/.test(v), {
-      message: 'Bill Prefix must be 2 to 6 letters',
+      message: 'Bill Prefix must be 2 to 4 letters',
     })
     .optional(),
   openingTime: time('Opening Time'),

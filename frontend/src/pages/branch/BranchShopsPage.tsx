@@ -392,7 +392,7 @@ export default function BranchShopsPage() {
                   />
                   <Stat
                     label="Next bill no."
-                    value={st?.nextBillNumber ?? 'SB-0001'}
+                    value={st?.nextBillNumber ?? '—'}
                   />
                 </div>
                 {!s.shopAdmin && (

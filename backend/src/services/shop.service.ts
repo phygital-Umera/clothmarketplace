@@ -8,7 +8,7 @@ import {orgValidation} from '@validations/index';
 import accountService, {Scope} from './account.service';
 import branchService from './branch.service';
 import companyService from './company.service';
-import {dayKey} from '../utils/day';
+import billService from './bill.service';
 
 type CreateShop = z.infer<typeof orgValidation.createShopSchema>;
 // status is only set through setStatus (the form cannot change it)
@@ -125,6 +125,12 @@ class ShopService {
             adminPassword,
             ...fields
         } = data;
+        // D-19: PREFIX/26-27/00001 must fit the 16 characters of a GST invoice number
+        if (fields.billPrefix && fields.billPrefix.length > 4) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Bill Prefix must be 2 to 4 letters', [
+                {field: 'billPrefix', message: 'Bill Prefix must be 2 to 4 letters'},
+            ]);
+        }
         // A single-shop business adds a second shop only after switching to branch mode
         const companyId =
             scope.companyId ??
@@ -197,6 +203,12 @@ class ShopService {
         const before = await this.get(scope, id);
         const {branchId, adminName, adminEmail, adminPhone, adminPassword, ...fields} = data;
         const login = before.shopAdmin;
+        // D-19: a new prefix has 2-4 letters; an older 5-6 letter one may be kept as it is
+        if (fields.billPrefix && fields.billPrefix.length > 4 && fields.billPrefix !== before.billPrefix) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Bill Prefix must be 2 to 4 letters', [
+                {field: 'billPrefix', message: 'Bill Prefix must be 2 to 4 letters'},
+            ]);
+        }
         // Employees' branch follows their shop, so a shop stays in its branch
         if (branchId && branchId !== before.branchId) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'A shop cannot move to another branch', [
@@ -279,12 +291,19 @@ class ShopService {
     public async branchStats(scope: Scope) {
         const shops = await prisma.shop.findMany({
             where: this.scopeWhere(scope),
-            select: {id: true},
+            select: {id: true, code: true, billPrefix: true},
         });
         const ids = shops.map((s) => s.id);
         const now = new Date();
         const month = new Date(now.getFullYear(), now.getMonth(), 1);
-        const billPrefix = `SB-${dayKey(now).replace(/-/g, '')}-`;
+        // The real next number of each shop's series (the same code as a save, not taken)
+        const nextNumbers = new Map(
+            await Promise.all(
+                shops.map(
+                    async (s) => [s.id, await billService.peekSalesBillNumber(s)] as const,
+                ),
+            ),
+        );
         const branch = scope.branchId
             ? await prisma.branch.findUnique({
                   where: {id: scope.branchId},
@@ -292,7 +311,7 @@ class ShopService {
               })
             : null;
 
-        const [stock, sales, todaysBills, codes] = await Promise.all([
+        const [stock, sales, codes] = await Promise.all([
             prisma.inventory.findMany({
                 where: {
                     ...(scope.branchId ? {branchId: scope.branchId} : {}),
@@ -310,10 +329,6 @@ class ShopService {
                 },
                 _sum: {totalAmount: true},
             }),
-            prisma.salesBill.findMany({
-                where: {shopId: {in: ids}, billNumber: {startsWith: billPrefix}},
-                select: {shopId: true, billNumber: true},
-            }),
             branch
                 ? prisma.shop.findMany({
                       where: {code: {startsWith: `${branch.code}-S`}},
@@ -322,13 +337,6 @@ class ShopService {
                 : Promise.resolve([]),
         ]);
 
-        const lastNo = (shopId: string) =>
-            todaysBills
-                .filter((b) => b.shopId === shopId)
-                .reduce(
-                    (m, b) => Math.max(m, Number(b.billNumber.slice(billPrefix.length)) || 0),
-                    0,
-                );
         const prefix = branch ? `${branch.code}-S` : '';
         const maxCode = codes.reduce(
             (m, c) => Math.max(m, Number(c.code.slice(prefix.length)) || 0),
@@ -348,7 +356,7 @@ class ShopService {
                             Math.round(
                                 (sales.find((x) => x.shopId === id)?._sum.totalAmount ?? 0) * 100,
                             ) / 100,
-                        nextBillNumber: `${billPrefix}${String(lastNo(id) + 1).padStart(4, '0')}`,
+                        nextBillNumber: nextNumbers.get(id) ?? null,
                     },
                 ]),
             ),

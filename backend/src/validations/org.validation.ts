@@ -111,12 +111,14 @@ const shopBody = z.object({
         (v) => (typeof v === 'string' ? v.trim().toUpperCase() || undefined : v),
         field({label: 'GSTIN', kind: 'gstin', required: false}),
     ),
-    // Sales bill series, e.g. WW -> WW/26-27/00001; the shop code is used when empty
+    // Sales bill series, e.g. WW -> WW/26-27/00001 (at most 16 characters, D-19).
+    // New prefixes have 2-4 letters (checked in the shop service, which lets an
+    // older 5-6 letter prefix be saved unchanged); empty = first letters of the shop code
     billPrefix: z.preprocess(
         (v) => (typeof v === 'string' ? v.trim().toUpperCase() || undefined : v),
         z
             .string()
-            .regex(/^[A-Z]{2,6}$/, 'Bill Prefix must be 2 to 6 letters')
+            .regex(/^[A-Z]{2,6}$/, 'Bill Prefix must be 2 to 4 letters')
             .optional(),
     ),
     openingTime: time('Opening Time'),
