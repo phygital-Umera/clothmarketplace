@@ -84,7 +84,7 @@ export default function BranchDashboardPage() {
       <div className="flex flex-col gap-2 border-b border-stone-200/80 pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className={cardTitle}>Overview · {today}</p>
-          <h1 className="font-serif text-xl font-bold text-[#4A1521]">{me?.branch?.name ?? 'Branch'}</h1>
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">{me?.branch?.name ?? 'Branch'}</h1>
           <p className="text-xs text-stone-500">
             {overview ? `${overview.shops.active} of ${overview.shops.total} shops active` : '…'}
             {pendingApprovals ? ` · ${pendingApprovals} approval${pendingApprovals === 1 ? '' : 's'} waiting` : ''}
@@ -93,16 +93,16 @@ export default function BranchDashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             to="/branch-admin/approvals"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 hover:text-[#4A1521]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 hover:text-burgundy-deep"
           >
             Approvals
             {pendingApprovals > 0 && (
-              <span className="rounded bg-[#4A1521] px-1.5 text-[10px] text-white">{pendingApprovals}</span>
+              <span className="rounded bg-burgundy-deep px-1.5 text-[10px] text-white">{pendingApprovals}</span>
             )}
           </Link>
           <Link
             to="/branch-admin/stock-transfers"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#4A1521] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#380e18]"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-burgundy-deep px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#380e18]"
           >
             <ArrowLeftRight size={14} /> Stock transfers
           </Link>
@@ -114,7 +114,7 @@ export default function BranchDashboardPage() {
           const body = (
             <>
               <p className={cardTitle}>{k.title}</p>
-              <p className="mt-1 font-serif text-lg font-bold text-[#4A1521]">{isLoading ? '…' : k.value}</p>
+              <p className="mt-1 font-serif text-lg font-bold text-burgundy-deep">{isLoading ? '…' : k.value}</p>
               <p className={`mt-0.5 text-[11px] ${k.alert ? 'font-semibold text-red-600' : 'text-stone-500'}`}>
                 {k.sub}
               </p>
@@ -126,7 +126,7 @@ export default function BranchDashboardPage() {
             </>
           );
           return k.to ? (
-            <Link key={k.title} to={k.to} className={`${card} transition hover:border-[#4A1521]/40`}>
+            <Link key={k.title} to={k.to} className={`${card} transition hover:border-burgundy-deep/40`}>
               {body}
             </Link>
           ) : (
@@ -142,7 +142,7 @@ export default function BranchDashboardPage() {
           <h2 className="font-serif text-sm font-semibold uppercase tracking-wider text-stone-600">Shops today</h2>
           <Link
             to="/branch-admin/day-close"
-            className="text-[11px] font-bold uppercase tracking-wider text-[#4A1521] hover:underline"
+            className="text-[11px] font-bold uppercase tracking-wider text-burgundy-deep hover:underline"
           >
             Day close →
           </Link>
@@ -182,7 +182,7 @@ export default function BranchDashboardPage() {
                     <td className={`px-2 py-2.5 text-right ${s.credit ? 'font-medium text-red-600' : 'text-stone-600'}`}>
                       {inr(s.credit)}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-semibold text-[#4A1521]">{inr(s.monthSales)}</td>
+                    <td className="px-2 py-2.5 text-right font-semibold text-burgundy-deep">{inr(s.monthSales)}</td>
                     <td className="py-2.5 pl-2 pr-3 text-center">
                       <span
                         className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${

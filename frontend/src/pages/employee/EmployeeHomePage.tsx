@@ -66,7 +66,7 @@ export default function EmployeeHomePage() {
     <div className="space-y-6">
       <div>
         <p className="text-label-caps uppercase tracking-wider text-outline">My work</p>
-        <h1 className="font-serif text-headline-md text-burgundy-deep">
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           {isLoading ? '…' : `Hello, ${me?.fullname.split(' ')[0] ?? ''}`}
         </h1>
         <p className="text-body-sm text-on-surface-variant">

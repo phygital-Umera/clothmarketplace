@@ -3,7 +3,9 @@ import {useAuthContext} from '@/context/AuthContext';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import {SidebarProps} from '@/types';
 import {Link, useRouterState} from '@tanstack/react-router';
-import {useOwnerShop} from '@/lib/ownerShop';
+import {setOwnerShop, useOwnerShop} from '@/lib/ownerShop';
+import {useShopOptions} from '@/lib/react-query/queriesAndMutations/org';
+import SidebarUser from './SidebarUser';
 import {inShopPanel, roleConfig, Role, ROLES, singleShop} from '@/lib/roles';
 import {employeeCanOpen} from '@/lib/shopModules';
 import {
@@ -26,6 +28,7 @@ import {
   Package,
   Palette,
   Percent,
+  Repeat,
   RotateCcw,
   Ruler,
   ShoppingBag,
@@ -595,6 +598,13 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
   // Company admin working in one of their shops
   const ownerShop = useOwnerShop(me?.id);
   const shopMode = role === 'ADMIN' && inShopPanel(pathname);
+  // With one shop the picker would just reopen it, so no "Change shop"
+  const shopOptions = useShopOptions(
+    'company-admin',
+    undefined,
+    shopMode && !!ownerShop,
+  );
+  const canChangeShop = (shopOptions.data?.length ?? 0) > 1;
 
   // Under the brand: the role, and the branch / shop the account belongs to
   const place =
@@ -668,7 +678,7 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
 
       <aside
         id="sidebar"
-        className={`fixed inset-y-0 left-0 z-[70] flex w-64 flex-col border-r border-[#3a101a] bg-[#4A1521] text-stone-200 shadow-sm transition-transform duration-300 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[70] flex w-64 flex-col border-r border-[#3a101a] bg-burgundy-deep text-stone-200 shadow-sm transition-transform duration-300 lg:static lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -693,6 +703,24 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
             <X size={20} />
           </button>
         </div>
+
+        {/* Shop staff: the counter's GSTIN. Company admin: switch shop */}
+        {(me?.shop?.gstin || (shopMode && ownerShop && canChangeShop)) && (
+          <div className="flex items-center justify-between gap-2 border-b border-[#5c1c2b] px-5 py-2 text-[11px] text-[#D9BFC3]">
+            {me?.shop?.gstin && (
+              <span className="truncate">GSTIN {me.shop.gstin}</span>
+            )}
+            {shopMode && ownerShop && canChangeShop && (
+              <button
+                type="button"
+                onClick={() => setOwnerShop(null)}
+                className="flex shrink-0 items-center gap-1.5 font-semibold text-white hover:underline"
+              >
+                <Repeat size={13} /> Change shop
+              </button>
+            )}
+          </div>
+        )}
 
         <nav className="no-scrollbar flex-1 overflow-y-auto px-3 py-4">
           {nav.map((group) => (
@@ -733,9 +761,7 @@ const Sidebar = ({sidebarOpen, setSidebarOpen}: SidebarProps) => {
           ))}
         </nav>
 
-        <p className="border-t border-[#5c1c2b] px-5 py-3 text-[11px] font-medium text-[#A4707A]">
-          © {new Date().getFullYear()} {APP_NAME}
-        </p>
+        <SidebarUser onNavigate={() => setSidebarOpen(false)} />
       </aside>
     </>
   );

@@ -19,7 +19,7 @@
 
   /* Buttons: sharp edges, label-caps type */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-3 text-label-caps uppercase transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-burgundy disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 py-2.5 text-label-caps uppercase transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-burgundy disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
     @apply btn bg-burgundy text-ivory hover:bg-burgundy-deep hover:shadow-[inset_0_0_0_1px_#F4C8D9];
@@ -36,7 +36,7 @@
 
   /* Form controls */
   .field-label {
-    @apply mb-1.5 block text-label-caps uppercase text-on-surface-variant;
+    @apply mb-1 block text-label-caps uppercase text-on-surface-variant;
   }
   .field-input {
     @apply block w-full border border-ivory-300 bg-ivory-100 px-3.5 py-2.5 text-body-md text-espresso outline-none transition-colors placeholder:text-outline/70 focus:border-burgundy disabled:cursor-not-allowed disabled:opacity-60;

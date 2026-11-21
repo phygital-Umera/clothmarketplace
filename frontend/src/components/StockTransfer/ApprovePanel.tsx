@@ -103,60 +103,62 @@ export function ApprovePanel({
           ))}
         </select>
       </div>
-      <table className="w-full text-body-sm">
-        <thead>
-          <tr className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-            <th scope="col" className="py-1.5 text-left">
-              Item
-            </th>
-            <th scope="col" className="py-1.5 text-right">
-              Asked
-            </th>
-            <th scope="col" className="py-1.5 text-right">
-              Has
-            </th>
-            <th scope="col" className="py-1.5 text-right">
-              Approve
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ivory-200">
-          {t.items.map((i) => {
-            const opt = source?.items.find((o) => o.itemId === i.id);
-            return (
-              <tr key={i.id}>
-                <td className="py-2 pr-2">
-                  {i.productName}
-                  <span className="block text-[11px] text-outline">
-                    {i.size} · {i.color}
-                  </span>
-                </td>
-                <td className="py-2 text-right">{i.requestedQty}</td>
-                <td
-                  className={`py-2 text-right ${opt?.variantId ? '' : 'text-outline'}`}
-                >
-                  {source ? (opt?.variantId ? opt.available : 'n/a') : '—'}
-                </td>
-                <td className="py-2 text-right">
-                  <input
-                    aria-label={`Approved quantity of ${i.productName}`}
-                    inputMode="numeric"
-                    disabled={!opt?.variantId}
-                    className="w-14 border border-ivory-300 bg-ivory-100 px-2 py-1 text-right focus:border-burgundy focus:outline-none disabled:opacity-50"
-                    value={qty[i.id] ?? ''}
-                    onChange={(e) =>
-                      setQty((q) => ({
-                        ...q,
-                        [i.id]: e.target.value.replace(/\D/g, ''),
-                      }))
-                    }
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-body-sm">
+          <thead>
+            <tr className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+              <th scope="col" className="py-1.5 text-left">
+                Item
+              </th>
+              <th scope="col" className="py-1.5 text-right">
+                Asked
+              </th>
+              <th scope="col" className="py-1.5 text-right">
+                Has
+              </th>
+              <th scope="col" className="py-1.5 text-right">
+                Approve
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ivory-200">
+            {t.items.map((i) => {
+              const opt = source?.items.find((o) => o.itemId === i.id);
+              return (
+                <tr key={i.id}>
+                  <td className="py-2 pr-2">
+                    {i.productName}
+                    <span className="block text-[11px] text-outline">
+                      {i.size} · {i.color}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right">{i.requestedQty}</td>
+                  <td
+                    className={`py-2 text-right ${opt?.variantId ? '' : 'text-outline'}`}
+                  >
+                    {source ? (opt?.variantId ? opt.available : 'n/a') : '—'}
+                  </td>
+                  <td className="py-2 text-right">
+                    <input
+                      aria-label={`Approved quantity of ${i.productName}`}
+                      inputMode="numeric"
+                      disabled={!opt?.variantId}
+                      className="w-14 border border-ivory-300 bg-ivory-100 px-2 py-1 text-right focus:border-burgundy focus:outline-none disabled:opacity-50"
+                      value={qty[i.id] ?? ''}
+                      onChange={(e) =>
+                        setQty((q) => ({
+                          ...q,
+                          [i.id]: e.target.value.replace(/\D/g, ''),
+                        }))
+                      }
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {rejecting && (
         <div>
           <label htmlFor={`rej-reason-${t.id}`} className="field-label">

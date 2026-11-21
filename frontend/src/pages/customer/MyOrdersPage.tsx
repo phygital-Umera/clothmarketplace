@@ -284,7 +284,7 @@ export default function MyOrdersPage() {
       {/* Customer Cancel Modal */}
       {cancelModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-ivory-300 bg-white p-6 shadow-2xl space-y-4">
+          <div className="max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl border border-ivory-300 bg-white p-4 sm:p-5 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-ivory-200 pb-3">
               <h3 className="font-serif text-headline-sm text-espresso font-bold">Request Order Cancellation</h3>
               <button type="button" onClick={() => setCancelModalOrder(null)}>
@@ -327,7 +327,7 @@ export default function MyOrdersPage() {
       {/* Customer Return Modal */}
       {returnModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-ivory-300 bg-white p-6 shadow-2xl space-y-4">
+          <div className="max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl border border-ivory-300 bg-white p-4 sm:p-5 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-ivory-200 pb-3">
               <h3 className="font-serif text-headline-sm text-espresso font-bold">Request Return</h3>
               <button type="button" onClick={() => setReturnModalOrder(null)}>

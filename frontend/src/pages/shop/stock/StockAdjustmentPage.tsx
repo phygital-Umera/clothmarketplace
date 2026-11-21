@@ -160,13 +160,13 @@ export default function StockAdjustmentPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] p-6 lg:p-8 font-sans text-stone-800">
+    <div className="space-y-4 font-sans text-espresso">
       {/* Header */}
       <div className="mb-6">
         <div className="text-[11px] font-bold tracking-widest text-stone-400 uppercase mb-1">
           PRODUCTS & STOCK / ADJUSTMENT
         </div>
-        <h1 className="text-3xl font-serif font-bold text-[#4A1521] tracking-tight">
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Stock adjustment
         </h1>
         <p className="text-sm text-stone-500 mt-1">
@@ -197,7 +197,7 @@ export default function StockAdjustmentPage({
               <button
                 type="button"
                 onClick={() => setVariantDropdownOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3.5 py-2.5 text-left text-xs font-medium text-stone-800 hover:border-stone-400 transition-colors"
+                className="w-full flex items-center justify-between rounded-md border border-stone-200/90 bg-ivory-50 px-3.5 py-2.5 text-left text-xs font-medium text-stone-800 hover:border-stone-400 transition-colors"
               >
                 <span>{currentVariant?.label || 'Select variant'}</span>
                 <ChevronDown size={14} className="text-stone-400" />
@@ -221,7 +221,7 @@ export default function StockAdjustmentPage({
                       placeholder="Search variant name or barcode..."
                       value={variantSearch}
                       onChange={(e) => setVariantSearch(e.target.value)}
-                      className="w-full rounded border border-stone-200 pl-8 pr-2 py-1 text-xs focus:border-[#7A2232] focus:outline-none"
+                      className="w-full rounded border border-stone-200 pl-8 pr-2 py-1 text-xs focus:border-burgundy focus:outline-none"
                     />
                   </div>
                   <div className="divide-y divide-stone-100">
@@ -235,7 +235,7 @@ export default function StockAdjustmentPage({
                         }}
                         className={`w-full text-left p-2 rounded text-xs transition-colors ${
                           selectedVariantId === v.variantId
-                            ? 'bg-[#7A2232]/10 text-[#7A2232] font-semibold'
+                            ? 'bg-burgundy/10 text-burgundy font-semibold'
                             : 'hover:bg-stone-50 text-stone-800'
                         }`}
                       >
@@ -262,14 +262,14 @@ export default function StockAdjustmentPage({
                   onClick={() => setType('INCREASE')}
                   className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
                     type === 'INCREASE'
-                      ? 'border-[#7A2232] bg-[#FAF0F2]'
+                      ? 'border-burgundy bg-[#FAF0F2]'
                       : 'border-stone-200 bg-white hover:bg-stone-50'
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
                       type === 'INCREASE'
-                        ? 'border-[#7A2232] bg-[#7A2232]'
+                        ? 'border-burgundy bg-burgundy'
                         : 'border-stone-300'
                     }`}
                   >
@@ -280,7 +280,7 @@ export default function StockAdjustmentPage({
                   <div>
                     <div
                       className={`font-semibold text-xs ${
-                        type === 'INCREASE' ? 'text-[#7A2232]' : 'text-stone-800'
+                        type === 'INCREASE' ? 'text-burgundy' : 'text-stone-800'
                       }`}
                     >
                       Increase
@@ -297,14 +297,14 @@ export default function StockAdjustmentPage({
                   onClick={() => setType('DECREASE')}
                   className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
                     type === 'DECREASE'
-                      ? 'border-[#7A2232] bg-[#FAF0F2]'
+                      ? 'border-burgundy bg-[#FAF0F2]'
                       : 'border-stone-200 bg-white hover:bg-stone-50'
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
                       type === 'DECREASE'
-                        ? 'border-[#7A2232] bg-[#7A2232]'
+                        ? 'border-burgundy bg-burgundy'
                         : 'border-stone-300'
                     }`}
                   >
@@ -315,7 +315,7 @@ export default function StockAdjustmentPage({
                   <div>
                     <div
                       className={`font-semibold text-xs ${
-                        type === 'DECREASE' ? 'text-[#7A2232]' : 'text-stone-800'
+                        type === 'DECREASE' ? 'text-burgundy' : 'text-stone-800'
                       }`}
                     >
                       Decrease
@@ -332,14 +332,14 @@ export default function StockAdjustmentPage({
                   onClick={() => setType('MARK_DAMAGED')}
                   className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
                     type === 'MARK_DAMAGED'
-                      ? 'border-[#7A2232] bg-[#FAF0F2] ring-1 ring-[#7A2232]'
+                      ? 'border-burgundy bg-[#FAF0F2] ring-1 ring-burgundy'
                       : 'border-stone-200 bg-white hover:bg-stone-50'
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
                       type === 'MARK_DAMAGED'
-                        ? 'border-[#7A2232] bg-[#7A2232]'
+                        ? 'border-burgundy bg-burgundy'
                         : 'border-stone-300'
                     }`}
                   >
@@ -351,7 +351,7 @@ export default function StockAdjustmentPage({
                     <div
                       className={`font-semibold text-xs ${
                         type === 'MARK_DAMAGED'
-                          ? 'text-[#7A2232]'
+                          ? 'text-burgundy'
                           : 'text-stone-800'
                       }`}
                     >
@@ -369,14 +369,14 @@ export default function StockAdjustmentPage({
                   onClick={() => setType('WRITE_OFF')}
                   className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
                     type === 'WRITE_OFF'
-                      ? 'border-[#7A2232] bg-[#FAF0F2]'
+                      ? 'border-burgundy bg-[#FAF0F2]'
                       : 'border-stone-200 bg-white hover:bg-stone-50'
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
                       type === 'WRITE_OFF'
-                        ? 'border-[#7A2232] bg-[#7A2232]'
+                        ? 'border-burgundy bg-burgundy'
                         : 'border-stone-300'
                     }`}
                   >
@@ -387,7 +387,7 @@ export default function StockAdjustmentPage({
                   <div>
                     <div
                       className={`font-semibold text-xs ${
-                        type === 'WRITE_OFF' ? 'text-[#7A2232]' : 'text-stone-800'
+                        type === 'WRITE_OFF' ? 'text-burgundy' : 'text-stone-800'
                       }`}
                     >
                       Write off
@@ -412,7 +412,7 @@ export default function StockAdjustmentPage({
                 onChange={(e) =>
                   setQuantity(Math.max(1, parseInt(e.target.value || '1', 10)))
                 }
-                className="w-full rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3.5 py-2 font-mono text-xs text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                className="w-full rounded-md border border-stone-200/90 bg-ivory-50 px-3.5 py-2 font-mono text-xs text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                 required
               />
               <div className="text-[11px] text-stone-500 font-mono mt-1">
@@ -429,7 +429,7 @@ export default function StockAdjustmentPage({
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3 py-2 text-xs text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                className="w-full rounded-md border border-stone-200/90 bg-ivory-50 px-3 py-2 text-xs text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                 required
               >
                 {REASON_OPTIONS.map((r) => (
@@ -450,7 +450,7 @@ export default function StockAdjustmentPage({
                 placeholder="Count sheet no., incident no."
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                className="w-full rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3 py-2 text-xs placeholder-stone-400 text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                className="w-full rounded-md border border-stone-200/90 bg-ivory-50 px-3 py-2 text-xs placeholder-stone-400 text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
               />
             </div>
 
@@ -469,7 +469,7 @@ export default function StockAdjustmentPage({
 
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer rounded-lg border border-dashed border-stone-300 bg-[#FAF9F6] p-4 text-center hover:bg-stone-100/70 transition-colors"
+                className="cursor-pointer rounded-lg border border-dashed border-stone-300 bg-ivory-50 p-4 text-center hover:bg-stone-100/70 transition-colors"
               >
                 {photoPreview ? (
                   <div className="flex items-center justify-center gap-3">
@@ -479,7 +479,7 @@ export default function StockAdjustmentPage({
                       className="h-10 w-10 object-cover rounded border"
                     />
                     <div className="text-left">
-                      <span className="block font-medium text-[#7A2232]">
+                      <span className="block font-medium text-burgundy">
                         Photo attached
                       </span>
                       <span className="text-[10px] text-stone-400">
@@ -503,7 +503,7 @@ export default function StockAdjustmentPage({
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="w-full rounded-md bg-[#7A2232] py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-[#631B28] disabled:opacity-50 transition-colors"
+                className="w-full rounded-md bg-burgundy py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-burgundy-deep disabled:opacity-50 transition-colors"
               >
                 {createMutation.isPending ? 'Recording...' : 'Record Adjustment'}
               </button>
@@ -524,7 +524,7 @@ export default function StockAdjustmentPage({
               <button
                 type="button"
                 onClick={() => setTypeDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-2 rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition-colors"
+                className="flex items-center gap-2 rounded-md border border-stone-200/90 bg-ivory-50 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition-colors"
               >
                 <span>{historyTypeFilter}</span>
                 <ChevronDown size={14} className="text-stone-400" />
@@ -542,7 +542,7 @@ export default function StockAdjustmentPage({
                       }}
                       className={`block w-full text-left px-3 py-1.5 text-xs transition-colors ${
                         historyTypeFilter === opt.id
-                          ? 'bg-[#7A2232]/10 text-[#7A2232] font-semibold'
+                          ? 'bg-burgundy/10 text-burgundy font-semibold'
                           : 'text-stone-700 hover:bg-stone-50'
                       }`}
                     >
@@ -558,7 +558,7 @@ export default function StockAdjustmentPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-stone-200 bg-[#FAF9F6] text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                <tr className="border-b border-stone-200 bg-ivory-50 text-[10px] font-bold uppercase tracking-wider text-stone-500">
                   <th className="px-3.5 py-3">REF</th>
                   <th className="px-3 py-3">VARIANT</th>
                   <th className="px-3 py-3">TYPE</th>

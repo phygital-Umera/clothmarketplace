@@ -29,35 +29,35 @@ export default function BranchApprovalsPage() {
   const limits = data?.limitsTable ?? [];
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 text-[#2b2b2b]">
+    <div className="space-y-4 text-espresso">
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
           Overview / Approvals
         </div>
-        <h1 className="font-serif text-3xl tracking-tight text-[#2a2220]" style={serif}>
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Approvals
         </h1>
-        <p className="mt-1 text-sm text-[#736862]">
+        <p className="mt-1 text-sm text-on-surface-variant">
           Refunds the shops can't give alone. Approving puts the items back in stock; each
           decision is saved with your name and time.
         </p>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-[#ded5ce] pb-2 text-xs">
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-ivory-300 pb-2 text-xs">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
             className={`flex items-center gap-1.5 rounded px-3 py-1.5 font-semibold uppercase tracking-wider transition ${
               activeTab === t.key
-                ? 'border-b-2 border-[#832729] font-bold text-[#832729]'
-                : 'text-[#736862] hover:text-[#2a2220]'
+                ? 'border-b-2 border-burgundy font-bold text-burgundy'
+                : 'text-on-surface-variant hover:text-espresso'
             }`}
           >
             <span>{t.label}</span>
             <span
               className={`rounded-full px-1.5 text-[10px] font-bold ${
-                activeTab === t.key ? 'bg-[#832729] text-white' : 'bg-[#e8dfd8] text-[#554e48]'
+                activeTab === t.key ? 'bg-burgundy text-white' : 'bg-[#e8dfd8] text-on-surface-variant'
               }`}
             >
               {data?.counts[t.count] ?? 0}
@@ -67,19 +67,19 @@ export default function BranchApprovalsPage() {
       </div>
 
       <div className="space-y-3">
-        {isLoading && <p className="py-10 text-center text-sm text-[#736862]">Loading…</p>}
+        {isLoading && <p className="py-10 text-center text-sm text-on-surface-variant">Loading…</p>}
         {!isLoading && !items.length && (
-          <p className="rounded-lg border border-dashed border-[#ded5ce] bg-white py-10 text-center text-sm text-[#736862]">
+          <p className="rounded-lg border border-dashed border-ivory-300 bg-white py-10 text-center text-sm text-on-surface-variant">
             {activeTab === 'PENDING' ? 'Nothing is waiting for you.' : 'No decisions yet today.'}
           </p>
         )}
         {items.map((item) => (
           <div
             key={item.id}
-            className="flex flex-col justify-between gap-4 rounded-lg border border-[#efe9e3] bg-white p-4 shadow-sm transition hover:border-[#ded5ce] md:flex-row md:items-center"
+            className="flex flex-col justify-between gap-4 rounded-lg border border-ivory-300 bg-white p-4 shadow-sm transition hover:border-ivory-300 md:flex-row md:items-center"
           >
             <div className="flex flex-1 items-start gap-3.5">
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-[#efe9e3] bg-[#faf7f4]">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-ivory-300 bg-ivory-50">
                 <RotateCcw size={16} className="text-[#ca8a04]" />
               </div>
               <div className="min-w-0 space-y-1">
@@ -87,19 +87,19 @@ export default function BranchApprovalsPage() {
                   <span className="inline-flex items-center gap-1.5 rounded bg-[#fef9c3] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#854d0e]">
                     Refund
                   </span>
-                  <span className="text-sm font-semibold text-[#2a2220]">{item.title}</span>
+                  <span className="text-sm font-semibold text-espresso">{item.title}</span>
                 </div>
-                <p className="text-xs text-[#554e48]">{item.description}</p>
-                <div className="text-[11px] text-[#8b6f66]">{item.shopAndStaff}</div>
+                <p className="text-xs text-on-surface-variant">{item.description}</p>
+                <div className="text-[11px] text-on-surface-variant">{item.shopAndStaff}</div>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-3 self-end md:self-center">
               <div className="mr-2 text-right">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#8b6f66]">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Amount
                 </div>
-                <div className="text-sm font-bold text-[#2a2220]">{item.amountLabel}</div>
+                <div className="text-sm font-bold text-espresso">{item.amountLabel}</div>
               </div>
               {item.status === 'PENDING' && rejecting?.id === item.id ? (
                 <>
@@ -110,11 +110,11 @@ export default function BranchApprovalsPage() {
                     maxLength={500}
                     value={rejecting.reason}
                     onChange={(e) => setRejecting({id: item.id, reason: e.target.value})}
-                    className="w-56 rounded border border-[#ded5ce] px-2 py-1.5 text-xs"
+                    className="w-56 rounded border border-ivory-300 px-2 py-1.5 text-xs"
                   />
                   <button
                     onClick={() => setRejecting(null)}
-                    className="rounded px-2 py-1.5 text-xs font-semibold text-[#554e48] hover:bg-black/5"
+                    className="rounded px-2 py-1.5 text-xs font-semibold text-on-surface-variant hover:bg-black/5"
                   >
                     Cancel
                   </button>
@@ -126,7 +126,7 @@ export default function BranchApprovalsPage() {
                       )
                     }
                     disabled={decide.isPending || !rejecting.reason.trim()}
-                    className="rounded border border-[#832729] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#832729] transition hover:bg-[#832729]/5 disabled:opacity-50"
+                    className="rounded border border-burgundy px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-burgundy transition hover:bg-burgundy/5 disabled:opacity-50"
                   >
                     Reject
                   </button>
@@ -136,14 +136,14 @@ export default function BranchApprovalsPage() {
                   <button
                     onClick={() => setRejecting({id: item.id, reason: ''})}
                     disabled={decide.isPending}
-                    className="rounded border border-[#ded5ce] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#832729] transition hover:bg-[#832729]/5 disabled:opacity-50"
+                    className="rounded border border-ivory-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-burgundy transition hover:bg-burgundy/5 disabled:opacity-50"
                   >
                     Reject
                   </button>
                   <button
                     onClick={() => decide.mutate({id: item.id, decision: 'APPROVE'})}
                     disabled={decide.isPending}
-                    className="rounded bg-[#7a2222] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
+                    className="rounded bg-burgundy px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
                   >
                     Approve
                   </button>
@@ -165,14 +165,14 @@ export default function BranchApprovalsPage() {
       </div>
 
       {limits.length > 0 && (
-        <div className="space-y-4 rounded-lg border border-[#efe9e3] bg-white p-5 shadow-sm">
-          <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+        <div className="space-y-4 rounded-lg border border-ivory-300 bg-white p-5 shadow-sm">
+          <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
             Approval rules
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-[#f0eae3] bg-[#faf7f4] text-[10px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+                <tr className="border-b border-[#f0eae3] bg-ivory-50 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                   <th className="px-4 py-2.5">Action</th>
                   <th className="px-4 py-2.5">Shop can</th>
                   <th className="px-4 py-2.5">Above that</th>
@@ -181,9 +181,9 @@ export default function BranchApprovalsPage() {
               <tbody className="divide-y divide-[#f7f2ed]">
                 {limits.map((l) => (
                   <tr key={l.action}>
-                    <td className="px-4 py-3 font-medium text-[#2a2220]">{l.action}</td>
-                    <td className="px-4 py-3 text-[#554e48]">{l.cashierCan}</td>
-                    <td className="px-4 py-3 font-medium text-[#832729]">{l.aboveThat}</td>
+                    <td className="px-4 py-3 font-medium text-espresso">{l.action}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{l.cashierCan}</td>
+                    <td className="px-4 py-3 font-medium text-burgundy">{l.aboveThat}</td>
                   </tr>
                 ))}
               </tbody>

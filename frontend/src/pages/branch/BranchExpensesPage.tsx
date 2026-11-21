@@ -26,9 +26,9 @@ const PAID_FROM: {value: ExpensePaidFrom; label: string}[] = [
   {value: 'OWNER', label: 'Owner'},
 ];
 
-const label = 'block text-[11px] font-bold text-[#736862] tracking-wider uppercase mb-1';
+const label = 'block text-[11px] font-bold text-on-surface-variant tracking-wider uppercase mb-1';
 const input =
-  'w-full border border-[#ded5ce] rounded px-2.5 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]';
+  'w-full border border-ivory-300 rounded px-2.5 py-2 text-xs text-espresso bg-white focus:outline-none focus:ring-1 focus:ring-burgundy';
 const serif = {fontFamily: "'Playfair Display', Georgia, serif"};
 
 export default function BranchExpensesPage() {
@@ -71,15 +71,15 @@ export default function BranchExpensesPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 text-[#2b2b2b]">
+    <div className="space-y-4 text-espresso">
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
           Accounts / Expenses
         </div>
-        <h1 className="font-serif text-3xl tracking-tight text-[#2a2220]" style={serif}>
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Expenses
         </h1>
-        <p className="mt-1 text-sm text-[#736862]">
+        <p className="mt-1 text-sm text-on-surface-variant">
           This month's expenses of the branch and its shops. Book rent and salaries here and
           charge them to a shop, split them over all shops, or keep them at branch level.
         </p>
@@ -87,34 +87,34 @@ export default function BranchExpensesPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.title} className="rounded-lg border border-[#efe9e3] bg-white p-4 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+          <div key={c.title} className="rounded-lg border border-ivory-300 bg-white p-4 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
               {c.title}
             </div>
-            <div className="mt-1 font-serif text-2xl font-semibold text-[#2a2220]" style={serif}>
+            <div className="mt-1 font-serif text-2xl font-semibold text-espresso" style={serif}>
               {isLoading ? '…' : inr(c.value)}
             </div>
-            {c.sub && <div className="mt-1 text-xs text-[#736862]">{c.sub}</div>}
+            {c.sub && <div className="mt-1 text-xs text-on-surface-variant">{c.sub}</div>}
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
-        <div className="overflow-hidden rounded-lg border border-[#efe9e3] bg-white shadow-sm lg:col-span-8">
+        <div className="overflow-hidden rounded-lg border border-ivory-300 bg-white shadow-sm lg:col-span-8">
           <div className="border-b border-[#f2ede7] px-5 py-3">
-            <h2 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+            <h2 className="font-serif text-base font-semibold text-espresso" style={serif}>
               By shop{data?.month ? ` (${data.month})` : ''}
             </h2>
           </div>
           {!isLoading && !rows.length ? (
-            <p className="px-5 py-10 text-center text-sm text-[#736862]">
+            <p className="px-5 py-10 text-center text-sm text-on-surface-variant">
               No expenses this month yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-[#f0eae3] bg-[#faf7f4] text-[10px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+                  <tr className="border-b border-[#f0eae3] bg-ivory-50 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                     <th className="px-4 py-3">Head</th>
                     {shops.map((s) => (
                       <th key={s.id} className="whitespace-nowrap px-4 py-3 text-right">
@@ -128,7 +128,7 @@ export default function BranchExpensesPage() {
                 <tbody className="divide-y divide-[#f7f2ed]">
                   {rows.map((r) => (
                     <tr key={r.head} className="hover:bg-[#fdfbfa]">
-                      <td className="px-4 py-3 font-medium text-[#2a2220]">{r.head}</td>
+                      <td className="px-4 py-3 font-medium text-espresso">{r.head}</td>
                       {shops.map((s) => (
                         <td key={s.id} className="px-4 py-3 text-right font-mono">
                           {inr(r.byShop[s.id])}
@@ -160,8 +160,8 @@ export default function BranchExpensesPage() {
           )}
         </div>
 
-        <div className="space-y-4 rounded-lg border border-[#efe9e3] bg-white p-5 shadow-sm lg:col-span-4">
-          <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+        <div className="space-y-4 rounded-lg border border-ivory-300 bg-white p-5 shadow-sm lg:col-span-4">
+          <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
             Add branch expense
           </h3>
           <div className="grid grid-cols-2 gap-3">
@@ -236,7 +236,7 @@ export default function BranchExpensesPage() {
           <button
             onClick={save}
             disabled={addExpense.isPending}
-            className="w-full rounded bg-[#7a2222] py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
+            className="w-full rounded bg-burgundy py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
           >
             {addExpense.isPending ? 'Saving…' : 'Save'}
           </button>

@@ -18,7 +18,6 @@ import {getErrorMessage} from '@/utils/axios';
 import {useCompanyRules} from '@/lib/react-query/queriesAndMutations/companySettings';
 import {useEffect, useMemo, useState} from 'react';
 
-
 const inputCls =
   'mt-1 w-full border border-ivory-300 bg-ivory-100 px-3 py-2 text-body-sm text-espresso focus:border-burgundy focus:outline-none';
 const labelCls = 'block text-label-caps uppercase text-outline';
@@ -49,7 +48,8 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
   const {data: bill, error, isFetching} = useReturnableBill(lookup);
   const create = useCreateCreditNote();
   // The company's refund limit (P4-08); the server decides in the end
-  const APPROVAL_LIMIT = useCompanyRules('shop-admin').data?.refundApprovalLimit ?? 2000;
+  const APPROVAL_LIMIT =
+    useCompanyRules('shop-admin').data?.refundApprovalLimit ?? 2000;
 
   useEffect(() => {
     if (!open) return;
@@ -178,55 +178,57 @@ export default function NewReturnModal({open, onClose, billNumber}: Props) {
                 {bill.paymentMethod.toLowerCase()} · ₹
                 {bill.totalAmount.toLocaleString('en-IN')}
               </p>
-              <table className="w-full text-body-sm">
-                <thead className="border-b border-ivory-300 text-label-caps uppercase text-outline">
-                  <tr>
-                    <th className="py-2 text-left">Item</th>
-                    <th className="py-2 text-right">Sold</th>
-                    <th className="py-2 text-right">Returned</th>
-                    <th className="py-2 text-right">Return now</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ivory-200">
-                  {bill.items.map((l) => (
-                    <tr key={l.id}>
-                      <td className="py-2">
-                        {[l.productName, l.color, l.size]
-                          .filter(Boolean)
-                          .join(' – ')}
-                        <span className="block text-technical-data text-outline">
-                          {l.variantSku}
-                        </span>
-                      </td>
-                      <td className="py-2 text-right">{l.quantity}</td>
-                      <td className="py-2 text-right">{l.returned}</td>
-                      <td className="py-2 text-right">
-                        <input
-                          type="number"
-                          min={0}
-                          max={l.returnable}
-                          disabled={!l.returnable}
-                          value={qty[l.id] ?? 0}
-                          onChange={(e) =>
-                            setQty({
-                              ...qty,
-                              [l.id]: Math.min(
-                                l.returnable,
-                                Math.max(
-                                  0,
-                                  Math.floor(Number(e.target.value) || 0),
-                                ),
-                              ),
-                            })
-                          }
-                          aria-label={`Return quantity for ${l.productName}`}
-                          className="w-20 border border-ivory-300 px-2 py-1 text-right disabled:opacity-50"
-                        />
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-body-sm">
+                  <thead className="border-b border-ivory-300 text-label-caps uppercase text-outline">
+                    <tr>
+                      <th className="py-2 text-left">Item</th>
+                      <th className="py-2 text-right">Sold</th>
+                      <th className="py-2 text-right">Returned</th>
+                      <th className="py-2 text-right">Return now</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-ivory-200">
+                    {bill.items.map((l) => (
+                      <tr key={l.id}>
+                        <td className="py-2">
+                          {[l.productName, l.color, l.size]
+                            .filter(Boolean)
+                            .join(' – ')}
+                          <span className="block text-technical-data text-outline">
+                            {l.variantSku}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right">{l.quantity}</td>
+                        <td className="py-2 text-right">{l.returned}</td>
+                        <td className="py-2 text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            max={l.returnable}
+                            disabled={!l.returnable}
+                            value={qty[l.id] ?? 0}
+                            onChange={(e) =>
+                              setQty({
+                                ...qty,
+                                [l.id]: Math.min(
+                                  l.returnable,
+                                  Math.max(
+                                    0,
+                                    Math.floor(Number(e.target.value) || 0),
+                                  ),
+                                ),
+                              })
+                            }
+                            aria-label={`Return quantity for ${l.productName}`}
+                            className="w-20 border border-ivory-300 px-2 py-1 text-right disabled:opacity-50"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label>

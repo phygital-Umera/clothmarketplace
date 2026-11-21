@@ -41,11 +41,7 @@ const FORM_HEADS = [
   'Other',
 ];
 
-const PAID_BY_OPTIONS = [
-  'Cash from counter',
-  'UPI',
-  'Bank',
-];
+const PAID_BY_OPTIONS = ['Cash from counter', 'UPI', 'Bank'];
 
 /** Local date as YYYY-MM-DD (not UTC, so late-evening entries keep today's date) */
 const todayISO = () => {
@@ -53,8 +49,12 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPageProps) {
-  const [selectedMonth, setSelectedMonth] = useState(() => todayISO().slice(0, 7));
+export default function ShopExpensesPage({
+  panel = 'shop-admin',
+}: ShopExpensesPageProps) {
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    todayISO().slice(0, 7),
+  );
   const [selectedHead, setSelectedHead] = useState('All heads');
 
   const {data, isLoading} = useShopExpensesQuery(panel, {
@@ -66,6 +66,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
 
   // Add Expense form states
   const [date, setDate] = useState(todayISO);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [amount, setAmount] = useState<string>('');
   const [head, setHead] = useState('Tea & refreshment');
   const [description, setDescription] = useState('');
@@ -91,14 +92,11 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
 
   const handleSaveExpense = async () => {
     const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) {
-      toast.error('Please enter a valid expense amount');
-      return;
-    }
-    if (!description.trim()) {
-      toast.error('Please enter a description for the expense');
-      return;
-    }
+    const next: Record<string, string> = {};
+    if (isNaN(amt) || amt <= 0) next.amount = 'Enter an amount more than 0';
+    if (!description.trim()) next.description = 'Description is required';
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
     setIsSaving(true);
     try {
@@ -120,7 +118,11 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
       setGstAmount('');
       setBillFile(null);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to record expense');
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Failed to record expense',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +134,15 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
       return;
     }
 
-    const headers = ['NO.', 'DATE', 'HEAD', 'DESCRIPTION', 'PAID BY', 'AMOUNT', 'GST'];
+    const headers = [
+      'NO.',
+      'DATE',
+      'HEAD',
+      'DESCRIPTION',
+      'PAID BY',
+      'AMOUNT',
+      'GST',
+    ];
     const rows = expensesList.map((e) => [
       e.expenseNumber,
       e.date,
@@ -158,80 +168,78 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto text-[#2b2b2b]">
+    <div className="space-y-4 text-espresso">
       {/* Top Header */}
       <div>
-        <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66] mb-1">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
           ACCOUNTS / EXPENSES
         </div>
-        <h1
-          className="text-3xl font-serif text-[#2a2220] tracking-tight"
-          style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-        >
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Expenses
         </h1>
-        <p className="text-sm text-[#736862] mt-1">
-          Shop running costs. Cash expenses reduce the drawer balance in the cash book.
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Shop running costs. Cash expenses reduce the drawer balance in the
+          cash book.
         </p>
       </div>
 
       {/* 3 Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* THIS MONTH */}
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
+        <div className="rounded-lg border border-ivory-300 bg-white p-5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             THIS MONTH
           </div>
           <div
-            className="text-3xl font-serif text-[#2a2220] mt-1"
+            className="mt-1 font-serif text-3xl text-espresso"
             style={{fontFamily: "'Playfair Display', Georgia, serif"}}
           >
             {inr(metrics.thisMonth)}
           </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
+          <div className="mt-1 font-sans text-xs text-on-surface-variant">
             {metrics.thisMonthSub}
           </div>
         </div>
 
         {/* PAID IN CASH */}
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
+        <div className="rounded-lg border border-ivory-300 bg-white p-5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             PAID IN CASH
           </div>
           <div
-            className="text-3xl font-serif text-[#2a2220] mt-1"
+            className="mt-1 font-serif text-3xl text-espresso"
             style={{fontFamily: "'Playfair Display', Georgia, serif"}}
           >
             {inr(metrics.paidInCash)}
           </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
+          <div className="mt-1 font-sans text-xs text-on-surface-variant">
             {metrics.cashEntriesSub}
           </div>
         </div>
 
         {/* TODAY */}
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66]">
+        <div className="rounded-lg border border-ivory-300 bg-white p-5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             TODAY
           </div>
           <div
-            className="text-3xl font-serif text-[#2a2220] mt-1"
+            className="mt-1 font-serif text-3xl text-espresso"
             style={{fontFamily: "'Playfair Display', Georgia, serif"}}
           >
             {inr(metrics.today)}
           </div>
-          <div className="text-xs text-[#736862] mt-1 font-sans">
+          <div className="mt-1 font-sans text-xs text-on-surface-variant">
             {metrics.todayEntriesSub}
           </div>
         </div>
       </div>
 
       {/* Main Grid: Left (Table + Filters), Right (Add Expense Form) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         {/* Left Column (8 cols): Filters & Table */}
-        <div className="lg:col-span-8 bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
+        <div className="space-y-4 rounded-lg border border-ivory-300 bg-white p-5 shadow-sm lg:col-span-8">
           {/* Controls / Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               {/* Month Picker */}
               <div className="relative inline-flex items-center">
@@ -239,7 +247,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="border border-[#ded5ce] rounded px-3 py-1.5 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729] font-medium"
+                  className="rounded border border-ivory-300 bg-white px-3 py-1.5 text-xs font-medium text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
                 />
               </div>
 
@@ -248,7 +256,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                 <select
                   value={selectedHead}
                   onChange={(e) => setSelectedHead(e.target.value)}
-                  className="appearance-none border border-[#ded5ce] rounded pl-3 pr-8 py-1.5 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729] font-medium cursor-pointer"
+                  className="cursor-pointer appearance-none rounded border border-ivory-300 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
                 >
                   {EXPENSE_HEADS.map((h) => (
                     <option key={h} value={h}>
@@ -256,14 +264,14 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#736862] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-on-surface-variant" />
               </div>
             </div>
 
             {/* Export Button */}
             <button
               onClick={handleExport}
-              className="border border-[#832729] text-[#832729] px-4 py-1.5 rounded text-xs font-semibold tracking-wider uppercase hover:bg-[#832729]/5 transition flex items-center justify-center gap-1.5"
+              className="flex items-center justify-center gap-1.5 rounded border border-burgundy px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-burgundy transition hover:bg-burgundy/5"
             >
               EXPORT
             </button>
@@ -271,50 +279,59 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
 
           {/* Table */}
           <div className="overflow-x-auto border-t border-[#f0ece8]">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-[#efe9e3] text-[#8b6f66] uppercase text-[11px] tracking-wider">
-                  <th className="py-3 px-3 font-semibold">DATE</th>
-                  <th className="py-3 px-3 font-semibold">NO.</th>
-                  <th className="py-3 px-3 font-semibold">HEAD</th>
-                  <th className="py-3 px-3 font-semibold">DESCRIPTION</th>
-                  <th className="py-3 px-3 font-semibold">PAID BY</th>
-                  <th className="py-3 px-3 font-semibold text-right">AMOUNT</th>
+                <tr className="border-b border-ivory-300 text-[11px] uppercase tracking-wider text-on-surface-variant">
+                  <th className="px-3 py-3 font-semibold">DATE</th>
+                  <th className="px-3 py-3 font-semibold">NO.</th>
+                  <th className="px-3 py-3 font-semibold">HEAD</th>
+                  <th className="px-3 py-3 font-semibold">DESCRIPTION</th>
+                  <th className="px-3 py-3 font-semibold">PAID BY</th>
+                  <th className="px-3 py-3 text-right font-semibold">AMOUNT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f7f4f0]">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-[#736862]">
+                    <td
+                      colSpan={6}
+                      className="py-8 text-center text-xs text-on-surface-variant"
+                    >
                       Loading expenses...
                     </td>
                   </tr>
                 ) : expensesList.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-[#736862]">
+                    <td
+                      colSpan={6}
+                      className="py-8 text-center text-xs text-on-surface-variant"
+                    >
                       No expenses recorded for this month.
                     </td>
                   </tr>
                 ) : (
                   expensesList.map((row) => (
-                    <tr key={row.id} className="hover:bg-[#faf7f4] transition-colors">
-                      <td className="py-3 px-3 text-[#2a2220] font-medium whitespace-nowrap">
+                    <tr
+                      key={row.id}
+                      className="transition-colors hover:bg-ivory-50"
+                    >
+                      <td className="whitespace-nowrap px-3 py-3 font-medium text-espresso">
                         {row.date}
                       </td>
-                      <td className="py-3 px-3 font-mono text-[11px] text-[#736862] whitespace-nowrap">
+                      <td className="font-mono whitespace-nowrap px-3 py-3 text-[11px] text-on-surface-variant">
                         {row.expenseNumber}
                       </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#eef2eb] text-[#3b5936] tracking-wide">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#4a7c46]" />
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef2eb] px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-[#3b5936]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#4a7c46]" />
                           {row.head}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
-                        <div className="text-[#2a2220] font-medium text-xs">
+                      <td className="px-3 py-3">
+                        <div className="text-xs font-medium text-espresso">
                           {row.description}
                         </div>
-                        <div className="text-[11px] text-[#8b6f66] mt-0.5 font-sans">
+                        <div className="mt-0.5 font-sans text-[11px] text-on-surface-variant">
                           {row.loggedBy}
                         </div>
                         {/* Older rows hold only a file name, not a link */}
@@ -323,16 +340,16 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                             href={row.photoUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[11px] font-semibold text-[#7a2232] hover:underline"
+                            className="text-[11px] font-semibold text-burgundy hover:underline"
                           >
                             View bill
                           </a>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-[#524944] whitespace-nowrap">
+                      <td className="whitespace-nowrap px-3 py-3 text-[#524944]">
                         {row.paidBy}
                       </td>
-                      <td className="py-3 px-3 text-right font-medium text-[#2a2220] whitespace-nowrap font-serif text-sm">
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-serif text-sm font-medium text-espresso">
                         {inr(row.amount)}
                       </td>
                     </tr>
@@ -344,15 +361,15 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
         </div>
 
         {/* Right Column (4 cols): Add Expense Form */}
-        <div className="lg:col-span-4 bg-white border border-[#efe9e3] rounded-lg p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-[#f0ece8]">
+        <div className="space-y-4 rounded-lg border border-ivory-300 bg-white p-5 shadow-sm lg:col-span-4">
+          <div className="flex items-center justify-between border-b border-[#f0ece8] pb-2">
             <h2
-              className="text-lg font-serif text-[#2a2220]"
+              className="font-serif text-lg text-espresso"
               style={{fontFamily: "'Playfair Display', Georgia, serif"}}
             >
               Add expense
             </h2>
-            <span className="font-mono text-[11px] text-[#736862] tracking-wider">
+            <span className="font-mono text-[11px] tracking-wider text-on-surface-variant">
               {nextExpenseNumber}
             </span>
           </div>
@@ -362,7 +379,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
             {/* DATE & AMOUNT */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                   DATE *
                 </label>
                 <div className="relative">
@@ -370,13 +387,13 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full border border-[#ded5ce] rounded px-2.5 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                    className="w-full rounded border border-ivory-300 bg-white px-2.5 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                   AMOUNT (₹) *
                 </label>
                 <input
@@ -386,21 +403,25 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="₹"
-                  className="w-full border border-[#ded5ce] rounded px-2.5 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                  aria-invalid={!!errors.amount}
+                  className={`w-full border ${errors.amount ? 'border-error' : 'border-ivory-300'} rounded bg-white px-2.5 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
                 />
+                {errors.amount && (
+                  <p className="field-error">{errors.amount}</p>
+                )}
               </div>
             </div>
 
             {/* EXPENSE HEAD */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 EXPENSE HEAD *
               </label>
               <div className="relative">
                 <select
                   value={head}
                   onChange={(e) => setHead(e.target.value)}
-                  className="w-full appearance-none border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729] cursor-pointer"
+                  className="w-full cursor-pointer appearance-none rounded border border-ivory-300 bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
                 >
                   {FORM_HEADS.map((h) => (
                     <option key={h} value={h}>
@@ -408,13 +429,13 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#736862] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-on-surface-variant" />
               </div>
             </div>
 
             {/* DESCRIPTION */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 DESCRIPTION *
               </label>
               <input
@@ -422,20 +443,24 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="e.g. Tea and snacks for staff"
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.description}
+                className={`w-full border ${errors.description ? 'border-error' : 'border-ivory-300'} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {errors.description && (
+                <p className="field-error">{errors.description}</p>
+              )}
             </div>
 
             {/* PAID BY */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 PAID BY *
               </label>
               <div className="relative">
                 <select
                   value={paidBy}
                   onChange={(e) => setPaidBy(e.target.value)}
-                  className="w-full appearance-none border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729] cursor-pointer"
+                  className="w-full cursor-pointer appearance-none rounded border border-ivory-300 bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
                 >
                   {PAID_BY_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
@@ -443,13 +468,13 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#736862] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-on-surface-variant" />
               </div>
             </div>
 
             {/* GST ON BILL */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 GST ON BILL (₹)
               </label>
               <input
@@ -459,18 +484,18 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                 value={gstAmount}
                 onChange={(e) => setGstAmount(e.target.value)}
                 placeholder="If vendor charged GST"
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                className="w-full rounded border border-ivory-300 bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy"
               />
             </div>
 
             {/* BILL PHOTO */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 BILL PHOTO
               </label>
-              <label className="flex flex-col items-center justify-center border border-dashed border-[#ded5ce] rounded-lg p-5 cursor-pointer hover:bg-[#faf7f4] transition text-center bg-[#fdfcfb]">
-                <Upload className="w-4 h-4 text-[#736862] mb-1" />
-                <span className="text-xs text-[#736862] font-medium">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-ivory-300 bg-[#fdfcfb] p-5 text-center transition hover:bg-ivory-50">
+                <Upload className="mb-1 h-4 w-4 text-on-surface-variant" />
+                <span className="text-xs font-medium text-on-surface-variant">
                   {billFile ? billFile.name : 'Upload'}
                 </span>
                 <input
@@ -493,7 +518,7 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
                 type="button"
                 onClick={handleSaveExpense}
                 disabled={isSaving}
-                className="w-full bg-[#7a2232] hover:bg-[#681c2a] text-white text-xs font-semibold py-3 rounded tracking-wider uppercase transition shadow-sm disabled:opacity-50"
+                className="w-full rounded bg-burgundy py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c2a] disabled:opacity-50"
               >
                 {isSaving ? 'RECORDING...' : 'SAVE EXPENSE'}
               </button>
@@ -504,4 +529,3 @@ export default function ShopExpensesPage({panel = 'shop-admin'}: ShopExpensesPag
     </div>
   );
 }
-

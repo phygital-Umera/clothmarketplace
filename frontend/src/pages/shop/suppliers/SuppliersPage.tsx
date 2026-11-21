@@ -24,6 +24,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {PATTERNS} from '@/lib/validation/fieldRules';
 import {format} from 'date-fns';
 
 interface SuppliersPageProps {
@@ -35,14 +36,20 @@ const formatInr = (n?: number | null) => {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 };
 
-export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps) {
-
+export default function SuppliersPage({
+  panel = 'shop-admin',
+}: SuppliersPageProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(
+    null,
+  );
 
   // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [supplierErrors, setSupplierErrors] = useState<Record<string, string>>(
+    {},
+  );
   const [newSupplier, setNewSupplier] = useState<CreateSupplierPayload>({
     name: '',
     contactPerson: '',
@@ -72,8 +79,11 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
   }, [search]);
 
   // Queries & Mutations
-  const {data: suppliersData, isLoading: isSuppliersLoading, refetch: refetchSuppliers} =
-    useSuppliers(panel, debouncedSearch);
+  const {
+    data: suppliersData,
+    isLoading: isSuppliersLoading,
+    refetch: refetchSuppliers,
+  } = useSuppliers(panel, debouncedSearch);
 
   const suppliers = suppliersData?.items || [];
   const totalPayable = suppliersData?.totalPayable ?? 0;
@@ -85,10 +95,16 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
     }
   }, [suppliers, selectedSupplierId]);
 
-  const {data: ledgerData, isLoading: isLedgerLoading, refetch: refetchLedger} =
-    useSupplierLedger(panel, selectedSupplierId);
+  const {
+    data: ledgerData,
+    isLoading: isLedgerLoading,
+    refetch: refetchLedger,
+  } = useSupplierLedger(panel, selectedSupplierId);
 
-  const activeSupplier = ledgerData?.supplier || suppliers.find((s) => s.id === selectedSupplierId) || null;
+  const activeSupplier =
+    ledgerData?.supplier ||
+    suppliers.find((s) => s.id === selectedSupplierId) ||
+    null;
   const ledgerEntries = ledgerData?.ledger || [];
   const openBills = ledgerData?.openBills || [];
   const nextReceiptNumber = ledgerData?.nextReceiptNumber || '—';
@@ -97,7 +113,9 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
   // Synchronize payment default amount and against bill when supplier changes
   useEffect(() => {
     if (activeSupplier) {
-      setPayAmount(activeSupplier.payable > 0 ? String(activeSupplier.payable) : '0');
+      setPayAmount(
+        activeSupplier.payable > 0 ? String(activeSupplier.payable) : '0',
+      );
     }
     if (openBills.length > 0) {
       setAgainstBill(openBills[0].billNumber);
@@ -116,13 +134,24 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSupplier.name.trim()) {
-      toast.error('Supplier name is required');
-      return;
-    }
+    // Same rules as the server, shown next to each field
+    const phone = (newSupplier.phone || '')
+      .replace(/^\+91/, '')
+      .replace(/\s+/g, '');
+    const gstin = (newSupplier.gstin || '').trim().toUpperCase();
+    const errors: Record<string, string> = {};
+    if (!newSupplier.name.trim()) errors.name = 'Supplier name is required';
+    if (phone && !PATTERNS.phone.test(phone))
+      errors.phone = 'Enter a valid 10-digit mobile number';
+    if (gstin && !PATTERNS.gstin.test(gstin))
+      errors.gstin = 'Enter a valid 15-character GSTIN';
+    setSupplierErrors(errors);
+    if (Object.keys(errors).length) return;
     try {
       const res: any = await createMutation.mutateAsync({
         ...newSupplier,
+        phone: phone || undefined,
+        gstin: gstin || undefined,
         openingBalance: Number(newSupplier.openingBalance) || 0,
       });
       setAddModalOpen(false);
@@ -185,7 +214,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
           <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
             Purchase / Suppliers
           </p>
-          <h1 className="mt-1 font-serif text-3xl font-normal tracking-tight text-[#4A1521]">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Suppliers &amp; payments
           </h1>
           <p className="mt-0.5 text-xs text-stone-500">
@@ -196,7 +225,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
         <button
           type="button"
           onClick={() => setAddModalOpen(true)}
-          className="flex items-center gap-1.5 rounded bg-[#7A2232] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#5E1724]"
+          className="flex items-center gap-1.5 rounded bg-burgundy px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-burgundy-deep"
         >
           <Plus size={14} strokeWidth={2.5} />
           <span>ADD SUPPLIER</span>
@@ -206,9 +235,9 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
       {/* Main Grid: Left List (4 cols) & Right Ledger/Payment (8 cols) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Suppliers List */}
-        <div className="lg:col-span-4 flex flex-col rounded-lg border border-stone-200/90 bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-stone-200/90 bg-white shadow-sm lg:col-span-4">
           {/* Search Bar */}
-          <div className="p-3 border-b border-stone-100 bg-stone-50/50">
+          <div className="border-b border-stone-100 bg-stone-50/50 p-3">
             <div className="relative">
               <Search
                 size={15}
@@ -219,17 +248,21 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Name or GSTIN"
-                className="w-full rounded border border-stone-200 bg-white py-2 pl-9 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-[#7A2232] focus:outline-none focus:ring-1 focus:ring-[#7A2232]"
+                className="w-full rounded border border-stone-200 bg-white py-2 pl-9 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-burgundy focus:outline-none focus:ring-1 focus:ring-burgundy"
               />
             </div>
           </div>
 
           {/* Supplier Items */}
-          <div className="flex-1 divide-y divide-stone-100 overflow-y-auto max-h-[640px]">
+          <div className="max-h-[640px] flex-1 divide-y divide-stone-100 overflow-y-auto">
             {isSuppliersLoading ? (
-              <div className="p-6 text-center text-xs text-stone-400">Loading suppliers...</div>
+              <div className="p-6 text-center text-xs text-stone-400">
+                Loading suppliers...
+              </div>
             ) : suppliers.length === 0 ? (
-              <div className="p-6 text-center text-xs text-stone-400">No suppliers found</div>
+              <div className="p-6 text-center text-xs text-stone-400">
+                No suppliers found
+              </div>
             ) : (
               suppliers.map((s) => {
                 const isSelected = s.id === selectedSupplierId;
@@ -238,16 +271,16 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     key={s.id}
                     type="button"
                     onClick={() => setSelectedSupplierId(s.id)}
-                    className={`w-full text-left p-3.5 transition-all flex items-start justify-between ${
+                    className={`flex w-full items-start justify-between p-3.5 text-left transition-all ${
                       isSelected
-                        ? 'bg-[#FDF2F4] border-l-4 border-[#7A2232]'
-                        : 'hover:bg-stone-50/80 border-l-4 border-transparent'
+                        ? 'border-l-4 border-burgundy bg-[#FDF2F4]'
+                        : 'border-l-4 border-transparent hover:bg-stone-50/80'
                     }`}
                   >
                     <div>
                       <h3
                         className={`text-xs font-semibold ${
-                          isSelected ? 'text-[#4A1521]' : 'text-stone-800'
+                          isSelected ? 'text-burgundy-deep' : 'text-stone-800'
                         }`}
                       >
                         {s.name}
@@ -262,7 +295,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                         className={`font-serif text-sm font-bold ${
                           s.payable > 0
                             ? isSelected
-                              ? 'text-[#7A2232]'
+                              ? 'text-burgundy'
                               : 'text-stone-800'
                             : 'text-stone-400'
                         }`}
@@ -278,31 +311,35 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
           </div>
 
           {/* Total Payable Bottom Bar */}
-          <div className="border-t border-stone-200 bg-[#FBF9F9] px-4 py-3 flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-700">Total payable</span>
-            <span className="font-serif text-sm font-bold text-[#7A2232]">
+          <div className="flex items-center justify-between border-t border-stone-200 bg-[#FBF9F9] px-4 py-3">
+            <span className="text-xs font-bold text-stone-700">
+              Total payable
+            </span>
+            <span className="font-serif text-sm font-bold text-burgundy">
               {formatInr(totalPayable)}
             </span>
           </div>
         </div>
 
         {/* Right Column: Ledger Table & Make Payment */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="space-y-6 lg:col-span-8">
           {/* Supplier Header & Ledger Card */}
           <div className="rounded-lg border border-stone-200/90 bg-white p-5 shadow-sm">
             {activeSupplier ? (
               <>
                 {/* Header info */}
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between pb-4 border-b border-stone-100">
+                <div className="flex flex-col gap-2 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="font-serif text-2xl font-bold tracking-tight text-[#4A1521]">
+                    <h2 className="font-serif text-2xl font-bold tracking-tight text-burgundy-deep">
                       {activeSupplier.name}
                     </h2>
                     <p className="mt-1 text-xs text-stone-500">
                       {[
                         activeSupplier.contactPerson,
                         activeSupplier.phone,
-                        activeSupplier.gstin ? `GSTIN ${activeSupplier.gstin}` : null,
+                        activeSupplier.gstin
+                          ? `GSTIN ${activeSupplier.gstin}`
+                          : null,
                         activeSupplier.state || activeSupplier.city,
                         activeSupplier.paymentTerms,
                       ]
@@ -315,7 +352,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
                       PAYABLE
                     </p>
-                    <p className="font-serif text-3xl font-bold text-[#7A2232]">
+                    <p className="font-serif text-3xl font-bold text-burgundy">
                       {formatInr(activeSupplier.payable)}
                     </p>
                   </div>
@@ -327,42 +364,53 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     <thead>
                       <tr className="border-b border-stone-200/80 text-[10px] font-bold uppercase tracking-wider text-stone-400">
                         <th className="py-2.5 pr-4">DATE</th>
-                        <th className="py-2.5 px-4">PARTICULARS</th>
-                        <th className="py-2.5 px-4">REF</th>
-                        <th className="py-2.5 px-4 text-right">BILL (CR)</th>
-                        <th className="py-2.5 px-4 text-right">PAID / RETURN (DR)</th>
+                        <th className="px-4 py-2.5">PARTICULARS</th>
+                        <th className="px-4 py-2.5">REF</th>
+                        <th className="px-4 py-2.5 text-right">BILL (CR)</th>
+                        <th className="px-4 py-2.5 text-right">
+                          PAID / RETURN (DR)
+                        </th>
                         <th className="py-2.5 pl-4 text-right">BALANCE</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100 text-stone-700">
                       {isLedgerLoading ? (
                         <tr>
-                          <td colSpan={6} className="py-6 text-center text-stone-400 text-xs">
+                          <td
+                            colSpan={6}
+                            className="py-6 text-center text-xs text-stone-400"
+                          >
                             Loading ledger entries...
                           </td>
                         </tr>
                       ) : ledgerEntries.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-6 text-center text-stone-400 text-xs">
+                          <td
+                            colSpan={6}
+                            className="py-6 text-center text-xs text-stone-400"
+                          >
                             No ledger entries found for this supplier
                           </td>
                         </tr>
                       ) : (
                         ledgerEntries.map((row) => (
-                          <tr key={row.id} className="hover:bg-stone-50/60 transition-colors">
-                            <td className="py-3 pr-4 font-medium text-stone-600 whitespace-nowrap">
+                          <tr
+                            key={row.id}
+                            className="transition-colors hover:bg-stone-50/60"
+                          >
+                            <td className="whitespace-nowrap py-3 pr-4 font-medium text-stone-600">
                               {row.date}
                             </td>
-                            <td className="py-3 px-4 font-normal text-stone-800">
+                            <td className="px-4 py-3 font-normal text-stone-800">
                               {row.particulars}
                             </td>
-                            <td className="py-3 px-4 text-stone-600 font-mono text-[11px]">
+                            <td className="font-mono px-4 py-3 text-[11px] text-stone-600">
                               {row.ref}
                             </td>
-                            <td className="py-3 px-4 text-right font-serif text-stone-800 font-medium">
+                            <td className="px-4 py-3 text-right font-serif font-medium text-stone-800">
                               {row.credit ? formatInr(row.credit) : ''}
                             </td>
-                            <td className="py-3 px-4 text-right font-serif text-stone-800 font-medium">
+                            <td className="px-4 py-3 text-right font-serif font-medium text-stone-800">
                               {row.debit ? formatInr(row.debit) : ''}
                             </td>
                             <td className="py-3 pl-4 text-right font-serif font-bold text-stone-900">
@@ -378,13 +426,15 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 </div>
 
                 {/* Ledger Footer */}
-                <div className="mt-5 pt-3 border-t border-stone-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-xs text-stone-500">{statementPeriod}</span>
+                <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-xs text-stone-500">
+                    {statementPeriod}
+                  </span>
 
                   <button
                     type="button"
                     onClick={handlePrintStatement}
-                    className="inline-flex items-center gap-1.5 rounded border border-[#7A2232] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#7A2232] transition-colors hover:bg-[#FDF2F4] self-start sm:self-auto"
+                    className="inline-flex items-center gap-1.5 self-start rounded border border-burgundy px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-burgundy transition-colors hover:bg-[#FDF2F4] sm:self-auto"
                   >
                     <Printer size={13} />
                     <span>PRINT / SHARE</span>
@@ -392,7 +442,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 </div>
               </>
             ) : (
-              <div className="p-8 text-center text-stone-400 text-xs">
+              <div className="p-8 text-center text-xs text-stone-400">
                 Select a supplier to view details and ledger.
               </div>
             )}
@@ -400,9 +450,11 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
 
           {/* Make Payment Card */}
           <div className="rounded-lg border border-stone-200/90 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="font-serif text-lg font-bold text-[#4A1521]">Make payment</h3>
-              <span className="text-xs font-mono text-stone-400 font-medium">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="font-serif text-lg font-bold text-burgundy-deep">
+                Make payment
+              </h3>
+              <span className="font-mono text-xs font-medium text-stone-400">
                 Receipt {nextReceiptNumber}
               </span>
             </div>
@@ -411,7 +463,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
               {/* Row 1: Amount, Mode, Date */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     AMOUNT (₹) *
                   </label>
                   <input
@@ -421,20 +473,22 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
                     required
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     MODE *
                   </label>
                   <select
                     value={payMode}
                     onChange={(e) => setPayMode(e.target.value)}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
-                    <option value="Bank transfer (NEFT / RTGS)">Bank transfer (NEFT / RTGS)</option>
+                    <option value="Bank transfer (NEFT / RTGS)">
+                      Bank transfer (NEFT / RTGS)
+                    </option>
                     <option value="Cash">Cash</option>
                     <option value="UPI">UPI</option>
                     <option value="Cheque">Cheque</option>
@@ -442,7 +496,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     DATE *
                   </label>
                   <input
@@ -450,7 +504,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     value={payDate}
                     onChange={(e) => setPayDate(e.target.value)}
                     required
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
@@ -458,7 +512,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
               {/* Row 2: UTR, Against Bill, Paid From */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     UTR / CHEQUE NO.
                   </label>
                   <input
@@ -466,18 +520,18 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     value={utrChequeNo}
                     onChange={(e) => setUtrChequeNo(e.target.value)}
                     placeholder="e.g. HDFCR5202610150991"
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     AGAINST BILL
                   </label>
                   <select
                     value={againstBill}
                     onChange={(e) => setAgainstBill(e.target.value)}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
                     <option value="">None / General Advance</option>
                     {openBills.map((b) => (
@@ -489,26 +543,28 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     PAID FROM
                   </label>
                   <select
                     value={paidFrom}
                     onChange={(e) => setPaidFrom(e.target.value)}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
                     <option value="Bank account">Bank account</option>
-                    <option value="Cash in shop register">Cash in shop register</option>
+                    <option value="Cash in shop register">
+                      Cash in shop register
+                    </option>
                     <option value="Petty cash">Petty cash</option>
                   </select>
                 </div>
               </div>
 
               {/* Bottom Actions */}
-              <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
+              <div className="flex items-center justify-between border-t border-stone-100 pt-3">
                 <span className="text-xs font-semibold text-stone-800">
                   Balance after payment:{' '}
-                  <span className="font-serif text-[#7A2232] font-bold">
+                  <span className="font-serif font-bold text-burgundy">
                     {formatInr(balanceAfter)}
                   </span>
                 </span>
@@ -516,7 +572,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 <button
                   type="submit"
                   disabled={paymentMutation.isPending}
-                  className="rounded bg-[#7A2232] px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#5E1724] disabled:opacity-50"
+                  className="rounded bg-burgundy px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-burgundy-deep disabled:opacity-50"
                 >
                   {paymentMutation.isPending ? 'SAVING...' : 'SAVE PAYMENT'}
                 </button>
@@ -528,10 +584,12 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
 
       {/* Add Supplier Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl border border-stone-200 bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="font-serif text-xl font-bold text-[#4A1521]">Add new supplier</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-[8px]">
+          <div className="animate-in fade-in zoom-in-95 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-4 shadow-xl duration-150 sm:p-5">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="font-serif text-xl font-bold text-burgundy-deep">
+                Add new supplier
+              </h3>
               <button
                 type="button"
                 onClick={() => setAddModalOpen(false)}
@@ -543,7 +601,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
 
             <form onSubmit={handleCreateSupplier} className="mt-4 space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                   SUPPLIER NAME *
                 </label>
                 <input
@@ -551,14 +609,20 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                   required
                   placeholder="e.g. Ahmedabad Cottons"
                   value={newSupplier.name}
-                  onChange={(e) => setNewSupplier({...newSupplier, name: e.target.value})}
-                  className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                  onChange={(e) =>
+                    setNewSupplier({...newSupplier, name: e.target.value})
+                  }
+                  aria-invalid={!!supplierErrors.name}
+                  className={`w-full rounded border bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none ${supplierErrors.name ? 'border-error' : 'border-stone-200'}`}
                 />
+                {supplierErrors.name && (
+                  <p className="field-error">{supplierErrors.name}</p>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     CONTACT PERSON
                   </label>
                   <input
@@ -566,65 +630,87 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                     placeholder="e.g. Vikram Patel"
                     value={newSupplier.contactPerson || ''}
                     onChange={(e) =>
-                      setNewSupplier({...newSupplier, contactPerson: e.target.value})
+                      setNewSupplier({
+                        ...newSupplier,
+                        contactPerson: e.target.value,
+                      })
                     }
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     PHONE NUMBER
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. +91 98765 43210"
+                    inputMode="tel"
+                    placeholder="e.g. 98765 43210"
                     value={newSupplier.phone || ''}
-                    onChange={(e) => setNewSupplier({...newSupplier, phone: e.target.value})}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    onChange={(e) =>
+                      setNewSupplier({...newSupplier, phone: e.target.value})
+                    }
+                    aria-invalid={!!supplierErrors.phone}
+                    className={`w-full rounded border bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none ${supplierErrors.phone ? 'border-error' : 'border-stone-200'}`}
                   />
+                  {supplierErrors.phone && (
+                    <p className="field-error">{supplierErrors.phone}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     GSTIN
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. 24AAAAA0000A1Z5"
+                    maxLength={15}
                     value={newSupplier.gstin || ''}
-                    onChange={(e) => setNewSupplier({...newSupplier, gstin: e.target.value})}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none uppercase"
+                    onChange={(e) =>
+                      setNewSupplier({...newSupplier, gstin: e.target.value})
+                    }
+                    aria-invalid={!!supplierErrors.gstin}
+                    className={`w-full rounded border bg-stone-50/60 px-3 py-2 text-xs font-medium uppercase text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none ${supplierErrors.gstin ? 'border-error' : 'border-stone-200'}`}
                   />
+                  {supplierErrors.gstin && (
+                    <p className="field-error">{supplierErrors.gstin}</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     CITY / STATE
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. Surat, Gujarat"
                     value={newSupplier.city || ''}
-                    onChange={(e) => setNewSupplier({...newSupplier, city: e.target.value})}
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    onChange={(e) =>
+                      setNewSupplier({...newSupplier, city: e.target.value})
+                    }
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     PAYMENT TERMS
                   </label>
                   <select
                     value={newSupplier.paymentTerms}
                     onChange={(e) =>
-                      setNewSupplier({...newSupplier, paymentTerms: e.target.value})
+                      setNewSupplier({
+                        ...newSupplier,
+                        paymentTerms: e.target.value,
+                      })
                     }
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
                     <option value="Net 0 days">Net 0 days</option>
                     <option value="Net 15">Net 15</option>
@@ -634,7 +720,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     OPENING BALANCE (₹)
                   </label>
                   <input
@@ -647,12 +733,12 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                         openingBalance: Number(e.target.value) || 0,
                       })
                     }
-                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full rounded border border-stone-200 bg-stone-50/60 px-3 py-2 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-stone-100">
+              <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(false)}
@@ -663,7 +749,7 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
-                  className="rounded bg-[#7A2232] px-5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#5E1724] disabled:opacity-50"
+                  className="rounded bg-burgundy px-5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-burgundy-deep disabled:opacity-50"
                 >
                   {createMutation.isPending ? 'Saving...' : 'Save Supplier'}
                 </button>
@@ -675,4 +761,3 @@ export default function SuppliersPage({panel = 'shop-admin'}: SuppliersPageProps
     </div>
   );
 }
-

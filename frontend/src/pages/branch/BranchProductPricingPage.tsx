@@ -46,7 +46,7 @@ export default function BranchProductPricingPage() {
           <p className="text-label-caps uppercase tracking-wider text-outline">
             Stock / Products & Prices
           </p>
-          <h1 className="font-serif text-headline-md font-normal text-burgundy-deep">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Products & price list
           </h1>
           <p className="mt-1 text-body-sm text-on-surface-variant">

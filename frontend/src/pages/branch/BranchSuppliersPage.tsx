@@ -69,7 +69,7 @@ export default function BranchSuppliersPage() {
           <p className="text-label-caps uppercase text-outline tracking-wider">
             Purchase / Suppliers
           </p>
-          <h1 className="font-serif text-headline-md font-normal text-burgundy-deep">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Suppliers & payments
           </h1>
           <p className="mt-1 text-body-sm text-on-surface-variant">

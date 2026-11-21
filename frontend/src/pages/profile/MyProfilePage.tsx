@@ -6,6 +6,7 @@ import {uploadPhoto} from '@/lib/api/upload';
 import {AUTH_KEYS} from '@/lib/react-query/queryKeys';
 import {useQueryClient} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import {PATTERNS} from '@/lib/validation/fieldRules';
 
 export default function MyProfilePage() {
   const {data: user, isLoading} = useCurrentUser();
@@ -25,6 +26,12 @@ export default function MyProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [signOutOthers, setSignOutOthers] = useState(true);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  // Inline field errors (same rules as the server)
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const fieldError = (key: string) =>
+    errors[key] ? <p className="field-error">{errors[key]}</p> : null;
+  const borderOf = (key: string) =>
+    errors[key] ? 'border-error' : 'border-ivory-300';
 
   useEffect(() => {
     if (user) {
@@ -63,14 +70,16 @@ export default function MyProfilePage() {
   };
 
   const handleSaveProfile = async () => {
-    if (!fullName.trim()) {
-      toast.error('Full Name is required');
-      return;
-    }
-    if (!mobile.trim()) {
-      toast.error('Mobile number is required');
-      return;
-    }
+    const phone = mobile.trim().replace(/^\+91/, '').replace(/\s+/g, '');
+    const next: Record<string, string> = {};
+    if (!fullName.trim()) next.fullName = 'Full name is required';
+    if (!phone) next.mobile = 'Mobile number is required';
+    else if (!PATTERNS.phone.test(phone))
+      next.mobile = 'Enter a valid 10-digit mobile number';
+    if (posPin.trim() && !/^\d{4,6}$/.test(posPin.trim()))
+      next.posPin = 'PIN must be 4 to 6 digits';
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
     try {
       setIsSavingProfile(true);
@@ -78,7 +87,7 @@ export default function MyProfilePage() {
       const photoUrl = photoFile ? await uploadPhoto(photoFile) : undefined;
       await UpdateUser({
         fullname: fullName.trim(),
-        phoneNumber: mobile.trim(),
+        phoneNumber: phone,
         posPin: posPin.trim() || undefined,
         photoUrl,
       });
@@ -90,25 +99,27 @@ export default function MyProfilePage() {
       });
       toast.success('Profile saved successfully');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to update profile');
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Failed to update profile',
+      );
     } finally {
       setIsSavingProfile(false);
     }
   };
 
   const handleUpdatePassword = async () => {
-    if (!currentPassword) {
-      toast.error('Please enter your current password');
-      return;
-    }
-    if (newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters long');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    const next: Record<string, string> = {};
+    if (!currentPassword) next.currentPassword = 'Enter your current password';
+    if (newPassword.length < 8)
+      next.newPassword = 'New password must be at least 8 characters';
+    else if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword))
+      next.newPassword = 'New password must contain a letter and a number';
+    if (newPassword !== confirmPassword)
+      next.confirmPassword = 'Passwords do not match';
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
     try {
       setIsUpdatingPassword(true);
@@ -124,33 +135,34 @@ export default function MyProfilePage() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to change password');
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Failed to change password',
+      );
     } finally {
       setIsUpdatingPassword(false);
     }
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto text-[#2b2b2b]">
+    <div className="space-y-4 text-espresso">
       {/* Header */}
       <div>
-        <div className="text-[11px] font-semibold tracking-wider uppercase text-[#8b6f66] mb-1">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
           SETTINGS / PROFILE & PASSWORD
         </div>
-        <h1
-          className="text-3xl font-serif text-[#2a2220] tracking-tight"
-          style={{fontFamily: "'Playfair Display', Georgia, serif"}}
-        >
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           My profile
         </h1>
       </div>
 
       {/* 2 Main Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
         {/* Left Column: Profile Card */}
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-6 shadow-sm space-y-5">
+        <div className="space-y-5 rounded-lg border border-ivory-300 bg-white p-6 shadow-sm">
           <h2
-            className="text-xl font-serif text-[#2a2220]"
+            className="font-serif text-xl text-espresso"
             style={{fontFamily: "'Playfair Display', Georgia, serif"}}
           >
             Profile
@@ -158,19 +170,23 @@ export default function MyProfilePage() {
 
           {/* Photo & Avatar */}
           <div className="flex items-center gap-4 pt-1">
-            <div className="w-16 h-16 rounded-full bg-[#5c1e2b] text-white flex items-center justify-center text-lg font-serif tracking-wider overflow-hidden shrink-0 shadow-sm">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#5c1e2b] font-serif text-lg tracking-wider text-white shadow-sm">
               {photoPreview ? (
-                <img src={photoPreview} alt="Avatar" className="w-full h-full object-cover" />
+                <img
+                  src={photoPreview}
+                  alt="Avatar"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 initials
               )}
             </div>
             <div className="space-y-1">
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862]">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 PHOTO
               </label>
               <div className="flex items-center gap-2">
-                <label className="border border-[#ded5ce] bg-white text-[#2a2220] px-3 py-1.5 rounded text-xs cursor-pointer hover:bg-[#faf7f4] transition font-medium">
+                <label className="cursor-pointer rounded border border-ivory-300 bg-white px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-ivory-50">
                   Choose file
                   <input
                     type="file"
@@ -179,7 +195,7 @@ export default function MyProfilePage() {
                     className="hidden"
                   />
                 </label>
-                <span className="text-xs text-[#736862] font-mono">
+                <span className="font-mono text-xs text-on-surface-variant">
                   {photoFile ? photoFile.name : 'No file chosen'}
                 </span>
               </div>
@@ -190,7 +206,7 @@ export default function MyProfilePage() {
           <div className="space-y-4 text-xs">
             {/* FULL NAME */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 FULL NAME
               </label>
               <input
@@ -198,29 +214,31 @@ export default function MyProfilePage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Priya Shinde"
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.fullName}
+                className={`w-full border ${borderOf('fullName')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {fieldError('fullName')}
             </div>
 
             {/* EMAIL (LOGIN) - Disabled */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 EMAIL (LOGIN)
               </label>
               <input
                 type="email"
                 disabled
                 value={user?.email || 'priya.s@matoshri.in'}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#524944] bg-[#f5efe9] cursor-not-allowed"
+                className="w-full cursor-not-allowed rounded border border-ivory-300 bg-[#f5efe9] px-3 py-2 text-xs text-[#524944]"
               />
-              <p className="text-[11px] text-[#8b6f66] mt-1 font-sans">
+              <p className="mt-1 font-sans text-[11px] text-on-surface-variant">
                 Ask Branch Admin to change
               </p>
             </div>
 
             {/* MOBILE */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 MOBILE
               </label>
               <input
@@ -228,26 +246,28 @@ export default function MyProfilePage() {
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 placeholder="+91 90280 77412"
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.mobile}
+                className={`w-full border ${borderOf('mobile')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {fieldError('mobile')}
             </div>
 
             {/* ROLE - Disabled */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 ROLE
               </label>
               <input
                 type="text"
                 disabled
                 value={roleDisplay}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#524944] bg-[#f5efe9] cursor-not-allowed"
+                className="w-full cursor-not-allowed rounded border border-ivory-300 bg-[#f5efe9] px-3 py-2 text-xs text-[#524944]"
               />
             </div>
 
             {/* POS PIN */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 POS PIN
               </label>
               <input
@@ -262,8 +282,10 @@ export default function MyProfilePage() {
                     ? 'PIN is set. Type a new one to change it'
                     : '4 to 6 digits'
                 }
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.posPin}
+                className={`w-full border ${borderOf('posPin')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {fieldError('posPin')}
             </div>
 
             {/* SAVE PROFILE BUTTON */}
@@ -272,7 +294,7 @@ export default function MyProfilePage() {
                 type="button"
                 onClick={handleSaveProfile}
                 disabled={isSavingProfile}
-                className="bg-[#7a2232] hover:bg-[#681c2a] text-white text-xs font-semibold px-6 py-2.5 rounded tracking-wider uppercase transition shadow-sm disabled:opacity-50"
+                className="rounded bg-burgundy px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c2a] disabled:opacity-50"
               >
                 {isSavingProfile ? 'SAVING...' : 'SAVE PROFILE'}
               </button>
@@ -281,9 +303,9 @@ export default function MyProfilePage() {
         </div>
 
         {/* Right Column: Change Password Card */}
-        <div className="bg-white border border-[#efe9e3] rounded-lg p-6 shadow-sm space-y-5">
+        <div className="space-y-5 rounded-lg border border-ivory-300 bg-white p-6 shadow-sm">
           <h2
-            className="text-xl font-serif text-[#2a2220]"
+            className="font-serif text-xl text-espresso"
             style={{fontFamily: "'Playfair Display', Georgia, serif"}}
           >
             Change password
@@ -292,44 +314,50 @@ export default function MyProfilePage() {
           <div className="space-y-4 text-xs">
             {/* CURRENT PASSWORD */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 CURRENT PASSWORD *
               </label>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.currentPassword}
+                className={`w-full border ${borderOf('currentPassword')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {fieldError('currentPassword')}
             </div>
 
             {/* NEW PASSWORD */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 NEW PASSWORD *
               </label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.newPassword}
+                className={`w-full border ${borderOf('newPassword')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
-              <p className="text-[11px] text-[#8b6f66] mt-1 font-sans">
+              {fieldError('newPassword')}
+              <p className="mt-1 font-sans text-[11px] text-on-surface-variant">
                 Min 8 characters with a number, an uppercase letter and a symbol
               </p>
             </div>
 
             {/* CONFIRM NEW PASSWORD */}
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider uppercase text-[#736862] mb-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 CONFIRM NEW PASSWORD *
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-[#ded5ce] rounded px-3 py-2 text-xs text-[#2a2220] bg-white focus:outline-none focus:ring-1 focus:ring-[#832729]"
+                aria-invalid={!!errors.confirmPassword}
+                className={`w-full border ${borderOf('confirmPassword')} rounded bg-white px-3 py-2 text-xs text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy`}
               />
+              {fieldError('confirmPassword')}
             </div>
 
             {/* SIGN OUT OF OTHER DEVICES CHECKBOX */}
@@ -339,9 +367,12 @@ export default function MyProfilePage() {
                 id="signout-others"
                 checked={signOutOthers}
                 onChange={(e) => setSignOutOthers(e.target.checked)}
-                className="rounded border-[#ded5ce] text-[#832729] focus:ring-[#832729] w-4 h-4 cursor-pointer"
+                className="h-4 w-4 cursor-pointer rounded border-ivory-300 text-burgundy focus:ring-burgundy"
               />
-              <label htmlFor="signout-others" className="text-xs text-[#2a2220] cursor-pointer">
+              <label
+                htmlFor="signout-others"
+                className="cursor-pointer text-xs text-espresso"
+              >
                 Sign out of all other devices
               </label>
             </div>
@@ -355,7 +386,7 @@ export default function MyProfilePage() {
                   setNewPassword('');
                   setConfirmPassword('');
                 }}
-                className="border border-[#ded5ce] text-[#736862] hover:bg-[#faf7f4] text-xs font-semibold px-5 py-2.5 rounded tracking-wider uppercase transition"
+                className="rounded border border-ivory-300 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition hover:bg-ivory-50"
               >
                 CANCEL
               </button>
@@ -363,7 +394,7 @@ export default function MyProfilePage() {
                 type="button"
                 onClick={handleUpdatePassword}
                 disabled={isUpdatingPassword}
-                className="bg-[#7a2232] hover:bg-[#681c2a] text-white text-xs font-semibold px-6 py-2.5 rounded tracking-wider uppercase transition shadow-sm disabled:opacity-50"
+                className="rounded bg-burgundy px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c2a] disabled:opacity-50"
               >
                 {isUpdatingPassword ? 'UPDATING...' : 'UPDATE PASSWORD'}
               </button>
@@ -374,4 +405,3 @@ export default function MyProfilePage() {
     </div>
   );
 }
-

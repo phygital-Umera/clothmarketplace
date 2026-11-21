@@ -211,7 +211,7 @@ export default function PurchaseReturnPage() {
         <p className="text-[11px] font-semibold tracking-wider text-espresso/60 uppercase">
           PURCHASE / PURCHASE RETURN
         </p>
-        <h1 className="font-serif text-3xl font-medium text-espresso mt-0.5">
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Purchase return (debit note)
         </h1>
         <p className="text-xs text-espresso/70 mt-1">
@@ -222,9 +222,9 @@ export default function PurchaseReturnPage() {
       {/* 2. Main Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: Form & Items Table (8 cols / ~66%) */}
-        <div className="lg:col-span-8 bg-white border border-[#EAE3DC] p-5 rounded shadow-sm space-y-5 print:hidden">
+        <div className="lg:col-span-8 bg-white border border-ivory-300 p-5 rounded shadow-sm space-y-5 print:hidden">
           {/* Main Card Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[#EAE3DC]">
+          <div className="flex items-center justify-between pb-4 border-b border-ivory-300">
             <h2 className="font-mono text-xl font-semibold text-espresso">
               {nextDebitNoteNo || '—'}
             </h2>
@@ -244,7 +244,7 @@ export default function PurchaseReturnPage() {
               <select
                 value={selectedSupplier}
                 onChange={(e) => setSelectedSupplier(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
               >
                 {suppliers.length > 0 ? (
                   suppliers.map((s) => (
@@ -266,7 +266,7 @@ export default function PurchaseReturnPage() {
               <select
                 value={selectedBillId}
                 onChange={(e) => setSelectedBillId(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
               >
                 {bills.length > 0 ? (
                   bills.map((b) => (
@@ -293,26 +293,26 @@ export default function PurchaseReturnPage() {
                   required
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso"
+                  className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso"
                 />
               </div>
             </div>
           </div>
 
           {/* Items Table */}
-          <div className="overflow-x-auto border border-[#EAE3DC] rounded">
+          <div className="overflow-x-auto border border-ivory-300 rounded">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#FAF7F4] text-espresso/70 text-[10px] uppercase tracking-wider font-semibold">
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC]">ITEM</th>
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-center">BOUGHT</th>
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-center">IN STOCK</th>
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-center">RETURN QTY</th>
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-center">COST</th>
-                  <th className="py-2.5 px-3 border-b border-[#EAE3DC]">REASON</th>
+                <tr className="bg-ivory-50 text-espresso/70 text-[10px] uppercase tracking-wider font-semibold">
+                  <th className="py-2.5 px-3 border-b border-ivory-300">ITEM</th>
+                  <th className="py-2.5 px-3 border-b border-ivory-300 text-center">BOUGHT</th>
+                  <th className="py-2.5 px-3 border-b border-ivory-300 text-center">IN STOCK</th>
+                  <th className="py-2.5 px-3 border-b border-ivory-300 text-center">RETURN QTY</th>
+                  <th className="py-2.5 px-3 border-b border-ivory-300 text-center">COST</th>
+                  <th className="py-2.5 px-3 border-b border-ivory-300">REASON</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#EAE3DC]/60 text-espresso">
+              <tbody className="divide-y divide-ivory-300/60 text-espresso">
                 {billsLoading ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-espresso/40">
@@ -327,7 +327,7 @@ export default function PurchaseReturnPage() {
                   </tr>
                 ) : (
                   items.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#FAF7F4]/50 transition">
+                    <tr key={item.id} className="hover:bg-ivory-50/50 transition">
                       {/* ITEM */}
                       <td className="py-3 px-3">
                         <p className="font-medium text-espresso text-xs">
@@ -358,7 +358,7 @@ export default function PurchaseReturnPage() {
                           onChange={(e) =>
                             handleReturnQtyChange(item.id, parseInt(e.target.value) || 0)
                           }
-                          className="w-16 px-2 py-1 text-center text-xs font-semibold border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso"
+                          className="w-16 px-2 py-1 text-center text-xs font-semibold border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso"
                         />
                       </td>
 
@@ -373,7 +373,7 @@ export default function PurchaseReturnPage() {
                           <select
                             value={item.reason || 'Stitching defect'}
                             onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                            className="w-full px-2 py-1 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                            className="w-full px-2 py-1 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
                           >
                             {REASON_OPTIONS.map((opt) => (
                               <option key={opt} value={opt}>
@@ -404,7 +404,7 @@ export default function PurchaseReturnPage() {
                 placeholder="Transport / courier, LR no."
                 value={sentVia}
                 onChange={(e) => setSentVia(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso"
+                className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso"
               />
             </div>
 
@@ -418,7 +418,7 @@ export default function PurchaseReturnPage() {
                 onChange={(e) =>
                   setTakeStockFrom(e.target.value as 'DAMAGED_STOCK' | 'ACTIVE_STOCK')
                 }
-                className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
               >
                 <option value="DAMAGED_STOCK">Damaged stock</option>
                 <option value="ACTIVE_STOCK">Active stock</option>
@@ -436,7 +436,7 @@ export default function PurchaseReturnPage() {
               value={noteToSupplier}
               onChange={(e) => setNoteToSupplier(e.target.value)}
               placeholder="e.g. 10 pcs with open side seams. Please adjust in your next bill."
-              className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso resize-none"
+              className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso resize-none"
             />
           </div>
         </div>
@@ -444,8 +444,8 @@ export default function PurchaseReturnPage() {
         {/* Right Column: Debit Note Summary & Earlier Returns (4 cols / ~34%) */}
         <div className="lg:col-span-4 space-y-5 print:hidden">
           {/* Top Card: Debit Note Settlement */}
-          <div className="bg-white border border-[#EAE3DC] p-5 rounded shadow-sm space-y-4">
-            <h3 className="font-serif text-xl font-medium text-espresso pb-2 border-b border-[#EAE3DC]">
+          <div className="bg-white border border-ivory-300 p-5 rounded shadow-sm space-y-4">
+            <h3 className="font-serif text-xl font-medium text-espresso pb-2 border-b border-ivory-300">
               Debit note
             </h3>
 
@@ -459,14 +459,14 @@ export default function PurchaseReturnPage() {
                 <span className="font-medium">₹{taxAmount.toFixed(2)}</span>
               </div>
 
-              <div className="border-t border-[#EAE3DC] pt-2.5 flex items-baseline justify-between">
+              <div className="border-t border-ivory-300 pt-2.5 flex items-baseline justify-between">
                 <span className="font-serif text-lg font-medium text-espresso">Debit note</span>
                 <span className="font-serif text-2xl font-bold text-espresso">
                   ₹{totalAmount.toLocaleString('en-IN')}
                 </span>
               </div>
 
-              <div className="border-t border-[#EAE3DC] pt-2.5 space-y-1.5 text-xs">
+              <div className="border-t border-ivory-300 pt-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between text-espresso/70">
                   <span>Payable before</span>
                   <span className="font-mono">
@@ -498,7 +498,7 @@ export default function PurchaseReturnPage() {
                     e.target.value as 'DEDUCT_FROM_PAYABLE' | 'BANK_REFUND' | 'SUPPLIER_CREDIT',
                   )
                 }
-                className="w-full px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                className="w-full px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
               >
                 <option value="DEDUCT_FROM_PAYABLE">Deduct from payable</option>
                 <option value="BANK_REFUND">Bank refund</option>
@@ -511,19 +511,19 @@ export default function PurchaseReturnPage() {
               type="button"
               onClick={handleSubmit}
               disabled={createReturnMutation.isPending || totalQty === 0}
-              className="w-full bg-[#8B263E] hover:bg-[#741F33] text-white py-3 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm disabled:opacity-50"
+              className="w-full bg-burgundy hover:bg-[#741F33] text-white py-3 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm disabled:opacity-50"
             >
               {createReturnMutation.isPending ? 'SAVING...' : 'SAVE & PRINT DEBIT NOTE'}
             </button>
           </div>
 
           {/* Bottom Card: Earlier returns */}
-          <div className="bg-white border border-[#EAE3DC] p-5 rounded shadow-sm">
-            <h3 className="font-serif text-lg font-medium text-espresso pb-3 border-b border-[#EAE3DC]">
+          <div className="bg-white border border-ivory-300 p-5 rounded shadow-sm">
+            <h3 className="font-serif text-lg font-medium text-espresso pb-3 border-b border-ivory-300">
               Earlier returns
             </h3>
 
-            <div className="divide-y divide-[#EAE3DC]/60">
+            <div className="divide-y divide-ivory-300/60">
               {earlierReturns.length === 0 ? (
                 <div className="py-6 text-center text-xs text-espresso/40">
                   No earlier returns found.
@@ -565,8 +565,8 @@ export default function PurchaseReturnPage() {
 
       {/* 3. Print Voucher Preview Modal */}
       {printVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-lg max-w-xl w-full p-6 shadow-2xl border border-[#EAE3DC] space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[8px] p-4">
+          <div className="max-h-[90vh] overflow-y-auto bg-white rounded-lg max-w-xl w-full p-4 sm:p-5 shadow-2xl border border-ivory-300 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="font-serif text-xl font-semibold text-espresso">
@@ -606,7 +606,7 @@ export default function PurchaseReturnPage() {
                 <span className="text-espresso/60">GST:</span>
                 <span>₹{printVoucher.taxAmount.toLocaleString('en-IN')}</span>
               </div>
-              <div className="flex justify-between font-bold text-sm border-t pt-2 text-[#8B263E]">
+              <div className="flex justify-between font-bold text-sm border-t pt-2 text-burgundy">
                 <span>Total Debit Note Amount:</span>
                 <span>₹{printVoucher.totalAmount.toLocaleString('en-IN')}</span>
               </div>
@@ -623,14 +623,14 @@ export default function PurchaseReturnPage() {
               <button
                 type="button"
                 onClick={() => setPrintVoucher(null)}
-                className="px-4 py-2 border border-[#EAE3DC] rounded text-xs font-semibold uppercase tracking-wider text-espresso/80"
+                className="px-4 py-2 border border-ivory-300 rounded text-xs font-semibold uppercase tracking-wider text-espresso/80"
               >
                 Close
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 bg-[#8B263E] text-white px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider shadow"
+                className="inline-flex items-center gap-1.5 bg-burgundy text-white px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider shadow"
               >
                 <Printer size={14} />
                 Print Voucher

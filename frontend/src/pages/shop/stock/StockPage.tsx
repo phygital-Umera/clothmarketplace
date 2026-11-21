@@ -177,14 +177,14 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] p-6 lg:p-8 font-sans text-stone-800">
+    <div className="space-y-4 font-sans text-espresso">
       {/* Top Breadcrumb & Actions Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <div className="text-[11px] font-bold tracking-widest text-stone-400 uppercase mb-1">
             STOCK / STOCK
           </div>
-          <h1 className="text-3xl font-serif font-bold text-[#4A1521] tracking-tight">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Stock
           </h1>
           <p className="text-sm text-stone-500 mt-1">
@@ -196,7 +196,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={openAuditModal}
-            className="flex items-center gap-2 rounded-md border border-[#7A2232] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#7A2232] shadow-sm hover:bg-stone-50 transition-colors"
+            className="flex items-center gap-2 rounded-md border border-burgundy bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wider text-burgundy shadow-sm hover:bg-stone-50 transition-colors"
           >
             <ClipboardCheck size={14} />
             Physical Stock Count
@@ -204,7 +204,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
 
           <button
             onClick={() => setAdjustModalOpen(true)}
-            className="flex items-center gap-2 rounded-md border border-[#7A2232] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#7A2232] shadow-sm hover:bg-stone-50 transition-colors"
+            className="flex items-center gap-2 rounded-md border border-burgundy bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wider text-burgundy shadow-sm hover:bg-stone-50 transition-colors"
           >
             <SlidersHorizontal size={14} />
             Adjust
@@ -212,7 +212,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
 
           <button
             onClick={() => navigate({to: '/shop-admin/purchase-bills'})}
-            className="flex items-center gap-2 rounded-md bg-[#7A2232] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-[#631B28] transition-colors"
+            className="flex items-center gap-2 rounded-md bg-burgundy px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-burgundy-deep transition-colors"
           >
             <Plus size={15} />
             Purchase
@@ -301,7 +301,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
               onClick={() => setActiveTab('STOCK_SUMMARY')}
               className={`pb-2 text-xs font-semibold uppercase tracking-wider transition-colors relative whitespace-nowrap ${
                 activeTab === 'STOCK_SUMMARY'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232] font-bold'
+                  ? 'text-burgundy border-b-2 border-burgundy font-bold'
                   : 'text-stone-500 hover:text-stone-800'
               }`}
             >
@@ -312,7 +312,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
               onClick={() => setActiveTab('LOW_OUT')}
               className={`pb-2 text-xs font-semibold uppercase tracking-wider transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'LOW_OUT'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232] font-bold'
+                  ? 'text-burgundy border-b-2 border-burgundy font-bold'
                   : 'text-stone-500 hover:text-stone-800'
               }`}
             >
@@ -326,7 +326,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
               onClick={() => setActiveTab('DAMAGED')}
               className={`pb-2 text-xs font-semibold uppercase tracking-wider transition-colors relative whitespace-nowrap ${
                 activeTab === 'DAMAGED'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232] font-bold'
+                  ? 'text-burgundy border-b-2 border-burgundy font-bold'
                   : 'text-stone-500 hover:text-stone-800'
               }`}
             >
@@ -337,7 +337,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
               onClick={() => setActiveTab('SLOW_MOVING')}
               className={`pb-2 text-xs font-semibold uppercase tracking-wider transition-colors relative whitespace-nowrap ${
                 activeTab === 'SLOW_MOVING'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232] font-bold'
+                  ? 'text-burgundy border-b-2 border-burgundy font-bold'
                   : 'text-stone-500 hover:text-stone-800'
               }`}
             >
@@ -351,7 +351,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
             <div className="relative">
               <button
                 onClick={() => setPeriodDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-2 rounded-md border border-stone-200/90 bg-[#FAF9F6] px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition-colors"
+                className="flex items-center gap-2 rounded-md border border-stone-200/90 bg-ivory-50 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition-colors"
               >
                 <span>{periodLabel}</span>
                 <ChevronDown size={14} className="text-stone-400" />
@@ -368,7 +368,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                       }}
                       className={`block w-full text-left px-3 py-1.5 text-xs transition-colors ${
                         selectedPeriod === opt.id
-                          ? 'bg-[#7A2232]/10 text-[#7A2232] font-semibold'
+                          ? 'bg-burgundy/10 text-burgundy font-semibold'
                           : 'text-stone-700 hover:bg-stone-50'
                       }`}
                     >
@@ -390,7 +390,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                 placeholder="Item or scan barcode"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-md border border-stone-200/90 bg-[#FAF9F6] pl-8 pr-3 py-1.5 text-xs text-stone-800 placeholder-stone-400 focus:border-[#7A2232] focus:bg-white focus:outline-none transition-colors"
+                className="w-full rounded-md border border-stone-200/90 bg-ivory-50 pl-8 pr-3 py-1.5 text-xs text-stone-800 placeholder-stone-400 focus:border-burgundy focus:bg-white focus:outline-none transition-colors"
               />
               {search && (
                 <button
@@ -408,7 +408,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-stone-200 bg-[#FAF9F6] text-[10px] font-bold uppercase tracking-wider text-stone-500">
+              <tr className="border-b border-stone-200 bg-ivory-50 text-[10px] font-bold uppercase tracking-wider text-stone-500">
                 <th className="px-5 py-3.5">ITEM / SIZE</th>
                 <th className="px-3 py-3.5 text-center">OPENING</th>
                 <th className="px-3 py-3.5 text-center">+ PURCHASE</th>
@@ -442,7 +442,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                   >
                     {/* Item / Size & Barcode */}
                     <td className="px-5 py-3.5">
-                      <div className="font-semibold text-stone-900 group-hover:text-[#7A2232] transition-colors">
+                      <div className="font-semibold text-stone-900 group-hover:text-burgundy transition-colors">
                         {row.productName}
                       </div>
                       <div className="text-[11px] text-stone-400 font-mono tracking-tight mt-0.5">
@@ -531,11 +531,11 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
 
       {/* Adjust Stock Modal */}
       {adjustModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-stone-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[8px] p-4">
+          <div className="max-h-[90vh] overflow-y-auto w-full max-w-md rounded-xl bg-white p-4 sm:p-5 shadow-2xl border border-stone-200">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3 mb-4">
               <div>
-                <h3 className="font-serif text-lg font-bold text-[#4A1521]">
+                <h3 className="font-serif text-lg font-bold text-burgundy-deep">
                   Adjust Stock
                 </h3>
                 <p className="text-xs text-stone-500">
@@ -561,7 +561,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                   onChange={(e) =>
                     setAdjustPayload((prev) => ({...prev, variantId: e.target.value}))
                   }
-                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-[#7A2232] focus:outline-none"
+                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-burgundy focus:outline-none"
                   required
                 >
                   <option value="">Select variant</option>
@@ -589,7 +589,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                         }
                         className={`rounded-md border py-2 text-center font-medium transition-all ${
                           adjustPayload.type === type
-                            ? 'border-[#7A2232] bg-[#7A2232] text-white font-semibold'
+                            ? 'border-burgundy bg-burgundy text-white font-semibold'
                             : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
@@ -620,7 +620,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                       quantity: parseInt(e.target.value || '0', 10),
                     }))
                   }
-                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs font-mono focus:border-[#7A2232] focus:outline-none"
+                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs font-mono focus:border-burgundy focus:outline-none"
                   required
                 />
               </div>
@@ -635,7 +635,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                   onChange={(e) =>
                     setAdjustPayload((prev) => ({...prev, reason: e.target.value}))
                   }
-                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-[#7A2232] focus:outline-none"
+                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-burgundy focus:outline-none"
                   required
                 >
                   {ADJUST_REASONS.map((r) => (
@@ -658,7 +658,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                     setAdjustPayload((prev) => ({...prev, notes: e.target.value}))
                   }
                   placeholder="Additional context or rack/bin details..."
-                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-[#7A2232] focus:outline-none"
+                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-burgundy focus:outline-none"
                 />
               </div>
 
@@ -674,7 +674,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                 <button
                   type="submit"
                   disabled={adjustMutation.isPending}
-                  className="rounded-md bg-[#7A2232] px-5 py-2 font-semibold text-white hover:bg-[#631B28] disabled:opacity-50"
+                  className="rounded-md bg-burgundy px-5 py-2 font-semibold text-white hover:bg-burgundy-deep disabled:opacity-50"
                 >
                   {adjustMutation.isPending ? 'Saving...' : 'Apply Adjustment'}
                 </button>
@@ -686,11 +686,11 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
 
       {/* Physical Stock Count Modal */}
       {auditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-          <div className="w-full max-w-3xl rounded-xl bg-white p-6 shadow-2xl border border-stone-200 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[8px] p-4">
+          <div className="w-full max-w-3xl rounded-xl bg-white p-4 sm:p-5 shadow-2xl border border-stone-200 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3 mb-4">
               <div>
-                <h3 className="font-serif text-lg font-bold text-[#4A1521]">
+                <h3 className="font-serif text-lg font-bold text-burgundy-deep">
                   Physical Stock Count (Audit)
                 </h3>
                 <p className="text-xs text-stone-500">
@@ -743,7 +743,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                                   [it.variantId]: isNaN(val) ? 0 : val,
                                 }));
                               }}
-                              className="w-24 rounded border border-stone-200 px-2 py-1 text-center font-bold text-stone-900 focus:border-[#7A2232] focus:outline-none"
+                              className="w-24 rounded border border-stone-200 px-2 py-1 text-center font-bold text-stone-900 focus:border-burgundy focus:outline-none"
                             />
                           </td>
                           <td className="px-3 py-2 text-center font-bold">
@@ -772,7 +772,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                   placeholder="e.g. Month-end floor count"
                   value={auditNotes}
                   onChange={(e) => setAuditNotes(e.target.value)}
-                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-[#7A2232] focus:outline-none"
+                  className="w-full rounded-md border border-stone-200 px-3 py-2 text-xs focus:border-burgundy focus:outline-none"
                 />
               </div>
 
@@ -788,7 +788,7 @@ export default function StockPage({panel = 'shop-admin'}: StockPageProps) {
                 <button
                   type="submit"
                   disabled={auditMutation.isPending}
-                  className="rounded-md bg-[#7A2232] px-5 py-2 font-semibold text-white hover:bg-[#631B28] disabled:opacity-50"
+                  className="rounded-md bg-burgundy px-5 py-2 font-semibold text-white hover:bg-burgundy-deep disabled:opacity-50"
                 >
                   {auditMutation.isPending ? 'Reconciling...' : 'Reconcile & Save Audit'}
                 </button>

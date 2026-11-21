@@ -743,9 +743,9 @@ export default function NewBillPOSPage() {
   }, [dashboard]);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-80px)] -m-4 md:-m-6 2xl:-m-10 bg-[#FAF8F5] text-espresso select-none font-sans">
+    <div className="flex flex-col min-h-[calc(100vh-80px)] -m-3 sm:-m-4 lg:-m-6 2xl:-m-8 bg-ivory-50 text-espresso select-none font-sans">
       {/* 1. TOP HEADER & METADATA BAR */}
-      <div className="border-b border-ivory-300 bg-[#FAF8F5] px-4 md:px-6 py-2.5">
+      <div className="border-b border-ivory-300 bg-ivory-50 px-4 md:px-6 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Breadcrumb & Shift Info */}
           <div>
@@ -997,7 +997,7 @@ export default function NewBillPOSPage() {
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-ivory-300 bg-[#FAF8F5] text-outline uppercase font-semibold text-[11px] tracking-wider">
+                  <tr className="border-b border-ivory-300 bg-ivory-50 text-outline uppercase font-semibold text-[11px] tracking-wider">
                     <th className="py-2.5 px-3 w-8 text-center">#</th>
                     <th className="py-2.5 px-4 min-w-[200px]">ITEM</th>
                     <th className="py-2.5 px-4 text-center min-w-[140px]">
@@ -1137,7 +1137,7 @@ export default function NewBillPOSPage() {
             </div>
 
             {/* TABLE FOOTER SUMMARY & SHORTCUTS */}
-            <div className="border-t border-ivory-300 bg-[#FAF8F5] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="border-t border-ivory-300 bg-ivory-50 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="text-outline font-medium">
                 <span className="font-bold text-espresso">
                   {totals.linesCount} lines
@@ -1200,7 +1200,7 @@ export default function NewBillPOSPage() {
 
             {/* Phone search input & WALK-IN toggle */}
             <div className="flex items-center gap-2 mb-2 relative">
-              <div className="flex-1 flex items-center border border-ivory-300 rounded px-2.5 py-1.5 bg-[#FAF8F5] focus-within:bg-white focus-within:border-burgundy transition-all">
+              <div className="flex-1 flex items-center border border-ivory-300 rounded px-2.5 py-1.5 bg-ivory-50 focus-within:bg-white focus-within:border-burgundy transition-all">
                 <span className="text-xs font-medium text-outline mr-1.5">+91</span>
                 <input
                   type="text"
@@ -1262,7 +1262,7 @@ export default function NewBillPOSPage() {
 
             {/* Selected Customer Card (matching reference design) */}
             {!isWalkIn && customerName && (
-              <div className="p-3 border border-ivory-300 rounded-lg bg-[#FAF8F5] mb-2.5">
+              <div className="p-3 border border-ivory-300 rounded-lg bg-ivory-50 mb-2.5">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-bold text-espresso">
                     {customerName}
@@ -1303,7 +1303,7 @@ export default function NewBillPOSPage() {
                 maxLength={15}
                 required={isB2B}
                 onChange={(e) => setCustomerGSTIN(e.target.value.toUpperCase())}
-                className="w-full border border-ivory-300 rounded px-2.5 py-1.5 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
+                className="w-full border border-ivory-300 rounded px-2.5 py-1.5 text-xs text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none"
               />
             </div>
           </div>
@@ -1325,7 +1325,7 @@ export default function NewBillPOSPage() {
             {/* Bill discount input */}
             <div className="flex items-center justify-between text-outline">
               <span>Bill discount</span>
-              <div className="flex items-center border border-ivory-300 rounded bg-[#FAF8F5] focus-within:bg-white focus-within:border-burgundy">
+              <div className="flex items-center border border-ivory-300 rounded bg-ivory-50 focus-within:bg-white focus-within:border-burgundy">
                 <input
                   ref={discountInputRef}
                   type="number"
@@ -1422,7 +1422,7 @@ export default function NewBillPOSPage() {
                   value={cashAmount || ''}
                   placeholder="0"
                   onChange={(e) => setCashAmount(parseFloat(e.target.value) || 0)}
-                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
+                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none"
                 />
                 <div className="flex-1 border border-ivory-200 rounded px-2 py-1 text-right text-xs font-mono text-outline bg-ivory-50/50">
                   {cashAmount}
@@ -1438,7 +1438,7 @@ export default function NewBillPOSPage() {
                   value={upiAmount || ''}
                   placeholder="0"
                   onChange={(e) => setUpiAmount(parseFloat(e.target.value) || 0)}
-                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
+                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none"
                 />
                 <input
                   type="text"
@@ -1446,7 +1446,7 @@ export default function NewBillPOSPage() {
                   value={upiRef}
                   maxLength={40}
                   onChange={(e) => setUpiRef(e.target.value)}
-                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none placeholder-outline/40 font-mono"
+                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none placeholder-outline/40 font-mono"
                 />
               </div>
 
@@ -1459,7 +1459,7 @@ export default function NewBillPOSPage() {
                   value={cardAmount || ''}
                   placeholder="0"
                   onChange={(e) => setCardAmount(parseFloat(e.target.value) || 0)}
-                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
+                  className="w-24 border border-ivory-300 rounded px-2.5 py-1 text-right text-xs font-bold text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none"
                 />
                 <input
                   type="text"
@@ -1467,7 +1467,7 @@ export default function NewBillPOSPage() {
                   value={cardLast4}
                   maxLength={10}
                   onChange={(e) => setCardLast4(e.target.value)}
-                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none placeholder-outline/40"
+                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none placeholder-outline/40"
                 />
               </div>
 
@@ -1480,12 +1480,12 @@ export default function NewBillPOSPage() {
                   value={creditAmount || ''}
                   placeholder="0"
                   onChange={(e) => setCreditAmount(parseFloat(e.target.value) || 0)}
-                  className="w-24 border border-burgundy/40 rounded px-2.5 py-1 text-right text-xs font-bold text-burgundy bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none"
+                  className="w-24 border border-burgundy/40 rounded px-2.5 py-1 text-right text-xs font-bold text-burgundy bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none"
                 />
                 <select
                   value={creditDays}
                   onChange={(e) => setCreditDays(Number(e.target.value))}
-                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-[#FAF8F5] focus:bg-white focus:border-burgundy focus:outline-none cursor-pointer"
+                  className="flex-1 border border-ivory-300 rounded px-2 py-1 text-xs text-espresso bg-ivory-50 focus:bg-white focus:border-burgundy focus:outline-none cursor-pointer"
                 >
                   {[...new Set([7, 15, 30, 45, creditDays])]
                     .sort((a, b) => a - b)
@@ -1591,8 +1591,8 @@ export default function NewBillPOSPage() {
       {/* NEW CUSTOMER MODAL */}
       {isNewCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-ivory-200 px-5 py-4 bg-[#FAF8F5]">
+          <div className="max-h-[90vh] overflow-y-auto bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-ivory-200 px-5 py-4 bg-ivory-50">
               <h3 className="font-serif text-lg font-bold text-espresso">
                 Add New Customer
               </h3>
@@ -1670,8 +1670,8 @@ export default function NewBillPOSPage() {
       {/* HELD BILLS MODAL */}
       {showHeldModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-ivory-200 px-5 py-4 bg-[#FAF8F5]">
+          <div className="max-h-[90vh] overflow-y-auto bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-lg animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-ivory-200 px-5 py-4 bg-ivory-50">
               <div className="flex items-center gap-2">
                 <Clock size={18} className="text-burgundy" />
                 <h3 className="font-serif text-lg font-bold text-espresso">
@@ -1749,7 +1749,7 @@ export default function NewBillPOSPage() {
       {/* BILL SUCCESS / RECEIPT MODAL */}
       {lastCreatedBill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in-95 duration-150">
+          <div className="max-h-[90vh] overflow-y-auto bg-white rounded-xl border border-ivory-300 shadow-2xl w-full max-w-sm p-4 sm:p-5 text-center animate-in fade-in zoom-in-95 duration-150">
             <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 size={24} />
             </div>

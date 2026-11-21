@@ -189,51 +189,53 @@ export default function BillDetailsModal({
               )}
             </div>
 
-            <table className="w-full text-left text-body-sm">
-              <thead className="border-b border-ivory-200 text-label-caps uppercase text-outline">
-                <tr>
-                  <th className="py-2">Item</th>
-                  <th className="py-2 text-right">Qty</th>
-                  <th className="py-2 text-right">
-                    {isPurchase ? 'Unit Cost' : 'Unit Price'}
-                  </th>
-                  <th className="py-2 text-right">GST</th>
-                  <th className="py-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ivory-100">
-                {bill.items?.map((i) => (
-                  <tr key={i.id}>
-                    <td className="py-2">
-                      <p className="font-medium text-espresso">
-                        {i.variant?.product.name}
-                      </p>
-                      <p className="text-xs text-outline">
-                        {i.variant?.color} / Size {i.variant?.size} ·{' '}
-                        <span className="font-mono">
-                          {i.variant?.variantSku}
-                        </span>
-                      </p>
-                    </td>
-                    <td className="py-2 text-right font-semibold">
-                      {i.quantity}
-                    </td>
-                    <td className="py-2 text-right">
-                      ₹{(isPurchase ? i.unitCost : i.unitPrice)?.toFixed(2)}
-                      {!isPurchase && !!i.discount && (
-                        <span className="block text-[10px] text-outline">
-                          −₹{i.discount}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">{i.taxRate}%</td>
-                    <td className="py-2 text-right font-semibold">
-                      ₹{(isPurchase ? i.totalCost : i.totalPrice)?.toFixed(2)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-body-sm">
+                <thead className="border-b border-ivory-200 text-label-caps uppercase text-outline">
+                  <tr>
+                    <th className="py-2">Item</th>
+                    <th className="py-2 text-right">Qty</th>
+                    <th className="py-2 text-right">
+                      {isPurchase ? 'Unit Cost' : 'Unit Price'}
+                    </th>
+                    <th className="py-2 text-right">GST</th>
+                    <th className="py-2 text-right">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-ivory-100">
+                  {bill.items?.map((i) => (
+                    <tr key={i.id}>
+                      <td className="py-2">
+                        <p className="font-medium text-espresso">
+                          {i.variant?.product.name}
+                        </p>
+                        <p className="text-xs text-outline">
+                          {i.variant?.color} / Size {i.variant?.size} ·{' '}
+                          <span className="font-mono">
+                            {i.variant?.variantSku}
+                          </span>
+                        </p>
+                      </td>
+                      <td className="py-2 text-right font-semibold">
+                        {i.quantity}
+                      </td>
+                      <td className="py-2 text-right">
+                        ₹{(isPurchase ? i.unitCost : i.unitPrice)?.toFixed(2)}
+                        {!isPurchase && !!i.discount && (
+                          <span className="block text-[10px] text-outline">
+                            −₹{i.discount}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right">{i.taxRate}%</td>
+                      <td className="py-2 text-right font-semibold">
+                        ₹{(isPurchase ? i.totalCost : i.totalPrice)?.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {bill.pricesIncludeTax ? (
               // Tag-price bill: prices include GST; the discount is already shared over the lines
@@ -254,7 +256,8 @@ export default function BillDetailsModal({
                 {bill.taxBreakup?.interState ? (
                   <div className="flex justify-between">
                     <span className="text-outline">
-                      IGST ({bill.taxBreakup.placeOfSupply.name ?? 'other state'})
+                      IGST (
+                      {bill.taxBreakup.placeOfSupply.name ?? 'other state'})
                     </span>
                     <span>₹{bill.taxBreakup.igst.toFixed(2)}</span>
                   </div>

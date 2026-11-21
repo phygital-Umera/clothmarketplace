@@ -138,7 +138,7 @@ export default function CreditUdhaarPage() {
           <p className="text-[11px] font-semibold tracking-wider text-espresso/60 uppercase">
             CUSTOMERS / CREDIT (UDHAAR)
           </p>
-          <h1 className="font-serif text-3xl font-medium text-espresso mt-0.5">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Credit / udhaar
           </h1>
           <p className="text-xs text-espresso/70 mt-1">
@@ -150,7 +150,7 @@ export default function CreditUdhaarPage() {
           <button
             type="button"
             onClick={() => setShowRemindersModal(true)}
-            className="inline-flex items-center gap-2 border border-[#8B263E] text-[#8B263E] hover:bg-[#8B263E]/5 px-4 py-2.5 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm"
+            className="inline-flex items-center gap-2 border border-burgundy text-burgundy hover:bg-burgundy/5 px-4 py-2.5 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm"
           >
             <MessageCircle size={15} />
             SEND REMINDERS (WHATSAPP)
@@ -161,7 +161,7 @@ export default function CreditUdhaarPage() {
       {/* 2. Top Stats Row (5 Cards) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 print:hidden">
         {/* TOTAL DUE */}
-        <div className="bg-white border border-[#EAE3DC] p-4 rounded shadow-sm">
+        <div className="bg-white border border-ivory-300 p-4 rounded shadow-sm">
           <p className="text-[10px] tracking-wider text-espresso/60 font-semibold uppercase">
             TOTAL DUE
           </p>
@@ -174,7 +174,7 @@ export default function CreditUdhaarPage() {
         </div>
 
         {/* 0–15 DAYS */}
-        <div className="bg-white border border-[#EAE3DC] p-4 rounded shadow-sm">
+        <div className="bg-white border border-ivory-300 p-4 rounded shadow-sm">
           <p className="text-[10px] tracking-wider text-espresso/60 font-semibold uppercase">
             0–15 DAYS
           </p>
@@ -187,7 +187,7 @@ export default function CreditUdhaarPage() {
         </div>
 
         {/* 16–30 DAYS */}
-        <div className="bg-white border border-[#EAE3DC] p-4 rounded shadow-sm">
+        <div className="bg-white border border-ivory-300 p-4 rounded shadow-sm">
           <p className="text-[10px] tracking-wider text-espresso/60 font-semibold uppercase">
             16–30 DAYS
           </p>
@@ -202,7 +202,7 @@ export default function CreditUdhaarPage() {
         </div>
 
         {/* OVER 30 DAYS */}
-        <div className="bg-white border border-[#EAE3DC] p-4 rounded shadow-sm">
+        <div className="bg-white border border-ivory-300 p-4 rounded shadow-sm">
           <p className="text-[10px] tracking-wider text-espresso/60 font-semibold uppercase">
             OVER 30 DAYS
           </p>
@@ -215,7 +215,7 @@ export default function CreditUdhaarPage() {
         </div>
 
         {/* COLLECTED THIS MONTH */}
-        <div className="bg-white border border-[#EAE3DC] p-4 rounded shadow-sm">
+        <div className="bg-white border border-ivory-300 p-4 rounded shadow-sm">
           <p className="text-[10px] tracking-wider text-espresso/60 font-semibold uppercase">
             COLLECTED THIS MONTH
           </p>
@@ -231,12 +231,12 @@ export default function CreditUdhaarPage() {
       {/* 3. Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: Customers with due (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-[#EAE3DC] p-4 rounded shadow-sm print:hidden">
+        <div className="lg:col-span-4 bg-white border border-ivory-300 p-4 rounded shadow-sm print:hidden">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-serif text-lg text-espresso font-medium">
               Customers with due
             </h2>
-            <span className="text-xs text-espresso/60 bg-[#FAF7F4] px-2 py-0.5 rounded font-mono font-medium">
+            <span className="text-xs text-espresso/60 bg-ivory-50 px-2 py-0.5 rounded font-mono font-medium">
               {customers.length}
             </span>
           </div>
@@ -249,7 +249,7 @@ export default function CreditUdhaarPage() {
               placeholder="Search customer..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E]"
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy"
             />
           </div>
 
@@ -268,7 +268,7 @@ export default function CreditUdhaarPage() {
                     onClick={() => setSelectedCustomerId(c.id)}
                     className={`flex items-center justify-between p-3.5 rounded cursor-pointer transition border ${
                       isSelected
-                        ? 'bg-[#FDF6F0] border-[#8B263E]/30 shadow-sm'
+                        ? 'bg-[#FDF6F0] border-burgundy/30 shadow-sm'
                         : 'bg-white border-transparent hover:bg-[#FAF6F2]'
                     }`}
                   >
@@ -304,11 +304,11 @@ export default function CreditUdhaarPage() {
         {/* Right Column: Ledger / Statement & Receive Payment (8 cols) */}
         <div className="lg:col-span-8 space-y-5">
           {/* Top Panel: Customer Ledger / Statement */}
-          <div className="bg-white border border-[#EAE3DC] p-5 rounded shadow-sm print:border-none print:shadow-none print:p-0">
+          <div className="bg-white border border-ivory-300 p-5 rounded shadow-sm print:border-none print:shadow-none print:p-0">
             {selectedCustomer ? (
               <>
                 {/* Statement Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-[#EAE3DC] gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-ivory-300 gap-3">
                   <div>
                     <h2 className="font-serif text-2xl text-espresso font-medium">
                       {selectedCustomer.name}
@@ -324,7 +324,7 @@ export default function CreditUdhaarPage() {
                     <p className="text-[10px] tracking-wider text-espresso/60 uppercase font-semibold">
                       BALANCE DUE
                     </p>
-                    <p className="font-serif text-3xl font-semibold text-[#8B263E] mt-0.5">
+                    <p className="font-serif text-3xl font-semibold text-burgundy mt-0.5">
                       ₹{selectedCustomer.balanceDue.toLocaleString('en-IN')}
                     </p>
                   </div>
@@ -334,22 +334,22 @@ export default function CreditUdhaarPage() {
                 <div className="overflow-x-auto mt-4">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#FAF7F4] text-espresso/70 text-[10px] uppercase tracking-wider font-semibold">
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC]">DATE</th>
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC]">PARTICULARS</th>
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC]">REF</th>
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-right">
+                      <tr className="bg-ivory-50 text-espresso/70 text-[10px] uppercase tracking-wider font-semibold">
+                        <th className="py-2.5 px-3 border-b border-ivory-300">DATE</th>
+                        <th className="py-2.5 px-3 border-b border-ivory-300">PARTICULARS</th>
+                        <th className="py-2.5 px-3 border-b border-ivory-300">REF</th>
+                        <th className="py-2.5 px-3 border-b border-ivory-300 text-right">
                           DEBIT (SALE)
                         </th>
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-right">
+                        <th className="py-2.5 px-3 border-b border-ivory-300 text-right">
                           CREDIT (PAID)
                         </th>
-                        <th className="py-2.5 px-3 border-b border-[#EAE3DC] text-right">
+                        <th className="py-2.5 px-3 border-b border-ivory-300 text-right">
                           BALANCE
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#EAE3DC]/60 text-espresso">
+                    <tbody className="divide-y divide-ivory-300/60 text-espresso">
                       {statementLoading ? (
                         <tr>
                           <td colSpan={6} className="py-8 text-center text-espresso/40">
@@ -364,7 +364,7 @@ export default function CreditUdhaarPage() {
                         </tr>
                       ) : (
                         statement?.transactions.map((t) => (
-                          <tr key={t.id} className="hover:bg-[#FAF7F4]/50 transition">
+                          <tr key={t.id} className="hover:bg-ivory-50/50 transition">
                             <td className="py-2.5 px-3 font-mono text-[11px] text-espresso/80">
                               {formatDateShort(t.date)}
                             </td>
@@ -391,7 +391,7 @@ export default function CreditUdhaarPage() {
                 </div>
 
                 {/* Statement Footer */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 mt-4 border-t border-[#EAE3DC] gap-3 print:hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 mt-4 border-t border-ivory-300 gap-3 print:hidden">
                   <p className="text-xs text-espresso/60">
                     Statement {formatDateShort(statement?.statementPeriod?.from)} –{' '}
                     {formatDateShort(statement?.statementPeriod?.to)}
@@ -401,7 +401,7 @@ export default function CreditUdhaarPage() {
                     <button
                       type="button"
                       onClick={handlePrintStatement}
-                      className="inline-flex items-center gap-1.5 border border-[#8B263E] text-[#8B263E] hover:bg-[#8B263E]/5 px-3.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition"
+                      className="inline-flex items-center gap-1.5 border border-burgundy text-burgundy hover:bg-burgundy/5 px-3.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition"
                     >
                       <Printer size={13} />
                       PRINT STATEMENT
@@ -411,7 +411,7 @@ export default function CreditUdhaarPage() {
                       onClick={() => {
                         window.print();
                       }}
-                      className="inline-flex items-center gap-1.5 border border-[#8B263E] text-[#8B263E] hover:bg-[#8B263E]/5 px-3.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition"
+                      className="inline-flex items-center gap-1.5 border border-burgundy text-burgundy hover:bg-burgundy/5 px-3.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition"
                     >
                       <Share2 size={13} />
                       SHARE PDF
@@ -427,8 +427,8 @@ export default function CreditUdhaarPage() {
           </div>
 
           {/* Bottom Panel: Receive payment */}
-          <div className="bg-white border border-[#EAE3DC] p-5 rounded shadow-sm print:hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAE3DC]">
+          <div className="bg-white border border-ivory-300 p-5 rounded shadow-sm print:hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-ivory-300">
               <h3 className="font-serif text-lg text-espresso font-medium">
                 Receive payment
               </h3>
@@ -456,7 +456,7 @@ export default function CreditUdhaarPage() {
                       placeholder="0.00"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 text-sm border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] font-medium text-espresso"
+                      className="w-full pl-8 pr-3 py-2 text-sm border border-ivory-300 rounded focus:outline-none focus:border-burgundy font-medium text-espresso"
                     />
                   </div>
                 </div>
@@ -469,7 +469,7 @@ export default function CreditUdhaarPage() {
                   <select
                     value={paymentMode}
                     onChange={(e) => setPaymentMode(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] bg-white text-espresso"
+                    className="w-full px-3 py-2 text-sm border border-ivory-300 rounded focus:outline-none focus:border-burgundy bg-white text-espresso"
                   >
                     <option value="CASH">Cash</option>
                     <option value="UPI">UPI</option>
@@ -489,7 +489,7 @@ export default function CreditUdhaarPage() {
                     required
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso"
+                    className="w-full px-3 py-2 text-sm border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso"
                   />
                 </div>
               </div>
@@ -501,13 +501,13 @@ export default function CreditUdhaarPage() {
                   placeholder="Optional payment reference / note (e.g. GPay ref no)"
                   value={paymentNote}
                   onChange={(e) => setPaymentNote(e.target.value)}
-                  className="flex-1 px-3 py-2 text-xs border border-[#EAE3DC] rounded focus:outline-none focus:border-[#8B263E] text-espresso"
+                  className="flex-1 px-3 py-2 text-xs border border-ivory-300 rounded focus:outline-none focus:border-burgundy text-espresso"
                 />
 
                 <button
                   type="submit"
                   disabled={recordPaymentMutation.isPending || !selectedCustomer}
-                  className="bg-[#8B263E] hover:bg-[#741F33] text-white px-6 py-2.5 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm disabled:opacity-50 whitespace-nowrap"
+                  className="bg-burgundy hover:bg-[#741F33] text-white px-6 py-2.5 rounded text-xs font-semibold uppercase tracking-wider transition shadow-sm disabled:opacity-50 whitespace-nowrap"
                 >
                   {recordPaymentMutation.isPending ? 'RECORDING...' : 'RECORD PAYMENT'}
                 </button>
@@ -519,9 +519,9 @@ export default function CreditUdhaarPage() {
 
       {/* WhatsApp Reminders Modal */}
       {showRemindersModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white border border-[#EAE3DC] rounded-lg max-w-2xl w-full p-6 shadow-xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAE3DC]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[8px] p-4">
+          <div className="bg-white border border-ivory-300 rounded-lg max-w-2xl w-full p-4 sm:p-5 shadow-xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-ivory-300">
               <div className="flex items-center gap-2">
                 <MessageCircle size={18} className="text-[#25D366]" />
                 <h3 className="font-serif text-xl font-medium text-espresso">
@@ -541,7 +541,7 @@ export default function CreditUdhaarPage() {
               Click below to send a friendly payment reminder via WhatsApp directly to any customer with an outstanding balance.
             </p>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-[#EAE3DC]/60">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-ivory-300/60">
               {reminders.length === 0 ? (
                 <div className="py-8 text-center text-xs text-espresso/40">
                   No customers currently owe due.
@@ -574,11 +574,11 @@ export default function CreditUdhaarPage() {
               )}
             </div>
 
-            <div className="pt-4 mt-4 border-t border-[#EAE3DC] flex justify-end">
+            <div className="pt-4 mt-4 border-t border-ivory-300 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowRemindersModal(false)}
-                className="px-4 py-2 border border-[#EAE3DC] text-espresso/80 hover:bg-[#FAF7F4] rounded text-xs font-semibold uppercase tracking-wider"
+                className="px-4 py-2 border border-ivory-300 text-espresso/80 hover:bg-ivory-50 rounded text-xs font-semibold uppercase tracking-wider"
               >
                 Close
               </button>

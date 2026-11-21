@@ -43,7 +43,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const select =
-  'rounded-lg border border-stone-200 bg-stone-50/50 px-2.5 py-1.5 text-xs text-stone-700 focus:border-[#4A1521] focus:bg-white focus:outline-none';
+  'rounded-lg border border-stone-200 bg-stone-50/50 px-2.5 py-1.5 text-xs text-stone-700 focus:border-burgundy-deep focus:bg-white focus:outline-none';
 
 /** Purchase bills of all shops in the branch (shops create them) */
 export default function BranchPurchaseBillsPage() {
@@ -96,7 +96,7 @@ export default function BranchPurchaseBillsPage() {
         <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
           Purchase / Purchase Bills
         </p>
-        <h1 className="font-serif text-xl font-bold text-[#4A1521]">Purchase Bills</h1>
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">Purchase Bills</h1>
         <p className="text-xs text-stone-500">
           Stock bought by the shops of this branch. Shops add purchase bills from their own
           Purchase Bills page.
@@ -107,7 +107,7 @@ export default function BranchPurchaseBillsPage() {
         {cards.map((c) => (
           <div key={c.title} className="rounded-xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{c.title}</p>
-            <p className="mt-1 font-serif text-lg font-bold text-[#4A1521]">{c.value}</p>
+            <p className="mt-1 font-serif text-lg font-bold text-burgundy-deep">{c.value}</p>
             <p className={`mt-0.5 text-[11px] ${c.alert ? 'font-semibold text-red-600' : 'text-stone-500'}`}>
               {c.sub}
             </p>
@@ -125,7 +125,7 @@ export default function BranchPurchaseBillsPage() {
                 onClick={() => filter(setTab)(t.id)}
                 className={`whitespace-nowrap border-b-2 px-2.5 py-1 text-xs font-semibold uppercase transition-colors ${
                   tab === t.id
-                    ? 'border-[#4A1521] text-[#4A1521]'
+                    ? 'border-burgundy-deep text-burgundy-deep'
                     : 'border-transparent text-stone-500 hover:text-stone-800'
                 }`}
               >
@@ -175,7 +175,7 @@ export default function BranchPurchaseBillsPage() {
             value={search}
             onChange={(e) => filter(setSearch)(e.target.value)}
             placeholder="Search bill number, supplier or invoice"
-            className="w-full rounded-lg border border-stone-200 bg-stone-50/40 py-1.5 pl-8 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-[#4A1521] focus:bg-white focus:outline-none"
+            className="w-full rounded-lg border border-stone-200 bg-stone-50/40 py-1.5 pl-8 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-burgundy-deep focus:bg-white focus:outline-none"
           />
         </div>
 
@@ -212,7 +212,7 @@ export default function BranchPurchaseBillsPage() {
                 bills.map((b) => (
                   <tr key={b.id} className="transition-colors hover:bg-stone-50/60">
                     <td className="whitespace-nowrap py-2.5 pl-3 pr-2">
-                      <p className="font-serif font-semibold text-[#4A1521]">{b.billNumber}</p>
+                      <p className="font-serif font-semibold text-burgundy-deep">{b.billNumber}</p>
                       <p className="text-[10px] text-stone-400">{shortDate(b.billDate)}</p>
                     </td>
                     <td className="px-2 py-2.5">
@@ -226,7 +226,7 @@ export default function BranchPurchaseBillsPage() {
                     <td className="px-2 py-2.5 text-center font-semibold text-stone-800">{b.pcs}</td>
                     <td className="px-2 py-2.5 text-right text-stone-600">{inr(b.taxable)}</td>
                     <td className="px-2 py-2.5 text-right text-stone-600">{inr(b.gstAmount)}</td>
-                    <td className="px-2 py-2.5 text-right font-serif font-bold text-[#4A1521]">
+                    <td className="px-2 py-2.5 text-right font-serif font-bold text-burgundy-deep">
                       {inr(b.totalAmount)}
                     </td>
                     <td className="px-2 py-2.5 text-right font-medium">

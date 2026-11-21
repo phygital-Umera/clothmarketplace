@@ -133,8 +133,8 @@ export default function OrderList({panel}: {panel: string}) {
 
       {/* Dispatch / Status Update Modal */}
       {canAct && selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg border border-outline/20 bg-ivory p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[8px] p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] overflow-y-auto w-full max-w-md rounded-lg border border-outline/20 bg-ivory p-4 sm:p-5 shadow-xl">
             <h3 className="font-serif text-headline-sm text-burgundy">Update Order Status</h3>
             <p className="mt-1 text-body-sm text-outline">
               Order #{selectedOrder.orderNumber} (Current: {selectedOrder.status})

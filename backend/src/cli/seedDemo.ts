@@ -17,7 +17,12 @@
  * the store looks lived-in.
  *
  * Product photos: public/uploads/products/demo (public domain, see CREDITS.md).
- * All logins use the password Demo@1234.
+ * All logins use the password Pass@123. The full list of logins is printed at
+ * the end and written to backend/DEMO_LOGINS.md.
+ *
+ * Sizes: 2 super admins, 8 companies, 9 branches, 9 shops (each with its shop
+ * login), 9 employees, 9 suppliers / purchase bills / counter sales / counter
+ * customers / expenses / coupons / offers, and 9 store customers.
  */
 import fs from 'fs';
 import path from 'path';
@@ -38,11 +43,39 @@ import customerService from '../services/store/customer.service';
 import checkoutService from '../services/store/checkout.service';
 import storeOrders from '../services/store/orders.service';
 import storeAccount from '../services/store/account.service';
+import employeeService from '../services/employee.service';
+import supplierService from '../services/supplier.service';
+import expenseService from '../services/expense.service';
+import shopCustomerService from '../services/customer.service';
+import {createSupplierSchema} from '../validations/supplier.validation';
+import {createCustomerSchema} from '../validations/customer.validation';
+import {shopOpsValidation} from '../validations';
+import {createSuperAdmin} from './createSuperAdmin';
 
-const PASSWORD = 'Demo@1234';
+const PASSWORD = 'Pass@123';
 const COMPANY_EMAIL = 'demo.company@clothpro.in';
-const CUSTOMER_PHONES = ['9800000200', '9800000201', '9800000202', '9800000203'];
-const COUPONS = ['FESTIVE10', 'WELCOME200', 'SAREE500', 'KIDS20'];
+const CUSTOMER_PHONES = Array.from({length: 9}, (_, i) => `980000020${i}`);
+const COUPONS = ['FESTIVE10', 'WELCOME200', 'SAREE500', 'KIDS20', 'NEWYEAR15', 'FLAT300', 'MENS10', 'ETHNIC12', 'CLEAR25'];
+const SUPER_ADMINS = [
+    {phone: '9800000001', name: 'Platform Owner', email: 'super@clothpro.demo'},
+    {phone: '9800000002', name: 'Platform Support', email: 'support@clothpro.demo'},
+];
+/** The other demo companies: lighter (a branch, a shop, an employee, a few masters) */
+const EXTRA_COMPANIES = [
+    {name: 'Shree Ganesh Textiles', city: 'Kolhapur', district: 'Kolhapur', pin: '416001', owner: 'Ganesh Pawar'},
+    {name: 'Lakshmi Silk Emporium', city: 'Pune', district: 'Pune', pin: '411002', owner: 'Lakshmi Iyer'},
+    {name: 'Royal Menswear', city: 'Satara', district: 'Satara', pin: '415001', owner: 'Rajesh Jadhav'},
+    {name: 'Tiny Tots Garments', city: 'Solapur', district: 'Solapur', pin: '413001', owner: 'Priya Kulkarni'},
+    {name: 'Nashik Saree Centre', city: 'Nashik', district: 'Nashik', pin: '422001', owner: 'Sunil Deshmukh'},
+    {name: 'Aurangabad Fabrics', city: 'Aurangabad', district: 'Aurangabad', pin: '431001', owner: 'Farhan Shaikh'},
+    {name: 'Konkan Cotton House', city: 'Ratnagiri', district: 'Ratnagiri', pin: '415612', owner: 'Mangesh Sawant'},
+];
+const extraEmail = (i: number) => `demo.company${i + 2}@clothpro.in`;
+const COMPANY_EMAILS = [COMPANY_EMAIL, ...EXTRA_COMPANIES.map((_, i) => extraEmail(i))];
+
+/** Every login the demo creates, printed at the end */
+const LOGINS: {role: string; name: string; login: string; where: string}[] = [];
+const addLogin = (role: string, name: string, login: string, where: string) => LOGINS.push({role, name, login, where});
 const DAY = 86_400_000;
 const log = (s: string) => console.log(`  ${s}`);
 
@@ -161,8 +194,7 @@ const archiveUser = (u: {id: string; phoneNumber: string; email: string | null},
 
 const archive = async () => {
     const stamp = Date.now().toString(36);
-    const company = await prisma.company.findFirst({where: {email: COMPANY_EMAIL, deletedAt: null}});
-    if (company) {
+    for (const company of await prisma.company.findMany({where: {email: {in: COMPANY_EMAILS}, deletedAt: null}})) {
         for (const u of await prisma.user.findMany({where: {companyId: company.id}, select: {id: true, phoneNumber: true, email: true}})) {
             await archiveUser(u, stamp);
         }
@@ -180,14 +212,16 @@ const archive = async () => {
 };
 
 const remove = async () => {
-    const company = await prisma.company.findFirst({where: {email: COMPANY_EMAIL, deletedAt: null}});
-    if (!company) return log('No demo company found.');
+    const companies = await prisma.company.findMany({where: {email: {in: COMPANY_EMAILS}, deletedAt: null}, select: {id: true}});
+    if (!companies.length) return log('No demo company found.');
+    const ids = companies.map((c) => c.id);
     await prisma.$transaction([
-        prisma.product.updateMany({where: {companyId: company.id}, data: {status: ProductStatus.UNPUBLISHED}}),
-        prisma.user.updateMany({where: {companyId: company.id}, data: {status: AccountStatus.BLOCKED}}),
+        prisma.product.updateMany({where: {companyId: {in: ids}}, data: {status: ProductStatus.UNPUBLISHED}}),
+        prisma.user.updateMany({where: {companyId: {in: ids}}, data: {status: AccountStatus.BLOCKED}}),
         prisma.user.updateMany({where: {phoneNumber: {in: CUSTOMER_PHONES}, role: Role.USER}, data: {status: AccountStatus.BLOCKED}}),
-        prisma.company.update({where: {id: company.id}, data: {status: 'INACTIVE'}}),
+        prisma.company.updateMany({where: {id: {in: ids}}, data: {status: 'INACTIVE'}}),
         prisma.coupon.updateMany({where: {code: {in: COUPONS}}, data: {isActive: false}}),
+        prisma.user.updateMany({where: {phoneNumber: {in: SUPER_ADMINS.map((s) => s.phone)}, role: Role.SUPER_ADMIN}, data: {status: AccountStatus.BLOCKED}}),
     ]);
     log('Demo company switched off: products unpublished, logins blocked, demo coupons off.');
 };
@@ -197,7 +231,14 @@ const seed = async () => {
         return log('Demo company already exists — nothing to do. (Use --replace for a fresh one, --remove to switch it off.)');
     }
 
-    // ---- Company, branch, shops (with their logins)
+    // ---- Super admins (re-running resets their password)
+    for (const s of SUPER_ADMINS) {
+        await createSuperAdmin({phone: s.phone, password: PASSWORD, name: s.name, email: s.email, force: true});
+        addLogin('Super admin', s.name, s.phone, 'Platform');
+        log(`Super admin ${s.name} · login ${s.phone}`);
+    }
+
+    // ---- Company, branches, shops (with their logins)
     const company = await companyService.createCompany(
         companyValidation.createCompanySchema.parse({
             name: 'Matoshri Fashions', email: COMPANY_EMAIL, contactNumber: '9800000100', postalCode: '416416',
@@ -206,36 +247,50 @@ const seed = async () => {
         }),
     );
     const owner = await prisma.user.findFirstOrThrow({where: {companyId: company.id, role: Role.ADMIN}});
+    addLogin('Company admin', 'Asha Patwardhan', '9800000101', company.name);
     log(`Company ${company.name} (${company.code}) · company admin 9800000101`);
 
-    const branch = await branchService.create(
-        company.id,
-        orgValidation.createBranchSchema.parse({
-            name: 'Sangli Branch', postalCode: '416416', state: 'Maharashtra', district: 'Sangli', city: 'Sangli',
-            address: 'Station Road, Sangli', openingTime: '10:00', closingTime: '21:00', weeklyHolidays: [],
-            adminName: 'Vikram Kulkarni', adminEmail: 'branch@matoshri.demo', adminPhone: '9800000102', adminPassword: PASSWORD,
-        }),
-        owner.id,
-    );
-    log('Branch Sangli · branch admin 9800000102');
+    const branchDefs = [
+        {key: 'SANGLI', name: 'Sangli Branch', city: 'Sangli', district: 'Sangli', pin: '416416', address: 'Station Road, Sangli', admin: 'Vikram Kulkarni', email: 'branch@matoshri.demo', phone: '9800000111'},
+        {key: 'MIRAJ', name: 'Miraj Branch', city: 'Miraj', district: 'Sangli', pin: '416410', address: 'Market Yard, Miraj', admin: 'Neha Gokhale', email: 'miraj@matoshri.demo', phone: '9800000112'},
+        {key: 'KOLHAPUR', name: 'Kolhapur Branch', city: 'Kolhapur', district: 'Kolhapur', pin: '416002', address: 'Mahadwar Road, Kolhapur', admin: 'Sachin Mane', email: 'kolhapur@matoshri.demo', phone: '9800000113'},
+    ];
+    const branches: Record<string, string> = {};
+    for (const b of branchDefs) {
+        const created = await branchService.create(
+            company.id,
+            orgValidation.createBranchSchema.parse({
+                name: b.name, postalCode: b.pin, state: 'Maharashtra', district: b.district, city: b.city,
+                address: b.address, openingTime: '10:00', closingTime: '21:00', weeklyHolidays: [],
+                adminName: b.admin, adminEmail: b.email, adminPhone: b.phone, adminPassword: PASSWORD,
+            }),
+            owner.id,
+        );
+        branches[b.key] = created.id;
+        addLogin('Branch admin', b.admin, b.phone, `${company.name} · ${b.name}`);
+        log(`Branch ${b.name} · branch admin ${b.phone}`);
+    }
 
     const shopDefs = [
-        {key: 'WW', name: "Women's Wear", phone: '9800000103'},
-        {key: 'MW', name: "Men's Wear", phone: '9800000104'},
-        {key: 'KW', name: 'Kids Wear', phone: '9800000105'},
+        {key: 'WW', name: "Women's Wear", branch: 'SANGLI', admin: 'Women Counter', phone: '9800000121'},
+        {key: 'MW', name: "Men's Wear", branch: 'SANGLI', admin: 'Men Counter', phone: '9800000122'},
+        {key: 'KW', name: 'Kids Wear', branch: 'SANGLI', admin: 'Kids Counter', phone: '9800000123'},
+        {key: 'MJ', name: 'Miraj Fashion Hub', branch: 'MIRAJ', admin: 'Miraj Counter', phone: '9800000124'},
+        {key: 'KP', name: 'Kolhapur Ethnic Store', branch: 'KOLHAPUR', admin: 'Kolhapur Counter', phone: '9800000125'},
     ] as const;
-    const shops: Record<string, {id: string; adminId: string}> = {};
+    const shops: Record<string, {id: string; adminId: string; branchId: string}> = {};
     for (const s of shopDefs) {
         const shop = await shopService.create(
             {companyId: company.id},
             orgValidation.createShopSchema.parse({
-                name: s.name, shopType: s.name, branchId: branch.id, billPrefix: s.key,
-                adminName: `${s.name.split("'")[0]} Counter`.replace(/[^A-Za-z .'-]/g, ''), adminPhone: s.phone, adminPassword: PASSWORD,
+                name: s.name, shopType: s.name, branchId: branches[s.branch], billPrefix: s.key,
+                adminName: s.admin, adminPhone: s.phone, adminPassword: PASSWORD,
             }),
             owner.id,
         );
         const admin = await prisma.user.findFirstOrThrow({where: {shopId: shop.id, role: Role.SHOP_ADMIN}});
-        shops[s.key] = {id: shop.id, adminId: admin.id};
+        shops[s.key] = {id: shop.id, adminId: admin.id, branchId: branches[s.branch]};
+        addLogin('Shop admin', s.admin, s.phone, `${company.name} · ${s.name}`);
         log(`Shop ${s.name} · login ${s.phone}`);
     }
     const scope = (key: string) => ({companyId: company.id, shopId: shops[key].id});
@@ -280,7 +335,7 @@ const seed = async () => {
     const shopColor = (key: string, name: string) => shopRows[key].color.get(colorName.get(colorIds[name]) ?? '') as string;
 
     const brandIds: Record<string, string> = {};
-    for (const name of ['Matoshri Label', 'Urban Weave', 'Little Petals', 'Desi Roots']) {
+    for (const name of ['Matoshri Label', 'Urban Weave', 'Little Petals', 'Desi Roots', 'Kolhapuri Kala', 'Paithan Weaves', 'Sahyadri Cotton', 'Royal Threads', 'Silk Route']) {
         const code = `${company.code}-${name.toUpperCase().replace(/[^A-Z]+/g, '-')}`.slice(0, 40);
         brandIds[name] = (await prisma.brand.create({data: {name, code, companyId: company.id}})).id;
     }
@@ -288,14 +343,20 @@ const seed = async () => {
     // ---- Categories and products, with their photos
     const products: {id: string; shop: string; cat: string; item: Item}[] = [];
     let photoCount = 0;
+    // The branch shops (Miraj, Kolhapur) also stock a few lines of these categories
+    const BRANCH_SHOP_LINES: Record<string, 'MJ' | 'KP'> = {Women: 'MJ', Men: 'MJ', Ethnic: 'KP', Kids: 'KP'};
     for (const [ci, cat] of CATEGORIES.entries()) {
         const category = await masterService.createCategory(company.id, masterValidation.createCategorySchema.parse({name: cat.name, displayOrder: ci}));
         const subIds: Record<string, string> = {};
         for (const sub of cat.subs) {
             subIds[sub] = (await masterService.createSubcategory(company.id, masterValidation.createSubcategorySchema.parse({name: sub, categoryId: category.id}))).id;
         }
-        for (const item of cat.items) {
-            const shopKey = SHOP_OF[cat.name];
+        const extraShop = BRANCH_SHOP_LINES[cat.name];
+        const lines: {shopKey: string; item: Item}[] = [
+            ...cat.items.map((item) => ({shopKey: SHOP_OF[cat.name], item})),
+            ...(extraShop ? cat.items.slice(0, 2).map((item) => ({shopKey: extraShop, item})) : []),
+        ];
+        for (const {shopKey, item} of lines) {
             const colours = Object.keys(item.photos);
             const p = await shopProductService.create(
                 scope(shopKey),
@@ -308,6 +369,8 @@ const seed = async () => {
                     gender: item.gender, fabric: item.fabric, tags: item.tags, taxRate: item.price > 1000 ? 12 : 5,
                     careInstructions: ['Silk', 'Art Silk', 'Tissue Silk', 'Brocade', 'Velvet', 'Wool', 'Lace'].includes(item.fabric) ? 'Dry clean only' : 'Hand wash cold, dry in shade',
                     fit: item.fit ?? 'Regular',
+                    // HSN by kind of garment (62xx woven apparel, 6214 shawls / dupattas)
+                    hsnCode: {Women: '6206', Ethnic: '6204', Accessories: '6214', Men: '6205', Kids: '6209'}[cat.name] ?? '6211',
                 }),
             );
             await prisma.product.update({where: {id: p.id}, data: {brandId: brandIds[item.brand], returnEligible: true, returnPeriodDays: 7}});
@@ -331,22 +394,38 @@ const seed = async () => {
             }
             products.push({id: p.id, shop: shopKey, cat: cat.name, item});
         }
-        log(`Category ${cat.name}: ${cat.items.length} products`);
+        log(`Category ${cat.name}: ${lines.length} products`);
     }
     log(`${photoCount} product photos attached`);
 
     // ---- Purchase bills put stock in (one per supplier)
     const variantsOf = (productId: string) =>
         prisma.productVariant.findMany({where: {productId, isActive: true}, select: {id: true, size: true, color: true}, orderBy: {createdAt: 'asc'}});
-    const suppliers = [
-        {name: 'Surat Textile House', shop: 'WW', cats: ['Women']},
-        {name: 'Kanchi Silks', shop: 'WW', cats: ['Ethnic', 'Accessories']},
-        {name: 'Tiruppur Knits', shop: 'MW', cats: ['Men']},
-        {name: 'Little Threads Wholesale', shop: 'KW', cats: ['Kids']},
+    // `take`: a top-up order for only the first few lines (the main order stocks them all)
+    const suppliers: {name: string; shop: string; cats: string[]; take?: number; city: string; person: string}[] = [
+        {name: 'Surat Textile House', shop: 'WW', cats: ['Women'], city: 'Surat', person: 'Hitesh Shah'},
+        {name: 'Kanchi Silks', shop: 'WW', cats: ['Ethnic', 'Accessories'], city: 'Kanchipuram', person: 'Murugan S'},
+        {name: 'Tiruppur Knits', shop: 'MW', cats: ['Men'], city: 'Tiruppur', person: 'Senthil Kumar'},
+        {name: 'Little Threads Wholesale', shop: 'KW', cats: ['Kids'], city: 'Mumbai', person: 'Anil Mehta'},
+        {name: 'Jaipur Prints', shop: 'WW', cats: ['Women'], take: 3, city: 'Jaipur', person: 'Ramesh Agarwal'},
+        {name: 'Ludhiana Woollens', shop: 'MW', cats: ['Men'], take: 3, city: 'Ludhiana', person: 'Gurpreet Singh'},
+        {name: 'Ichalkaranji Mills', shop: 'KW', cats: ['Kids'], take: 1, city: 'Ichalkaranji', person: 'Prakash Patil'},
+        {name: 'Miraj Cloth Depot', shop: 'MJ', cats: ['Women', 'Men'], city: 'Miraj', person: 'Imran Mulla'},
+        {name: 'Kolhapur Handloom', shop: 'KP', cats: ['Ethnic', 'Kids'], city: 'Kolhapur', person: 'Vasant Chougule'},
     ];
     for (const [i, sup] of suppliers.entries()) {
+        await supplierService.createSupplier(
+            {...scope(sup.shop), branchId: shops[sup.shop].branchId},
+            createSupplierSchema.parse({
+                name: sup.name, contactPerson: sup.person, phone: `98000002${String(50 + i)}`, city: sup.city,
+                state: 'Maharashtra', address: `${sup.city} wholesale market`, paymentTerms: i % 2 ? 'Net 15' : 'Net 30', openingBalance: i % 3 === 0 ? 5000 : 0,
+            }),
+        );
+    }
+    log(`${suppliers.length} suppliers`);
+    for (const [i, sup] of suppliers.entries()) {
         const lines = [];
-        for (const prod of products.filter((p) => sup.cats.includes(p.cat))) {
+        for (const prod of products.filter((p) => p.shop === sup.shop && sup.cats.includes(p.cat)).slice(0, sup.take ?? 999)) {
             for (const [vi, v] of (await variantsOf(prod.id)).entries()) {
                 // The last variant of each product is kept low to show "only a few left"
                 const quantity = vi === 0 ? 3 : 8 + ((vi * 3) % 7);
@@ -376,12 +455,40 @@ const seed = async () => {
         return {...p, variantId: v.id};
     };
 
-    // ---- A few counter sales (cash, UPI, one on credit)
+    // ---- Counter customers (walk-in and credit customers of each shop)
+    const counterCustomers = [
+        {shop: 'WW', name: 'Anjali Shinde', phone: '9800000311', type: 'Retail', limit: 10000},
+        {shop: 'WW', name: 'Pooja Bhosale', phone: '9800000312', type: 'Retail', limit: 0},
+        {shop: 'WW', name: 'Shree Boutique', phone: '9800000313', type: 'B2B', limit: 50000, business: 'Shree Boutique'},
+        {shop: 'MW', name: 'Amit Kale', phone: '9800000314', type: 'Retail', limit: 15000},
+        {shop: 'MW', name: 'Nitin Salunkhe', phone: '9800000315', type: 'Retail', limit: 0},
+        {shop: 'KW', name: 'Rekha Pujari', phone: '9800000316', type: 'Retail', limit: 8000},
+        {shop: 'MJ', name: 'Farida Mulla', phone: '9800000317', type: 'Retail', limit: 10000},
+        {shop: 'KP', name: 'Savita Chavan', phone: '9800000318', type: 'Retail', limit: 12000},
+        {shop: 'KP', name: 'Ajay Ghatge', phone: '9800000319', type: 'Retail', limit: 0},
+    ];
+    for (const [i, c] of counterCustomers.entries()) {
+        await shopCustomerService.create(
+            scope(c.shop),
+            createCustomerSchema.parse({
+                name: c.name, mobile: c.phone, customerType: c.type, businessName: c.business, creditLimit: c.limit,
+                creditDays: c.limit ? 30 : undefined, openingDue: i % 4 === 0 && c.limit ? 1500 : 0, address: 'Sangli, Maharashtra',
+            }),
+        );
+    }
+    log(`${counterCustomers.length} counter customers`);
+
+    // ---- Counter sales (cash, UPI, card, some on credit)
     const sales = [
         {shop: 'WW', name: 'Mirror-work Silk Kurti', size: 'L', qty: 2, method: 'CASH', customer: null},
         {shop: 'WW', name: 'Banarasi Silk Saree', qty: 1, method: 'UPI', customer: null},
         {shop: 'MW', name: 'Cotton Trousers', size: '32', qty: 2, method: 'CASH', customer: null},
         {shop: 'KW', name: 'Velvet Party Frock', size: '6Y', qty: 1, method: 'CREDIT', customer: {name: 'Sunita More', phone: '9800000301'}},
+        {shop: 'WW', name: 'Phulkari Dupatta', qty: 1, method: 'CREDIT', customer: {name: 'Anjali Shinde', phone: '9800000311'}},
+        {shop: 'WW', name: 'Hand-embroidered Folk Blouse', size: 'M', qty: 3, method: 'CARD', customer: {name: 'Pooja Bhosale', phone: '9800000312'}},
+        {shop: 'MW', name: 'Silk Long Kurta', size: 'XL', qty: 1, method: 'CREDIT', customer: {name: 'Amit Kale', phone: '9800000314'}},
+        {shop: 'MW', name: 'Embroidered Cotton Shirt', size: 'M', qty: 2, method: 'UPI', customer: null},
+        {shop: 'KW', name: 'Cotton Shorts', size: '4Y', qty: 4, method: 'CASH', customer: {name: 'Rekha Pujari', phone: '9800000316'}},
     ];
     for (const s of sales) {
         const v = await variant(s.name, s.size);
@@ -396,13 +503,86 @@ const seed = async () => {
         log(`Sale ${bill.billNumber}: ${s.qty} × ${s.name} (${s.method})`);
     }
 
-    // ---- Coupons shown on the store
+    // ---- Shop running expenses
+    const expenses = [
+        {shop: 'WW', head: 'Rent', description: 'Shop rent for the month', amount: 18000, paidBy: 'Bank transfer'},
+        {shop: 'WW', head: 'Electricity', description: 'MSEDCL bill', amount: 3200, paidBy: 'UPI'},
+        {shop: 'WW', head: 'Tea & Snacks', description: 'Staff tea', amount: 450, paidBy: 'Cash from counter'},
+        {shop: 'MW', head: 'Rent', description: 'Shop rent for the month', amount: 15000, paidBy: 'Bank transfer'},
+        {shop: 'MW', head: 'Packing Material', description: 'Carry bags and boxes', amount: 1800, paidBy: 'Cash from counter'},
+        {shop: 'KW', head: 'Cleaning', description: 'Housekeeping', amount: 1200, paidBy: 'Cash from counter'},
+        {shop: 'KW', head: 'Repairs', description: 'Display rack repair', amount: 2500, paidBy: 'UPI'},
+        {shop: 'MJ', head: 'Electricity', description: 'MSEDCL bill', amount: 2700, paidBy: 'UPI'},
+        {shop: 'KP', head: 'Advertising', description: 'Local newspaper ad', amount: 4000, paidBy: 'Bank transfer'},
+    ];
+    for (const [i, e] of expenses.entries()) {
+        await expenseService.create(
+            scope(e.shop),
+            shops[e.shop].adminId,
+            shopOpsValidation.createExpenseSchema.parse({
+                head: e.head, description: e.description, amount: e.amount, paidBy: e.paidBy,
+                date: new Date(Date.now() - (i + 1) * 2 * DAY).toISOString().slice(0, 10),
+            }),
+        );
+    }
+    log(`${expenses.length} shop expenses`);
+
+    // ---- Employees, with different module rights
+    const employees = [
+        {shop: 'WW', name: 'Rutuja Pawar', phone: '9800000131', title: 'Cashier', perms: ['dashboard.view', 'billing.view', 'billing.edit', 'pos.bill', 'customers.view']},
+        {shop: 'WW', name: 'Swati Jagtap', phone: '9800000132', title: 'Sales Associate', perms: ['dashboard.view', 'billing.view', 'pos.bill', 'sales.discount', 'customers.view', 'customers.edit']},
+        {shop: 'MW', name: 'Kiran Lokhande', phone: '9800000133', title: 'Store Keeper', perms: ['dashboard.view', 'inventory.view', 'inventory.adjust', 'purchase.view', 'purchase.edit', 'products.manage']},
+        {shop: 'KW', name: 'Mahesh Gaikwad', phone: '9800000134', title: 'Order Packer', perms: ['dashboard.view', 'orders.view', 'orders.edit', 'orders.process']},
+        {shop: 'MJ', name: 'Sameer Attar', phone: '9800000135', title: 'Cashier', perms: ['dashboard.view', 'billing.view', 'billing.edit', 'pos.bill', 'sales.credit', 'cash.manage']},
+    ];
+    for (const e of employees) {
+        await employeeService.create(
+            {companyId: company.id},
+            orgValidation.createEmployeeSchema.parse({
+                fullname: e.name, phoneNumber: e.phone, branchId: shops[e.shop].branchId, shopId: shops[e.shop].id,
+                jobTitle: e.title, employeeRole: e.title, department: 'Store', joiningDate: '2026-04-01', permissions: e.perms, password: PASSWORD,
+            }),
+            owner.id,
+        );
+        addLogin('Employee', e.name, e.phone, `${company.name} · ${shopDefs.find((s) => s.key === e.shop)?.name} (${e.title})`);
+    }
+    log(`${employees.length} employees`);
+
+    // ---- Offers shown on the store
     const in60 = new Date(Date.now() + 60 * DAY);
+    const offerDefs = [
+        {name: 'Festive Season Sale', type: 'PERCENTAGE' as const, discountValue: 15, minOrderValue: 1999, maxDiscountLimit: 1000},
+        {name: 'Wedding Collection Offer', type: 'FLAT' as const, discountValue: 750, minOrderValue: 7999},
+        {name: 'Kids Carnival', type: 'PERCENTAGE' as const, discountValue: 20, minOrderValue: 999, maxDiscountLimit: 500},
+        {name: 'Menswear Monday', type: 'PERCENTAGE' as const, discountValue: 10, minOrderValue: 1499, maxDiscountLimit: 400},
+        {name: 'Saree Utsav', type: 'FLAT' as const, discountValue: 1000, minOrderValue: 9999},
+        {name: 'Weekend Flash Sale', type: 'PERCENTAGE' as const, discountValue: 25, minOrderValue: 2999, maxDiscountLimit: 1500},
+        {name: 'Winter Wear Deal', type: 'PERCENTAGE' as const, discountValue: 12, minOrderValue: 1999, maxDiscountLimit: 600},
+        {name: 'Cotton Comfort', type: 'FLAT' as const, discountValue: 200, minOrderValue: 1299},
+        {name: 'Clearance Corner', type: 'PERCENTAGE' as const, discountValue: 30, minOrderValue: 0, maxDiscountLimit: 800, inactive: true},
+    ];
+    for (const [i, o] of offerDefs.entries()) {
+        const {inactive, ...rest} = o;
+        await prisma.offer.create({
+            data: {
+                ...rest, description: `${o.name} on selected styles`, applicableOn: 'ALL_PRODUCTS', priority: i,
+                startDate: new Date(Date.now() - i * DAY), endDate: in60, isActive: !inactive, companyId: company.id,
+            },
+        });
+    }
+    log(`${offerDefs.length} offers`);
+
+    // ---- Coupons shown on the store
     const coupons = [
         {code: 'FESTIVE10', name: '10% off', description: 'Extra 10% off, up to ₹500', type: 'PERCENTAGE' as const, discountValue: 10, maxDiscountLimit: 500, minPurchaseAmount: 1499},
         {code: 'WELCOME200', name: '₹200 off', description: '₹200 off your first order above ₹999', type: 'FLAT' as const, discountValue: 200, minPurchaseAmount: 999},
         {code: 'SAREE500', name: '₹500 off on silk sarees', description: 'Saree week · min ₹3,999', type: 'FLAT' as const, discountValue: 500, minPurchaseAmount: 3999},
         {code: 'KIDS20', name: '20% off party wear', description: 'Kids week · max ₹400', type: 'PERCENTAGE' as const, discountValue: 20, maxDiscountLimit: 400, minPurchaseAmount: 0},
+        {code: 'NEWYEAR15', name: '15% off', description: 'New year sale · max ₹750', type: 'PERCENTAGE' as const, discountValue: 15, maxDiscountLimit: 750, minPurchaseAmount: 1999},
+        {code: 'FLAT300', name: '₹300 off', description: '₹300 off above ₹2,499', type: 'FLAT' as const, discountValue: 300, minPurchaseAmount: 2499},
+        {code: 'MENS10', name: '10% off menswear', description: 'Kurtas, shirts and trousers · max ₹300', type: 'PERCENTAGE' as const, discountValue: 10, maxDiscountLimit: 300, minPurchaseAmount: 999},
+        {code: 'ETHNIC12', name: '12% off ethnic', description: 'Lehengas and sarees · max ₹1,200', type: 'PERCENTAGE' as const, discountValue: 12, maxDiscountLimit: 1200, minPurchaseAmount: 4999},
+        {code: 'CLEAR25', name: '25% off clearance', description: 'End-of-season · max ₹500', type: 'PERCENTAGE' as const, discountValue: 25, maxDiscountLimit: 500, minPurchaseAmount: 1499},
     ];
     for (const c of coupons) {
         await prisma.coupon.upsert({
@@ -419,6 +599,11 @@ const seed = async () => {
         {fullname: 'Rohan Joshi', email: 'rohan@demo.clothpro.in', phone: '9800000201', gender: 'MAN', dob: '1988-02-03', addr: {address1: '4B, Shivaji Nagar', address2: 'Opp. Bus Stand', city: 'Miraj'}},
         {fullname: 'Sneha Patil', email: 'sneha@demo.clothpro.in', phone: '9800000202', gender: 'WOMAN', dob: '1995-11-21', addr: {address1: '7, Gaonbhag', address2: 'Behind Vishnu Mandir', city: 'Sangli'}},
         {fullname: 'Meera Iyer', email: 'meera@demo.clothpro.in', phone: '9800000203', gender: 'WOMAN', dob: '1984-06-09', addr: {address1: 'Flat 302, Sai Residency', address2: 'Kupwad Road', city: 'Sangli'}},
+        {fullname: 'Aditya Kulkarni', email: 'aditya@demo.clothpro.in', phone: '9800000204', gender: 'MAN', dob: '1993-01-17', addr: {address1: '21, Ganesh Nagar', address2: 'Near Railway Station', city: 'Miraj'}},
+        {fullname: 'Pallavi Jadhav', email: 'pallavi@demo.clothpro.in', phone: '9800000205', gender: 'WOMAN', dob: '1990-04-25', addr: {address1: '9, Vishrambag Colony', address2: 'Behind Post Office', city: 'Sangli'}},
+        {fullname: 'Omkar Shinde', email: 'omkar@demo.clothpro.in', phone: '9800000206', gender: 'MAN', dob: '1986-09-30', addr: {address1: '15, Rajarampuri', address2: '5th Lane', city: 'Sangli'}},
+        {fullname: 'Nisha Pathan', email: 'nisha@demo.clothpro.in', phone: '9800000207', gender: 'WOMAN', dob: '1997-12-05', addr: {address1: '3, Khanbhag', address2: 'Opp. Masjid', city: 'Sangli'}},
+        {fullname: 'Varun Deshpande', email: 'varun@demo.clothpro.in', phone: '9800000208', gender: 'MAN', dob: '1989-07-12', addr: {address1: 'A-10, Sahyadri Nagar', address2: 'Madhav Nagar Road', city: 'Sangli'}},
     ];
     const people: Record<string, {id: string; homeId: string}> = {};
     for (const c of customers) {
@@ -432,6 +617,7 @@ const seed = async () => {
             recipient: c.fullname, phone: c.phone, postalCode: '416416', ...c.addr, district: 'Sangli', state: 'Maharashtra', label: 'HOME', isDefault: true,
         });
         people[c.phone] = {id: u.id, homeId: home.id};
+        addLogin('Customer (store)', c.fullname, c.phone, `Store · or ${c.email}`);
     }
     const kavita = people['9800000200'];
     await customerService.saveAddress(kavita.id, {
@@ -541,6 +727,18 @@ const seed = async () => {
     }
     log(`Customers Rohan, Sneha, Meera · ${reviewsBy.length} delivered orders, ${reviewsBy.reduce((n, r) => n + r.reviews.length, 0)} reviews`);
 
+    // The newer customers: one order each, at different stages, so every order tab has rows
+    const newer: {phone: string; lines: Line[]; to: OrderStatus | null; from: number; till: number}[] = [
+        {phone: '9800000204', lines: [{name: 'Checked Wool Trousers', size: '34'}], to: OrderStatus.DELIVERED, from: 14, till: 10},
+        {phone: '9800000205', lines: [{name: 'Ombré Print Lehenga', size: 'M'}], to: OrderStatus.SHIPPED, from: 3, till: 1},
+        {phone: '9800000206', lines: [{name: 'Ruffle-front Cotton Shirt', size: 'L'}], to: OrderStatus.CONFIRMED, from: 1, till: 0.5},
+        {phone: '9800000207', lines: [{name: 'Tissue Silk Saree'}], to: null, from: 0.2, till: 0.1},
+        {phone: '9800000208', lines: [{name: 'Velvet Party Frock', size: '8Y'}, {name: 'Cotton Shorts', size: '6Y'}], to: OrderStatus.PACKED, from: 2, till: 1},
+    ];
+    for (const n of newer) await story(n.phone, n.lines, n.to, n.from, n.till);
+    await prisma.cartItem.deleteMany({where: {cart: {userId: {in: newer.map((n) => people[n.phone].id)}}}});
+    log(`Customers 9800000204-208 · one order each (delivered, shipped, confirmed, placed, packed)`);
+
     // Kavita's account shows every kind of order
     const K = '9800000200';
     const kOrders: string[] = [];
@@ -604,6 +802,115 @@ const seed = async () => {
     await prisma.cartItem.deleteMany({where: {cart: {userId: {in: ['9800000201', '9800000202', '9800000203'].map((p) => people[p].id)}}}});
     const unread = await prisma.notification.count({where: {userId: kavita.id, readAt: null}});
     log(`Kavita Desai · login 9800000200 · 2 items in bag, 4 in wishlist, ${unread} unread notifications`);
+
+    await seedOtherCompanies();
+
+    // New employees must change their password at first sign-in; the demo
+    // logins are for trying the panels, so they keep the shared password
+    await prisma.user.updateMany({where: {phoneNumber: {in: LOGINS.map((l) => l.login)}}, data: {mustChangePassword: false}});
+};
+
+/**
+ * Seven lighter companies, so the super admin's lists have rows to filter and
+ * page through. Six get a branch (with its admin), four of those a shop (with
+ * its login and one employee) and a few categories and brands. The last one is
+ * suspended, to show that state.
+ */
+const seedOtherCompanies = async () => {
+    for (const [i, c] of EXTRA_COMPANIES.entries()) {
+        const slug = c.name.toLowerCase().split(' ')[0];
+        const ownerPhone = `980000010${i + 2}`;
+        const company = await companyService.createCompany(
+            companyValidation.createCompanySchema.parse({
+                name: c.name, email: extraEmail(i), contactNumber: `98000009${String(10 + i)}`, postalCode: c.pin,
+                state: 'Maharashtra', district: c.district, city: c.city, address: `Main Road, ${c.city}`,
+                adminName: c.owner, adminEmail: `owner@${slug}.demo`, adminPhone: ownerPhone, adminPassword: PASSWORD,
+            }),
+        );
+        const owner = await prisma.user.findFirstOrThrow({where: {companyId: company.id, role: Role.ADMIN}});
+        const suspended = i === EXTRA_COMPANIES.length - 1;
+        addLogin('Company admin', c.owner, ownerPhone, suspended ? `${c.name} (SUSPENDED: login is refused)` : c.name);
+
+        // Masters: categories with subcategories, brands
+        const cats = [
+            {name: 'Sarees', subs: ['Silk Sarees', 'Cotton Sarees']},
+            {name: 'Kurtas', subs: ['Men Kurtas', 'Women Kurtis']},
+        ];
+        for (const [ci, cat] of cats.entries()) {
+            const category = await masterService.createCategory(company.id, masterValidation.createCategorySchema.parse({name: cat.name, displayOrder: ci}));
+            for (const sub of cat.subs) {
+                await masterService.createSubcategory(company.id, masterValidation.createSubcategorySchema.parse({name: sub, categoryId: category.id}));
+            }
+        }
+        for (const name of [`${c.name.split(' ')[0]} Label`, 'House Brand']) {
+            const code = `${company.code}-${name.toUpperCase().replace(/[^A-Z]+/g, '-')}`.slice(0, 40);
+            await prisma.brand.create({data: {name, code, companyId: company.id}});
+        }
+
+        if (i < 6) {
+            const branchPhone = `98000001${String(14 + i)}`;
+            const branchAdmin = `${c.city} Manager`;
+            const branch = await branchService.create(
+                company.id,
+                orgValidation.createBranchSchema.parse({
+                    name: `${c.city} Branch`, postalCode: c.pin, state: 'Maharashtra', district: c.district, city: c.city,
+                    address: `Station Road, ${c.city}`, openingTime: '10:00', closingTime: '21:00', weeklyHolidays: ['SUNDAY'],
+                    adminName: branchAdmin, adminEmail: `branch@${slug}.demo`, adminPhone: branchPhone, adminPassword: PASSWORD,
+                }),
+                owner.id,
+            );
+            addLogin('Branch admin', branchAdmin, branchPhone, `${c.name} · ${c.city} Branch`);
+
+            if (i < 4) {
+                const shopPhone = `98000001${String(26 + i)}`;
+                const shopName = `${c.name.split(' ').slice(0, 2).join(' ')} Store`;
+                const shopAdmin = `${c.city} Counter`;
+                const shop = await shopService.create(
+                    {companyId: company.id},
+                    orgValidation.createShopSchema.parse({
+                        name: shopName, shopType: 'Clothing', branchId: branch.id,
+                        adminName: shopAdmin, adminPhone: shopPhone, adminPassword: PASSWORD,
+                    }),
+                    owner.id,
+                );
+                addLogin('Shop admin', shopAdmin, shopPhone, `${c.name} · ${shopName}`);
+                const empPhone = `98000001${String(36 + i)}`;
+                const empName = ['Rahul More', 'Snehal Kadam', 'Tushar Nikam', 'Komal Yadav'][i];
+                await employeeService.create(
+                    {companyId: company.id},
+                    orgValidation.createEmployeeSchema.parse({
+                        fullname: empName, phoneNumber: empPhone, branchId: branch.id, shopId: shop.id, jobTitle: 'Sales Associate',
+                        department: 'Store', joiningDate: '2026-06-01', permissions: ['dashboard.view', 'billing.view', 'pos.bill'], password: PASSWORD,
+                    }),
+                    owner.id,
+                );
+                addLogin('Employee', empName, empPhone, `${c.name} · ${shopName} (Sales Associate)`);
+            }
+        }
+        if (suspended) await prisma.company.update({where: {id: company.id}, data: {status: 'SUSPENDED'}});
+        log(`Company ${c.name} · owner ${ownerPhone}${i < 6 ? ', with a branch' : ''}${i < 4 ? ', a shop and an employee' : ''}${suspended ? ' (suspended)' : ''}`);
+    }
+};
+
+/** Print the logins and keep a copy in backend/DEMO_LOGINS.md */
+const writeLogins = () => {
+    if (!LOGINS.length) return;
+    console.log('\nDemo logins (password for all: ' + PASSWORD + ')');
+    console.table(LOGINS.map((l) => ({Role: l.role, Name: l.name, Login: l.login, Where: l.where})));
+    const rows = LOGINS.map((l) => `| ${l.role} | ${l.name} | ${l.login} | ${l.where} |`).join('\n');
+    const md = [
+        '# Demo logins',
+        '',
+        `Created by \`npm run seed:demo\`. Every login uses the password **${PASSWORD}**.`,
+        'Staff sign in on the panel, customers on the store; both accept the phone number (customers also their email).',
+        '',
+        '| Role | Name | Login (phone) | Where |',
+        '|---|---|---|---|',
+        rows,
+        '',
+    ].join('\n');
+    fs.writeFileSync(path.join(__dirname, '../../DEMO_LOGINS.md'), md);
+    console.log('Saved to backend/DEMO_LOGINS.md');
 };
 
 const main = async () => {
@@ -617,6 +924,7 @@ const main = async () => {
     else {
         if (replace) await archive();
         await seed();
+        writeLogins();
     }
     console.log(`Done. All demo logins use the password ${PASSWORD}`);
 };

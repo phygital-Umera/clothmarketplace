@@ -21,7 +21,7 @@ const PageHeader = ({
 }: PageHeaderProps) => (
   <header
     className={`flex flex-col border-b border-ivory-300 md:flex-row md:items-end md:justify-between ${
-      compact ? 'mb-4 gap-2 pb-3' : 'mb-6 gap-4 pb-5'
+      compact ? 'mb-3 gap-2 pb-2' : 'mb-4 gap-3 pb-3'
     }`}
   >
     <div className="min-w-0">
@@ -47,7 +47,7 @@ const PageHeader = ({
         className={`font-serif text-burgundy ${
           compact
             ? 'mt-1 text-headline-sm'
-            : 'mt-2 text-headline-lg-mobile md:text-headline-md'
+            : 'mt-1 text-headline-lg-mobile md:text-headline-md'
         }`}
       >
         {title}
@@ -56,7 +56,7 @@ const PageHeader = ({
         <p className="mt-1 text-body-md text-on-surface-variant">{subtitle}</p>
       )}
     </div>
-    {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+    {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
   </header>
 );
 

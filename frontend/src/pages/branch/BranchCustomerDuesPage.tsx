@@ -131,7 +131,7 @@ export default function BranchCustomerDuesPage() {
           <p className="text-label-caps uppercase tracking-wider text-outline">
             Sales / Customers & Dues
           </p>
-          <h1 className="font-serif text-headline-md font-normal text-burgundy-deep">
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Customers & dues
           </h1>
           <p className="mt-1 text-body-sm text-on-surface-variant">
@@ -342,7 +342,7 @@ export default function BranchCustomerDuesPage() {
 
       {reminders && (
         <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/30 p-4 sm:items-center"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-scrim backdrop-blur-[8px] p-4 sm:items-center"
           onClick={() => setReminders(null)}
         >
           <div

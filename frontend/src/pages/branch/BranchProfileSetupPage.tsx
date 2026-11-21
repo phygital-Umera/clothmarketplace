@@ -12,10 +12,10 @@ import {
 import toast from 'react-hot-toast';
 
 const serif = {fontFamily: "'Playfair Display', Georgia, serif"};
-const card = 'space-y-4 rounded-lg border border-[#efe9e3] bg-white p-5 shadow-sm';
-const label = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#736862]';
+const card = 'space-y-4 rounded-lg border border-ivory-300 bg-white p-5 shadow-sm';
+const label = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-on-surface-variant';
 const input =
-  'w-full rounded border border-[#ded5ce] bg-white px-3 py-2 text-sm text-[#2a2220] focus:outline-none focus:ring-1 focus:ring-[#832729] disabled:bg-[#faf7f4] disabled:text-[#736862]';
+  'w-full rounded border border-ivory-300 bg-white px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-1 focus:ring-burgundy disabled:bg-ivory-50 disabled:text-on-surface-variant';
 
 const EMPTY_CONTACT: BranchProfileContact = {
   email: '',
@@ -80,16 +80,16 @@ export default function BranchProfileSetupPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 text-[#2b2b2b]">
+    <div className="space-y-4 text-espresso">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#8b6f66]">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Setup / Branch profile
           </div>
-          <h1 className="font-serif text-3xl tracking-tight text-[#2a2220]" style={serif}>
+          <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
             Branch profile
           </h1>
-          <p className="mt-1 text-sm text-[#736862]">
+          <p className="mt-1 text-sm text-on-surface-variant">
             Name, code and status are set by your Company Admin. You can update contact details
             and hours.
           </p>
@@ -97,7 +97,7 @@ export default function BranchProfileSetupPage() {
         <button
           onClick={save}
           disabled={isLoading || update.isPending}
-          className="self-start rounded bg-[#7a2222] px-5 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
+          className="self-start rounded bg-burgundy px-5 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#681c1c] disabled:opacity-50"
         >
           {update.isPending ? 'Saving…' : 'Save changes'}
         </button>
@@ -106,7 +106,7 @@ export default function BranchProfileSetupPage() {
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-8">
           <div className={card}>
-            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+            <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
               Branch identity
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -126,7 +126,7 @@ export default function BranchProfileSetupPage() {
           </div>
 
           <div className={card}>
-            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+            <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
               Contact & address
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -149,7 +149,7 @@ export default function BranchProfileSetupPage() {
           </div>
 
           <div className={card}>
-            <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+            <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
               Opening hours
             </h3>
             <div className="grid grid-cols-2 gap-4 sm:max-w-sm">
@@ -185,8 +185,8 @@ export default function BranchProfileSetupPage() {
                       aria-pressed={open}
                       className={`rounded border px-3 py-1.5 text-xs font-semibold transition ${
                         open
-                          ? 'border-[#7a2222] bg-[#7a2222] text-white'
-                          : 'border-[#ded5ce] text-[#736862] line-through'
+                          ? 'border-burgundy bg-burgundy text-white'
+                          : 'border-ivory-300 text-on-surface-variant line-through'
                       }`}
                     >
                       {dayLabel(d)}
@@ -194,13 +194,13 @@ export default function BranchProfileSetupPage() {
                   );
                 })}
               </div>
-              <p className="mt-2 text-xs text-[#736862]">Tap a day to mark it as the weekly off.</p>
+              <p className="mt-2 text-xs text-on-surface-variant">Tap a day to mark it as the weekly off.</p>
             </div>
           </div>
         </div>
 
         <div className={`${card} lg:col-span-4`}>
-          <h3 className="font-serif text-base font-semibold text-[#2a2220]" style={serif}>
+          <h3 className="font-serif text-base font-semibold text-espresso" style={serif}>
             At a glance
           </h3>
           <dl className="divide-y divide-[#f7f2ed] text-sm">
@@ -220,8 +220,8 @@ export default function BranchProfileSetupPage() {
               ['Status', data?.glance.status],
             ].map(([k, v]) => (
               <div key={k as string} className="flex justify-between py-2.5">
-                <dt className="text-[#736862]">{k}</dt>
-                <dd className="font-medium text-[#2a2220]">{v ?? '—'}</dd>
+                <dt className="text-on-surface-variant">{k}</dt>
+                <dd className="font-medium text-espresso">{v ?? '—'}</dd>
               </div>
             ))}
           </dl>

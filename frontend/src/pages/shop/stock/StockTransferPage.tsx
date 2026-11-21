@@ -10,7 +10,12 @@ import {
   useTransferShops,
   useTransferVariants,
 } from '@/lib/react-query/queriesAndMutations/stockTransfer';
-import {StockTransfer, TRANSFER_REASONS, TransferStatus, TransferVariant} from '@/types/stockTransfer';
+import {
+  StockTransfer,
+  TRANSFER_REASONS,
+  TransferStatus,
+  TransferVariant,
+} from '@/types/stockTransfer';
 import {getErrorMessage} from '@/utils/axios';
 import {Search, X} from 'lucide-react';
 import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
@@ -24,7 +29,12 @@ const todayKey = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const dateOf = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'}) : '—';
+  iso
+    ? new Date(iso).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+      })
+    : '—';
 
 const STATUS_PILL: Record<TransferStatus, {label: string; cls: string}> = {
   REQUESTED: {label: 'Awaiting approval', cls: 'bg-[#F6E6C8] text-[#8A5A12]'},
@@ -47,13 +57,18 @@ function StatusPill({status}: {status: TransferStatus}) {
   );
 }
 
-const qtyOf = (i: StockTransfer['items'][number]) => i.approvedQty ?? i.requestedQty;
+const qtyOf = (i: StockTransfer['items'][number]) =>
+  i.approvedQty ?? i.requestedQty;
 
 /** A small printable pick list for the shop floor */
 const printPickList = (t: StockTransfer) => {
   const w = window.open('', '_blank', 'width=720,height=640');
   if (!w) return;
-  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]!);
+  const esc = (s: string) =>
+    s.replace(
+      /[&<>"]/g,
+      (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]!,
+    );
   const rows = t.items
     .filter((i) => qtyOf(i) > 0)
     .map(
@@ -61,7 +76,8 @@ const printPickList = (t: StockTransfer) => {
         `<tr><td>${esc(i.productName)}</td><td>${esc(i.size)} / ${esc(i.color)}</td><td>${esc(i.variantSku)}</td><td style="text-align:right">${qtyOf(i)}</td><td>&#9744;</td></tr>`,
     )
     .join('');
-  w.document.write(`<!doctype html><html><head><title>Pick list ${esc(t.transferNumber)}</title>
+  w.document
+    .write(`<!doctype html><html><head><title>Pick list ${esc(t.transferNumber)}</title>
     <style>body{font-family:system-ui,sans-serif;padding:24px;color:#1F1B1D}h1{font-size:18px;margin:0 0 4px}
     p{margin:0 0 16px;color:#555;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}
     th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}th{font-size:11px;text-transform:uppercase;color:#666}</style>
@@ -101,7 +117,8 @@ function NewRequest({panel}: {panel: string}) {
   useEffect(() => {
     if (!searchOpen) return;
     const close = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node))
+        setSearchOpen(false);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
@@ -111,11 +128,18 @@ function NewRequest({panel}: {panel: string}) {
   const found = useTransferVariants(panel, debounced, debounced.length >= 2);
 
   const addLine = (v: TransferVariant) => {
-    setLines((cur) => (cur.some((l) => l.variantId === v.variantId) ? cur : [...cur, {...v, qty: String(v.suggestedQty)}]));
+    setLines((cur) =>
+      cur.some((l) => l.variantId === v.variantId)
+        ? cur
+        : [...cur, {...v, qty: String(v.suggestedQty)}],
+    );
     setErrors((e) => ({...e, items: ''}));
   };
   const addAllLow = () => (lowStock.data ?? []).forEach(addLine);
-  const foreignShop = useMemo(() => lines.find((l) => !l.own)?.ownerShopId ?? null, [lines]);
+  const foreignShop = useMemo(
+    () => lines.find((l) => !l.own)?.ownerShopId ?? null,
+    [lines],
+  );
 
   // Items the shop does not carry come from the shop that has them
   useEffect(() => {
@@ -135,10 +159,15 @@ function NewRequest({panel}: {panel: string}) {
   const submit = () => {
     const errs: Record<string, string> = {};
     if (!lines.length) errs.items = 'Add at least one item';
-    if (lines.some((l) => !(Number(l.qty) >= 1) || !Number.isInteger(Number(l.qty))))
+    if (
+      lines.some(
+        (l) => !(Number(l.qty) >= 1) || !Number.isInteger(Number(l.qty)),
+      )
+    )
       errs.items = 'Every quantity must be a whole number of 1 or more';
     if (!reason) errs.reason = 'Select a reason';
-    if (neededBy && neededBy < todayKey()) errs.neededBy = 'Needed-by date cannot be in the past';
+    if (neededBy && neededBy < todayKey())
+      errs.neededBy = 'Needed-by date cannot be in the past';
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setFormError('');
@@ -153,8 +182,13 @@ function NewRequest({panel}: {panel: string}) {
       {
         onSuccess: reset,
         onError: (err: any) => {
-          const list = err?.response?.data?.errors as Array<{field: string; message: string}> | undefined;
-          if (list?.length) setErrors(Object.fromEntries(list.map((e) => [e.field, e.message])));
+          const list = err?.response?.data?.errors as
+            | Array<{field: string; message: string}>
+            | undefined;
+          if (list?.length)
+            setErrors(
+              Object.fromEntries(list.map((e) => [e.field, e.message])),
+            );
           setFormError(getErrorMessage(err, 'Could not send the request'));
         },
       },
@@ -166,7 +200,10 @@ function NewRequest({panel}: {panel: string}) {
   return (
     <section className="panel min-w-0" aria-labelledby="new-request">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ivory-300 px-4 py-3">
-        <h2 id="new-request" className="font-serif text-headline-sm text-burgundy">
+        <h2
+          id="new-request"
+          className="font-serif text-headline-sm text-burgundy"
+        >
           New request
         </h2>
         <span className="text-[11px] text-outline">
@@ -178,7 +215,12 @@ function NewRequest({panel}: {panel: string}) {
       </div>
 
       <div className="grid gap-3 px-4 pt-4 sm:grid-cols-2">
-        <Field label="Request from" htmlFor="tr-from" required error={errors.fromShopId}>
+        <Field
+          label="Request from"
+          htmlFor="tr-from"
+          required
+          error={errors.fromShopId}
+        >
           <select
             id="tr-from"
             className="field-input"
@@ -188,7 +230,9 @@ function NewRequest({panel}: {panel: string}) {
           >
             <option value="">
               {`Any shop in ${me?.branch?.name ?? 'the branch'} (${
-                me?.role === 'ADMIN' ? 'you pick when approving' : 'branch admin picks'
+                me?.role === 'ADMIN'
+                  ? 'you pick when approving'
+                  : 'branch admin picks'
               })`}
             </option>
             {shops?.map((s) => (
@@ -214,12 +258,24 @@ function NewRequest({panel}: {panel: string}) {
         <table className="w-full min-w-[620px] border-collapse text-left">
           <thead>
             <tr className="border-b border-ivory-300 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-              <th scope="col" className="px-4 py-3">Variant</th>
-              <th scope="col" className={`${cell} text-center`}>I have</th>
-              <th scope="col" className={`${cell} text-center`}>Sold 30 d</th>
-              <th scope="col" className={cell}>Available elsewhere</th>
-              <th scope="col" className={`${cell} text-right`}>Request qty</th>
-              <th scope="col" className="w-8 py-3"><span className="sr-only">Remove</span></th>
+              <th scope="col" className="px-4 py-3">
+                Variant
+              </th>
+              <th scope="col" className={`${cell} text-center`}>
+                I have
+              </th>
+              <th scope="col" className={`${cell} text-center`}>
+                Sold 30 d
+              </th>
+              <th scope="col" className={cell}>
+                Available elsewhere
+              </th>
+              <th scope="col" className={`${cell} text-right`}>
+                Request qty
+              </th>
+              <th scope="col" className="w-8 py-3">
+                <span className="sr-only">Remove</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ivory-200 text-body-sm text-espresso">
@@ -237,14 +293,25 @@ function NewRequest({panel}: {panel: string}) {
                   <p className="text-[11px] text-outline">
                     {l.size} · {l.color} · {l.variantSku}
                   </p>
-                  {!l.own && <p className="text-[11px] text-burgundy">New to your shop</p>}
+                  {!l.own && (
+                    <p className="text-[11px] text-burgundy">
+                      New to your shop
+                    </p>
+                  )}
                 </td>
-                <td className={`${cell} text-center ${l.have <= l.threshold ? 'font-semibold text-error' : ''}`}>{l.have}</td>
+                <td
+                  className={`${cell} text-center ${l.have <= l.threshold ? 'font-semibold text-error' : ''}`}
+                >
+                  {l.have}
+                </td>
                 <td className={`${cell} text-center`}>{l.sold30}</td>
                 <td className={cell}>
                   {l.elsewhere ? (
                     <span>
-                      {l.elsewhere.qty} · <span className="text-burgundy">{l.elsewhere.shopName}</span>
+                      {l.elsewhere.qty} ·{' '}
+                      <span className="text-burgundy">
+                        {l.elsewhere.shopName}
+                      </span>
                     </span>
                   ) : (
                     <span className="text-outline">None in branch</span>
@@ -258,7 +325,11 @@ function NewRequest({panel}: {panel: string}) {
                     value={l.qty}
                     onChange={(e) =>
                       setLines((cur) =>
-                        cur.map((x) => (x.variantId === l.variantId ? {...x, qty: e.target.value.replace(/\D/g, '')} : x)),
+                        cur.map((x) =>
+                          x.variantId === l.variantId
+                            ? {...x, qty: e.target.value.replace(/\D/g, '')}
+                            : x,
+                        ),
                       )
                     }
                   />
@@ -268,7 +339,11 @@ function NewRequest({panel}: {panel: string}) {
                     type="button"
                     className="btn-icon h-7 w-7"
                     aria-label={`Remove ${l.productName}`}
-                    onClick={() => setLines((cur) => cur.filter((x) => x.variantId !== l.variantId))}
+                    onClick={() =>
+                      setLines((cur) =>
+                        cur.filter((x) => x.variantId !== l.variantId),
+                      )
+                    }
                   >
                     <X size={14} />
                   </button>
@@ -285,12 +360,18 @@ function NewRequest({panel}: {panel: string}) {
           className="btn-ghost px-3 py-2"
           disabled={lowStock.isLoading || !lowStock.data?.length}
           onClick={addAllLow}
-          title={!lowStock.data?.length ? 'No low-stock items right now' : undefined}
+          title={
+            !lowStock.data?.length ? 'No low-stock items right now' : undefined
+          }
         >
-          + Add all low-stock items{lowStock.data?.length ? ` (${lowStock.data.length})` : ''}
+          + Add all low-stock items
+          {lowStock.data?.length ? ` (${lowStock.data.length})` : ''}
         </button>
         <div ref={searchRef} className="relative min-w-[220px] flex-1">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+          />
           <input
             aria-label="Search an item to add"
             placeholder="Search item or SKU to add…"
@@ -304,8 +385,16 @@ function NewRequest({panel}: {panel: string}) {
           />
           {searchOpen && debounced.length >= 2 && (
             <ul className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto border border-ivory-300 bg-white shadow-lg">
-              {found.isLoading && <li className="px-3 py-2 text-body-sm text-outline">Searching…</li>}
-              {found.data?.length === 0 && <li className="px-3 py-2 text-body-sm text-outline">No items found</li>}
+              {found.isLoading && (
+                <li className="px-3 py-2 text-body-sm text-outline">
+                  Searching…
+                </li>
+              )}
+              {found.data?.length === 0 && (
+                <li className="px-3 py-2 text-body-sm text-outline">
+                  No items found
+                </li>
+              )}
               {found.data?.map((v) => (
                 <li key={v.variantId}>
                   <button
@@ -317,10 +406,15 @@ function NewRequest({panel}: {panel: string}) {
                       setSearchOpen(false);
                     }}
                   >
-                    <span className="font-medium text-espresso">{v.productName}</span>{' '}
+                    <span className="font-medium text-espresso">
+                      {v.productName}
+                    </span>{' '}
                     <span className="text-outline">
-                      {v.size} · {v.color} · {v.own ? `you have ${v.have}` : 'not in your shop'}
-                      {v.elsewhere ? ` · ${v.elsewhere.qty} at ${v.elsewhere.shopName}` : ''}
+                      {v.size} · {v.color} ·{' '}
+                      {v.own ? `you have ${v.have}` : 'not in your shop'}
+                      {v.elsewhere
+                        ? ` · ${v.elsewhere.qty} at ${v.elsewhere.shopName}`
+                        : ''}
                     </span>
                   </button>
                 </li>
@@ -336,7 +430,12 @@ function NewRequest({panel}: {panel: string}) {
       )}
 
       <div className="grid gap-3 border-t border-ivory-300 px-4 py-4 sm:grid-cols-2">
-        <Field label="Reason" htmlFor="tr-reason" required error={errors.reason}>
+        <Field
+          label="Reason"
+          htmlFor="tr-reason"
+          required
+          error={errors.reason}
+        >
           <select
             id="tr-reason"
             className="field-input"
@@ -367,10 +466,20 @@ function NewRequest({panel}: {panel: string}) {
         </p>
       )}
       <div className="flex justify-end gap-2 px-4 pb-4 pt-2">
-        <button type="button" className="btn-ghost" onClick={reset} disabled={create.isPending}>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={reset}
+          disabled={create.isPending}
+        >
           Clear
         </button>
-        <button type="button" className="btn-primary" onClick={submit} disabled={create.isPending}>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={submit}
+          disabled={create.isPending}
+        >
           {create.isPending ? 'Sending…' : 'Send request'}
         </button>
       </div>
@@ -404,7 +513,11 @@ function DispatchCard({panel, t}: {panel: string; t: StockTransfer}) {
           ))}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" className="btn-ghost px-3 py-2" onClick={() => printPickList(t)}>
+        <button
+          type="button"
+          className="btn-ghost px-3 py-2"
+          onClick={() => printPickList(t)}
+        >
           Print pick list
         </button>
         <button
@@ -420,22 +533,56 @@ function DispatchCard({panel, t}: {panel: string; t: StockTransfer}) {
   );
 }
 
-function ReceiveDialog({panel, t, onClose}: {panel: string; t: StockTransfer; onClose: () => void}) {
+function ReceiveDialog({
+  panel,
+  t,
+  onClose,
+}: {
+  panel: string;
+  t: StockTransfer;
+  onClose: () => void;
+}) {
   const receive = useReceiveTransfer(panel);
   const [counts, setCounts] = useState<Record<string, string>>(
-    Object.fromEntries(t.items.map((i) => [i.id, String(i.dispatchedQty ?? 0)])),
+    Object.fromEntries(
+      t.items.map((i) => [i.id, String(i.dispatchedQty ?? 0)]),
+    ),
   );
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const short = t.items.reduce((s, i) => s + Math.max(0, (i.dispatchedQty ?? 0) - (Number(counts[i.id]) || 0)), 0);
+  const short = t.items.reduce(
+    (s, i) =>
+      s + Math.max(0, (i.dispatchedQty ?? 0) - (Number(counts[i.id]) || 0)),
+    0,
+  );
 
   const submit = () => {
-    const bad = t.items.find((i) => counts[i.id] === '' || (Number(counts[i.id]) || 0) > (i.dispatchedQty ?? 0));
-    if (bad) return setError(`Check the count for ${bad.productName}: 0 to ${bad.dispatchedQty ?? 0}.`);
+    const bad = t.items.find(
+      (i) =>
+        counts[i.id] === '' ||
+        (Number(counts[i.id]) || 0) > (i.dispatchedQty ?? 0),
+    );
+    if (bad)
+      return setError(
+        `Check the count for ${bad.productName}: 0 to ${bad.dispatchedQty ?? 0}.`,
+      );
     setError('');
     receive.mutate(
-      {id: t.id, data: {items: t.items.map((i) => ({itemId: i.id, receivedQty: Number(counts[i.id]) || 0})), note: note.trim() || undefined}},
-      {onSuccess: onClose, onError: (err) => setError(getErrorMessage(err, 'Could not save the count'))},
+      {
+        id: t.id,
+        data: {
+          items: t.items.map((i) => ({
+            itemId: i.id,
+            receivedQty: Number(counts[i.id]) || 0,
+          })),
+          note: note.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: onClose,
+        onError: (err) =>
+          setError(getErrorMessage(err, 'Could not save the count')),
+      },
     );
   };
 
@@ -450,50 +597,78 @@ function ReceiveDialog({panel, t, onClose}: {panel: string; t: StockTransfer; on
       saveLabel="Add to stock"
     >
       <p className="text-body-sm text-on-surface-variant">
-        From {t.fromShop?.name ?? '—'}, dispatched {dateOf(t.dispatchedAt)}. Count what actually arrived.
+        From {t.fromShop?.name ?? '—'}, dispatched {dateOf(t.dispatchedAt)}.
+        Count what actually arrived.
       </p>
-      <table className="w-full text-body-sm">
-        <thead>
-          <tr className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-            <th scope="col" className="py-2 text-left">Item</th>
-            <th scope="col" className="py-2 text-right">Sent</th>
-            <th scope="col" className="py-2 text-right">Received</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ivory-200">
-          {t.items.map((i) => (
-            <tr key={i.id}>
-              <td className="py-2 pr-2">
-                {i.productName}
-                <span className="block text-[11px] text-outline">
-                  {i.size} · {i.color}
-                </span>
-              </td>
-              <td className="py-2 text-right">{i.dispatchedQty ?? 0}</td>
-              <td className="py-2 text-right">
-                <input
-                  aria-label={`Received quantity of ${i.productName}`}
-                  inputMode="numeric"
-                  className="w-16 border border-ivory-300 bg-ivory-100 px-2 py-1 text-right focus:border-burgundy focus:outline-none"
-                  value={counts[i.id]}
-                  onChange={(e) => setCounts((c) => ({...c, [i.id]: e.target.value.replace(/\D/g, '')}))}
-                />
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-body-sm">
+          <thead>
+            <tr className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+              <th scope="col" className="py-2 text-left">
+                Item
+              </th>
+              <th scope="col" className="py-2 text-right">
+                Sent
+              </th>
+              <th scope="col" className="py-2 text-right">
+                Received
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-ivory-200">
+            {t.items.map((i) => (
+              <tr key={i.id}>
+                <td className="py-2 pr-2">
+                  {i.productName}
+                  <span className="block text-[11px] text-outline">
+                    {i.size} · {i.color}
+                  </span>
+                </td>
+                <td className="py-2 text-right">{i.dispatchedQty ?? 0}</td>
+                <td className="py-2 text-right">
+                  <input
+                    aria-label={`Received quantity of ${i.productName}`}
+                    inputMode="numeric"
+                    className="w-16 border border-ivory-300 bg-ivory-100 px-2 py-1 text-right focus:border-burgundy focus:outline-none"
+                    value={counts[i.id]}
+                    onChange={(e) =>
+                      setCounts((c) => ({
+                        ...c,
+                        [i.id]: e.target.value.replace(/\D/g, ''),
+                      }))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {short > 0 && (
-        <p className="text-body-sm text-error">{short} unit(s) short. The Branch Admin will see the difference.</p>
+        <p className="text-body-sm text-error">
+          {short} unit(s) short. The Branch Admin will see the difference.
+        </p>
       )}
       <Field label="Note" htmlFor="rc-note">
-        <input id="rc-note" className="field-input" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input
+          id="rc-note"
+          className="field-input"
+          maxLength={300}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
       </Field>
     </FormDialog>
   );
 }
 
-function MyRequests({panel, onReceive}: {panel: string; onReceive: (t: StockTransfer) => void}) {
+function MyRequests({
+  panel,
+  onReceive,
+}: {
+  panel: string;
+  onReceive: (t: StockTransfer) => void;
+}) {
   const {data, isLoading} = useShopTransfers(panel, 'MINE');
   const items = data?.items.slice(0, 8) ?? [];
   const {data: me} = useCurrentUser();
@@ -502,28 +677,44 @@ function MyRequests({panel, onReceive}: {panel: string; onReceive: (t: StockTran
   const [reviewing, setReviewing] = useState<string | null>(null);
   const sub = (t: StockTransfer) => {
     const from = t.fromShop?.name ?? 'any shop';
-    if (t.status === 'DISPATCHED') return `${t.units} units from ${from} · on the way`;
-    if (t.status === 'REJECTED') return `${t.requestedUnits} units · ${t.rejectReason ?? 'rejected'}`;
-    if (t.status === 'SHORT') return `${t.units} of ${t.units + t.shortUnits} units from ${from}`;
+    if (t.status === 'DISPATCHED')
+      return `${t.units} units from ${from} · on the way`;
+    if (t.status === 'REJECTED')
+      return `${t.requestedUnits} units · ${t.rejectReason ?? 'rejected'}`;
+    if (t.status === 'SHORT')
+      return `${t.units} of ${t.units + t.shortUnits} units from ${from}`;
     return `${t.units} units from ${from}`;
   };
   return (
     <section className="panel" aria-labelledby="my-requests">
-      <h2 id="my-requests" className="border-b border-ivory-300 px-4 py-3 font-serif text-headline-sm text-burgundy">
+      <h2
+        id="my-requests"
+        className="border-b border-ivory-300 px-4 py-3 font-serif text-headline-sm text-burgundy"
+      >
         My requests
       </h2>
-      {isLoading && <p className="px-4 py-4 text-body-sm text-outline">Loading…</p>}
-      {!isLoading && !items.length && <p className="px-4 py-4 text-body-sm text-outline">No requests yet.</p>}
+      {isLoading && (
+        <p className="px-4 py-4 text-body-sm text-outline">Loading…</p>
+      )}
+      {!isLoading && !items.length && (
+        <p className="px-4 py-4 text-body-sm text-outline">No requests yet.</p>
+      )}
       <ul className="divide-y divide-ivory-200">
         {items.map((t) => (
           <li key={t.id} className="px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-body-sm font-medium text-espresso">{t.transferNumber}</p>
+                <p className="text-body-sm font-medium text-espresso">
+                  {t.transferNumber}
+                </p>
                 <p className="text-[11px] text-outline">{sub(t)}</p>
               </div>
               {t.status === 'DISPATCHED' ? (
-                <button type="button" className="btn-primary shrink-0 px-3 py-2" onClick={() => onReceive(t)}>
+                <button
+                  type="button"
+                  className="btn-primary shrink-0 px-3 py-2"
+                  onClick={() => onReceive(t)}
+                >
                   Receive &amp; count
                 </button>
               ) : owner && t.status === 'REQUESTED' ? (
@@ -555,16 +746,23 @@ function ToDispatchList({panel, compact}: {panel: string; compact?: boolean}) {
   const {data, isLoading} = useShopTransfers(panel, 'DISPATCH');
   const items = data?.items ?? [];
   return (
-    <section className="panel" aria-labelledby={compact ? 'to-dispatch-side' : 'to-dispatch'}>
+    <section
+      className="panel"
+      aria-labelledby={compact ? 'to-dispatch-side' : 'to-dispatch'}
+    >
       <h2
         id={compact ? 'to-dispatch-side' : 'to-dispatch'}
         className="border-b border-ivory-300 px-4 py-3 font-serif text-headline-sm text-burgundy"
       >
         To dispatch
       </h2>
-      {isLoading && <p className="px-4 py-4 text-body-sm text-outline">Loading…</p>}
+      {isLoading && (
+        <p className="px-4 py-4 text-body-sm text-outline">Loading…</p>
+      )}
       {!isLoading && !items.length && (
-        <p className="px-4 py-4 text-body-sm text-outline">Nothing to send. Approved requests from other shops show here.</p>
+        <p className="px-4 py-4 text-body-sm text-outline">
+          Nothing to send. Approved requests from other shops show here.
+        </p>
       )}
       {(compact ? items.slice(0, 2) : items).map((t) => (
         <DispatchCard key={t.id} panel={panel} t={t} />
@@ -580,7 +778,11 @@ function History({panel}: {panel: string}) {
     const t = setTimeout(() => setDebounced(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  const {data, isLoading} = useShopTransfers(panel, 'HISTORY', debounced || undefined);
+  const {data, isLoading} = useShopTransfers(
+    panel,
+    'HISTORY',
+    debounced || undefined,
+  );
   const myShop = data?.shopId;
   const [open, setOpen] = useState<string | null>(null);
   const {data: me} = useCurrentUser();
@@ -590,7 +792,10 @@ function History({panel}: {panel: string}) {
     <section className="panel">
       <div className="border-b border-ivory-300 px-4 py-3">
         <div className="relative max-w-sm">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+          />
           <input
             aria-label="Search transfers"
             placeholder="Search TRF number or item…"
@@ -604,23 +809,39 @@ function History({panel}: {panel: string}) {
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
             <tr className="border-b border-ivory-300 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-              <th scope="col" className="px-4 py-3">Transfer</th>
-              <th scope="col" className="px-3 py-3">Date</th>
-              <th scope="col" className="px-3 py-3">Direction</th>
-              <th scope="col" className="px-3 py-3">Reason</th>
-              <th scope="col" className="px-3 py-3 text-right">Units</th>
-              <th scope="col" className="px-4 py-3">Status</th>
+              <th scope="col" className="px-4 py-3">
+                Transfer
+              </th>
+              <th scope="col" className="px-3 py-3">
+                Date
+              </th>
+              <th scope="col" className="px-3 py-3">
+                Direction
+              </th>
+              <th scope="col" className="px-3 py-3">
+                Reason
+              </th>
+              <th scope="col" className="px-3 py-3 text-right">
+                Units
+              </th>
+              <th scope="col" className="px-4 py-3">
+                Status
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ivory-200 text-body-sm text-espresso">
             {isLoading && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-outline">Loading…</td>
+                <td colSpan={6} className="px-4 py-10 text-center text-outline">
+                  Loading…
+                </td>
               </tr>
             )}
             {data && !data.items.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-outline">No transfers found.</td>
+                <td colSpan={6} className="px-4 py-10 text-center text-outline">
+                  No transfers found.
+                </td>
               </tr>
             )}
             {data?.items.map((t) => {
@@ -632,10 +853,14 @@ function History({panel}: {panel: string}) {
                     onClick={() => setOpen(open === t.id ? null : t.id)}
                     aria-expanded={open === t.id}
                   >
-                    <td className="px-4 py-3 font-medium">{t.transferNumber}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {t.transferNumber}
+                    </td>
                     <td className="px-3 py-3">{dateOf(t.createdAt)}</td>
                     <td className="px-3 py-3">
-                      {incoming ? `In from ${t.fromShop?.name ?? 'any shop'}` : `Out to ${t.toShop.name}`}
+                      {incoming
+                        ? `In from ${t.fromShop?.name ?? 'any shop'}`
+                        : `Out to ${t.toShop.name}`}
                     </td>
                     <td className="px-3 py-3">{t.reason}</td>
                     <td className="px-3 py-3 text-right">{t.units}</td>
@@ -655,15 +880,24 @@ function History({panel}: {panel: string}) {
                           <>
                             <ul className="space-y-1 text-body-sm">
                               {t.items.map((i) => (
-                                <li key={i.id} className="flex flex-wrap justify-between gap-2">
+                                <li
+                                  key={i.id}
+                                  className="flex flex-wrap justify-between gap-2"
+                                >
                                   <span>
                                     {i.productName} · {i.size} / {i.color}
                                   </span>
                                   <span className="text-outline">
                                     asked {i.requestedQty}
-                                    {i.approvedQty !== null ? ` · approved ${i.approvedQty}` : ''}
-                                    {i.dispatchedQty !== null ? ` · sent ${i.dispatchedQty}` : ''}
-                                    {i.receivedQty !== null ? ` · received ${i.receivedQty}` : ''}
+                                    {i.approvedQty !== null
+                                      ? ` · approved ${i.approvedQty}`
+                                      : ''}
+                                    {i.dispatchedQty !== null
+                                      ? ` · sent ${i.dispatchedQty}`
+                                      : ''}
+                                    {i.receivedQty !== null
+                                      ? ` · received ${i.receivedQty}`
+                                      : ''}
                                   </span>
                                 </li>
                               ))}
@@ -671,8 +905,12 @@ function History({panel}: {panel: string}) {
                             {(t.rejectReason || t.receiveNote || t.note) && (
                               <p className="mt-2 text-[11px] text-outline">
                                 {t.note ? `Note: ${t.note}. ` : ''}
-                                {t.rejectReason ? `Rejected: ${t.rejectReason}. ` : ''}
-                                {t.receiveNote ? `Receiving note: ${t.receiveNote}.` : ''}
+                                {t.rejectReason
+                                  ? `Rejected: ${t.rejectReason}. `
+                                  : ''}
+                                {t.receiveNote
+                                  ? `Receiving note: ${t.receiveNote}.`
+                                  : ''}
                               </p>
                             )}
                           </>
@@ -712,7 +950,11 @@ export default function StockTransferPage({panel = 'shop-admin'}: Props) {
         subtitle="Request stock you need, or prepare and dispatch stock another shop asked for."
       />
 
-      <div role="tablist" aria-label="Stock transfer" className="mb-5 flex gap-1 overflow-x-auto border-b border-ivory-300">
+      <div
+        role="tablist"
+        aria-label="Stock transfer"
+        className="mb-5 flex gap-1 overflow-x-auto border-b border-ivory-300"
+      >
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -721,12 +963,16 @@ export default function StockTransferPage({panel = 'shop-admin'}: Props) {
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-label-caps uppercase ${
-              tab === t.key ? 'border-burgundy text-burgundy' : 'border-transparent text-on-surface-variant hover:text-burgundy'
+              tab === t.key
+                ? 'border-burgundy text-burgundy'
+                : 'border-transparent text-on-surface-variant hover:text-burgundy'
             }`}
           >
             {t.label}
             {!!t.count && (
-              <span className="min-w-[18px] rounded-sm bg-ivory-200 px-1.5 text-[10px] font-bold text-espresso">{t.count}</span>
+              <span className="min-w-[18px] rounded-sm bg-ivory-200 px-1.5 text-[10px] font-bold text-espresso">
+                {t.count}
+              </span>
             )}
           </button>
         ))}
@@ -748,7 +994,13 @@ export default function StockTransferPage({panel = 'shop-admin'}: Props) {
       )}
       {tab === 'HISTORY' && <History panel={panel} />}
 
-      {receiving && <ReceiveDialog panel={panel} t={receiving} onClose={() => setReceiving(null)} />}
+      {receiving && (
+        <ReceiveDialog
+          panel={panel}
+          t={receiving}
+          onClose={() => setReceiving(null)}
+        />
+      )}
     </div>
   );
 }

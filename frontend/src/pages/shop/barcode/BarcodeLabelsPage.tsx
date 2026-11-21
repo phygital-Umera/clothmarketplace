@@ -404,7 +404,7 @@ export default function BarcodeLabelsPage({
         <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
           Stock / Barcode Labels
         </p>
-        <h1 className="mt-1 font-serif text-3xl font-normal tracking-tight text-[#4A1521]">
+        <h1 className="font-serif text-headline-lg-mobile font-normal text-burgundy md:text-headline-md">
           Barcode labels
         </h1>
         <p className="mt-0.5 text-xs text-stone-500">
@@ -423,7 +423,7 @@ export default function BarcodeLabelsPage({
               onClick={() => setActiveTab('FROM_PURCHASE_BILL')}
               className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all relative ${
                 activeTab === 'FROM_PURCHASE_BILL'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232]'
+                  ? 'text-burgundy border-b-2 border-burgundy'
                   : 'text-stone-400 hover:text-stone-700'
               }`}
             >
@@ -435,7 +435,7 @@ export default function BarcodeLabelsPage({
               onClick={() => setActiveTab('PICK_PRODUCTS')}
               className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all relative ${
                 activeTab === 'PICK_PRODUCTS'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232]'
+                  ? 'text-burgundy border-b-2 border-burgundy'
                   : 'text-stone-400 hover:text-stone-700'
               }`}
             >
@@ -447,7 +447,7 @@ export default function BarcodeLabelsPage({
               onClick={() => setActiveTab('REPRINT')}
               className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all relative ${
                 activeTab === 'REPRINT'
-                  ? 'text-[#7A2232] border-b-2 border-[#7A2232]'
+                  ? 'text-burgundy border-b-2 border-burgundy'
                   : 'text-stone-400 hover:text-stone-700'
               }`}
             >
@@ -462,7 +462,7 @@ export default function BarcodeLabelsPage({
                 <select
                   value={selectedBillId}
                   onChange={(e) => setSelectedBillId(e.target.value)}
-                  className="w-full appearance-none rounded border border-stone-200 bg-white py-2 pl-3.5 pr-9 text-xs font-medium text-stone-800 shadow-xs focus:border-[#7A2232] focus:outline-none focus:ring-1 focus:ring-[#7A2232]"
+                  className="w-full appearance-none rounded border border-stone-200 bg-white py-2 pl-3.5 pr-9 text-xs font-medium text-stone-800 shadow-xs focus:border-burgundy focus:outline-none focus:ring-1 focus:ring-burgundy"
                 >
                   {isBillsLoading ? (
                     <option value="">Loading bills...</option>
@@ -495,7 +495,7 @@ export default function BarcodeLabelsPage({
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     placeholder="Search product name, SKU or barcode to add..."
-                    className="w-full rounded border border-stone-200 bg-white py-2 pl-9 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-[#7A2232] focus:outline-none focus:ring-1 focus:ring-[#7A2232]"
+                    className="w-full rounded border border-stone-200 bg-white py-2 pl-9 pr-3 text-xs text-stone-800 placeholder-stone-400 focus:border-burgundy focus:outline-none focus:ring-1 focus:ring-burgundy"
                   />
                 </div>
 
@@ -517,7 +517,7 @@ export default function BarcodeLabelsPage({
                         <button
                           type="button"
                           onClick={() => handleAddProductRow(p)}
-                          className="flex items-center gap-1 rounded bg-[#7A2232] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#5E1724]"
+                          className="flex items-center gap-1 rounded bg-burgundy px-2.5 py-1 text-[11px] font-bold text-white hover:bg-burgundy-deep"
                         >
                           <Plus size={12} />
                           <span>Add</span>
@@ -552,7 +552,7 @@ export default function BarcodeLabelsPage({
                       <button
                         type="button"
                         onClick={() => handleLoadReprintBatch(b)}
-                        className="rounded border border-[#7A2232] px-3 py-1 text-xs font-bold text-[#7A2232] hover:bg-[#FDF2F4]"
+                        className="rounded border border-burgundy px-3 py-1 text-xs font-bold text-burgundy hover:bg-[#FDF2F4]"
                       >
                         Load Batch
                       </button>
@@ -573,7 +573,7 @@ export default function BarcodeLabelsPage({
                       type="checkbox"
                       checked={allSelected}
                       onChange={handleToggleAll}
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                   </th>
                   <th className="py-2.5 px-3">ITEM</th>
@@ -610,7 +610,7 @@ export default function BarcodeLabelsPage({
                           type="checkbox"
                           checked={row.selected}
                           onChange={() => handleToggleRow(row.id)}
-                          className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                          className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                         />
                       </td>
                       <td className="py-3 px-3 font-medium text-stone-900">
@@ -636,7 +636,7 @@ export default function BarcodeLabelsPage({
                           onChange={(e) =>
                             handleUpdateLabels(row.id, parseInt(e.target.value, 10) || 1)
                           }
-                          className="w-16 rounded border border-stone-200 bg-stone-50/70 px-2 py-1 text-center font-mono text-xs font-semibold text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                          className="w-16 rounded border border-stone-200 bg-stone-50/70 px-2 py-1 text-center font-mono text-xs font-semibold text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                         />
                       </td>
                     </tr>
@@ -649,7 +649,7 @@ export default function BarcodeLabelsPage({
           {/* Table Footer: Total Labels */}
           <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between text-xs font-bold text-stone-800">
             <span>Total labels</span>
-            <span className="font-mono text-sm font-bold text-[#7A2232]">
+            <span className="font-mono text-sm font-bold text-burgundy">
               {totalLabels}
             </span>
           </div>
@@ -659,7 +659,7 @@ export default function BarcodeLabelsPage({
         <div className="lg:col-span-4 space-y-6">
           {/* Label Setup Card */}
           <div className="rounded-lg border border-stone-200/90 bg-white p-5 shadow-sm">
-            <h3 className="font-serif text-base font-bold text-[#4A1521]">Label setup</h3>
+            <h3 className="font-serif text-base font-bold text-burgundy-deep">Label setup</h3>
 
             <div className="mt-4 space-y-4">
               {/* Label Size */}
@@ -673,7 +673,7 @@ export default function BarcodeLabelsPage({
                     onChange={(e) =>
                       setLabelSetup({...labelSetup, labelSize: e.target.value})
                     }
-                    className="w-full appearance-none rounded border border-stone-200 bg-stone-50/60 py-2 pl-3 pr-8 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full appearance-none rounded border border-stone-200 bg-stone-50/60 py-2 pl-3 pr-8 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
                     <option value="50 × 30 mm · 1 across (thermal roll)">
                       50 × 30 mm · 1 across (thermal roll)
@@ -705,7 +705,7 @@ export default function BarcodeLabelsPage({
                     onChange={(e) =>
                       setLabelSetup({...labelSetup, printer: e.target.value})
                     }
-                    className="w-full appearance-none rounded border border-stone-200 bg-stone-50/60 py-2 pl-3 pr-8 text-xs font-medium text-stone-800 focus:border-[#7A2232] focus:bg-white focus:outline-none"
+                    className="w-full appearance-none rounded border border-stone-200 bg-stone-50/60 py-2 pl-3 pr-8 text-xs font-medium text-stone-800 focus:border-burgundy focus:bg-white focus:outline-none"
                   >
                     <option value="TSC TE244 (USB)">TSC TE244 (USB)</option>
                     <option value="Zebra ZD220 (USB)">Zebra ZD220 (USB)</option>
@@ -734,7 +734,7 @@ export default function BarcodeLabelsPage({
                       onChange={(e) =>
                         setLabelSetup({...labelSetup, showShopName: e.target.checked})
                       }
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                     <span>Shop name</span>
                   </label>
@@ -749,7 +749,7 @@ export default function BarcodeLabelsPage({
                           showItemNameSize: e.target.checked,
                         })
                       }
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                     <span>Item name &amp; size</span>
                   </label>
@@ -761,7 +761,7 @@ export default function BarcodeLabelsPage({
                       onChange={(e) =>
                         setLabelSetup({...labelSetup, showMrp: e.target.checked})
                       }
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                     <span>MRP (incl. of all taxes)</span>
                   </label>
@@ -773,7 +773,7 @@ export default function BarcodeLabelsPage({
                       onChange={(e) =>
                         setLabelSetup({...labelSetup, showSalePrice: e.target.checked})
                       }
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                     <span>Sale price</span>
                   </label>
@@ -785,7 +785,7 @@ export default function BarcodeLabelsPage({
                       onChange={(e) =>
                         setLabelSetup({...labelSetup, showCostCode: e.target.checked})
                       }
-                      className="h-3.5 w-3.5 rounded border-stone-300 text-[#7A2232] focus:ring-[#7A2232] accent-[#7A2232]"
+                      className="h-3.5 w-3.5 rounded border-stone-300 text-burgundy focus:ring-burgundy accent-burgundy"
                     />
                     <span>Cost code (hidden letters)</span>
                   </label>
@@ -796,7 +796,7 @@ export default function BarcodeLabelsPage({
 
           {/* Preview Card */}
           <div className="rounded-lg border border-stone-200/90 bg-white p-5 shadow-sm">
-            <h3 className="font-serif text-base font-bold text-[#4A1521]">Preview</h3>
+            <h3 className="font-serif text-base font-bold text-burgundy-deep">Preview</h3>
 
             {/* Sticker Graphic Container */}
             <div className="mt-4 flex items-center justify-center rounded-lg bg-stone-100/70 p-4">
@@ -856,7 +856,7 @@ export default function BarcodeLabelsPage({
                 type="button"
                 disabled={!previewItem || recordPrintMutation.isPending}
                 onClick={() => handlePrintLabels(true)}
-                className="flex items-center justify-center gap-1.5 rounded border border-[#7A2232] py-2 text-xs font-bold uppercase tracking-wider text-[#7A2232] transition-colors hover:bg-[#FDF2F4] disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 rounded border border-burgundy py-2 text-xs font-bold uppercase tracking-wider text-burgundy transition-colors hover:bg-[#FDF2F4] disabled:opacity-50"
               >
                 TEST PRINT
               </button>
@@ -865,7 +865,7 @@ export default function BarcodeLabelsPage({
                 type="button"
                 disabled={totalLabels === 0 || recordPrintMutation.isPending}
                 onClick={() => handlePrintLabels(false)}
-                className="flex items-center justify-center gap-1.5 rounded bg-[#7A2232] py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#5E1724] disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 rounded bg-burgundy py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-burgundy-deep disabled:opacity-50"
               >
                 PRINT {totalLabels}
               </button>
